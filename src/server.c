@@ -1024,7 +1024,7 @@ int cs_server_start(struct cs_app *app) {
                               * uploading large files send data continuously and are unaffected.
                               */
                              "request_timeout_ms",
-                             "10000",
+                             "2000",
                              NULL};
 
     if (!app || g_context != NULL) {

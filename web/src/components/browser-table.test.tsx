@@ -1,0 +1,570 @@
+import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { afterEach, describe, expect, it, vi } from "vitest";
+
+import { BROWSER_MOVE_DRAG_TYPE } from "../lib/drag-types";
+import { BrowserTable } from "./browser-table";
+
+const mockApi = vi.hoisted(() => ({
+  buildDownloadUrl: vi.fn((scope: string, path: string, tag?: string) => `/api/download?scope=${scope}&path=${path}&tag=${tag ?? ""}`),
+}));
+
+vi.mock("../lib/api", () => mockApi);
+
+describe("BrowserTable", () => {
+  afterEach(() => {
+    cleanup();
+    vi.clearAllMocks();
+  });
+
+  it("renders files as a flat file-manager table with selection checkboxes and without secondary menus", () => {
+    render(
+      <BrowserTable
+        entries={[
+          {
+            name: "DC",
+            path: "Cheats/DC",
+            type: "directory",
+            size: 0,
+            modified: 1_700_000_000,
+            status: "",
+            thumbnailPath: "",
+          },
+          {
+            name: "readme.txt",
+            path: "Cheats/readme.txt",
+            type: "file",
+            size: 128,
+            modified: 1_700_000_100,
+            status: "",
+            thumbnailPath: "",
+          },
+        ]}
+        onNavigate={vi.fn()}
+        scope="files"
+      />,
+    );
+
+    expect(screen.getByText("Name")).toBeTruthy();
+    expect(screen.getByText("Size")).toBeTruthy();
+    expect(screen.getByText("Modified")).toBeTruthy();
+    expect(screen.queryByRole("button", { name: /Name/ })).toBeNull();
+    expect(screen.getByText("Action")).toBeTruthy();
+    expect(screen.queryByText("Type")).toBeNull();
+    expect(screen.queryByText("Select")).toBeNull();
+    expect(screen.getAllByRole("checkbox")).toHaveLength(3);
+    expect(screen.getByRole("checkbox", { name: "Select all visible items" })).toBeTruthy();
+    expect(screen.getByRole("checkbox", { name: "Select DC" })).toBeTruthy();
+    expect(screen.getByRole("checkbox", { name: "Select readme.txt" })).toBeTruthy();
+    expect(screen.queryByText("Cheats/DC")).toBeNull();
+    expect(screen.queryByText("Cheats/readme.txt")).toBeNull();
+    expect(screen.getByRole("button", { name: "Open DC" })).toBeTruthy();
+    expect(screen.getByRole("link", { name: "Download readme.txt" })).toBeTruthy();
+    expect(screen.queryByRole("button", { name: "Download readme.txt" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "More actions for readme.txt" })).toBeNull();
+  });
+
+  it("dispatches files selection changes through the row and header checkboxes", () => {
+    const onSelectAll = vi.fn();
+    const onSelectEntry = vi.fn();
+    const entry = {
+      name: "readme.txt",
+      path: "readme.txt",
+      type: "file" as const,
+      size: 12,
+      modified: 1_700_000_000,
+      status: "",
+      thumbnailPath: "",
+    };
+
+    render(
+      <BrowserTable
+        entries={[entry]}
+        onNavigate={vi.fn()}
+        onSelectAll={onSelectAll}
+        onSelectEntry={onSelectEntry}
+        scope="files"
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("checkbox", { name: "Select readme.txt" }));
+    fireEvent.click(screen.getByRole("checkbox", { name: "Select all visible items" }));
+
+    expect(onSelectEntry).toHaveBeenCalledWith(entry, true);
+    expect(onSelectAll).toHaveBeenCalledWith(true);
+  });
+
+  it("renders a parent .. row when onNavigateParent is provided and delegates on click", () => {
+    const onNavigateParent = vi.fn();
+
+    render(
+      <BrowserTable
+        entries={[
+          {
+            name: "DC",
+            path: "Cheats/DC",
+            type: "directory",
+            size: 0,
+            modified: 1_700_000_000,
+            status: "",
+            thumbnailPath: "",
+          },
+        ]}
+        onNavigate={vi.fn()}
+        onNavigateParent={onNavigateParent}
+        scope="files"
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Go to parent folder" }));
+
+    expect(onNavigateParent).toHaveBeenCalledTimes(1);
+  });
+
+  it("does not render a parent .. row at the files root", () => {
+    render(<BrowserTable entries={[]} onNavigate={vi.fn()} scope="files" />);
+
+    expect(screen.queryByRole("button", { name: "Go to parent folder" })).toBeNull();
+  });
+
+  it("shows a Delete action per files row that dispatches onDelete", () => {
+    const onDelete = vi.fn();
+    const entry = {
+      name: "Saves",
+      path: "Saves",
+      type: "directory" as const,
+      size: 0,
+      modified: 1_700_000_000,
+      status: "",
+      thumbnailPath: "",
+    };
+
+    render(<BrowserTable entries={[entry]} onDelete={onDelete} onNavigate={vi.fn()} scope="files" />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Delete Saves" }));
+
+    expect(onDelete).toHaveBeenCalledWith(entry);
+  });
+
+  it("surfaces an Edit action only for plaintext files when onEdit is provided", () => {
+    const onEdit = vi.fn();
+    const textEntry = {
+      name: "readme.txt",
+      path: "readme.txt",
+      type: "file" as const,
+      size: 12,
+      modified: 1_700_000_000,
+      status: "",
+      thumbnailPath: "",
+    };
+    const binaryEntry = {
+      name: "rom.gba",
+      path: "rom.gba",
+      type: "file" as const,
+      size: 1024,
+      modified: 1_700_000_100,
+      status: "",
+      thumbnailPath: "",
+    };
+    const folderEntry = {
+      name: "Saves",
+      path: "Saves",
+      type: "directory" as const,
+      size: 0,
+      modified: 1_700_000_200,
+      status: "",
+      thumbnailPath: "",
+    };
+
+    render(<BrowserTable entries={[textEntry, binaryEntry, folderEntry]} onEdit={onEdit} onNavigate={vi.fn()} scope="files" />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Edit readme.txt" }));
+
+    expect(onEdit).toHaveBeenCalledWith(textEntry);
+    expect(screen.queryByRole("button", { name: "Edit rom.gba" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Edit Saves" })).toBeNull();
+  });
+
+  it("surfaces a Rename action for files rows when onRename is provided", () => {
+    const onRename = vi.fn();
+    const fileEntry = {
+      name: "readme.txt",
+      path: "readme.txt",
+      type: "file" as const,
+      size: 12,
+      modified: 1_700_000_000,
+      status: "",
+      thumbnailPath: "",
+    };
+    const folderEntry = {
+      name: "Saves",
+      path: "Saves",
+      type: "directory" as const,
+      size: 0,
+      modified: 1_700_000_200,
+      status: "",
+      thumbnailPath: "",
+    };
+
+    render(<BrowserTable entries={[fileEntry, folderEntry]} onNavigate={vi.fn()} onRename={onRename} scope="files" />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Rename readme.txt" }));
+    fireEvent.click(screen.getByRole("button", { name: "Rename Saves" }));
+
+    expect(onRename).toHaveBeenNthCalledWith(1, fileEntry);
+    expect(onRename).toHaveBeenNthCalledWith(2, folderEntry);
+  });
+
+  it("keeps files row actions visible without hover-only opacity classes", () => {
+    render(
+      <BrowserTable
+        entries={[
+          {
+            name: "readme.txt",
+            path: "readme.txt",
+            type: "file",
+            size: 12,
+            modified: 1_700_000_000,
+            status: "",
+            thumbnailPath: "",
+          },
+        ]}
+        onDelete={vi.fn()}
+        onEdit={vi.fn()}
+        onNavigate={vi.fn()}
+        onRename={vi.fn()}
+        scope="files"
+      />,
+    );
+
+    const renameButton = screen.getByRole("button", { name: "Rename readme.txt" });
+    const actionHeader = screen.getByText("Action").closest("div");
+
+    expect(actionHeader?.className).toContain("grid-cols-[auto_minmax(0,1fr)]");
+    expect(actionHeader?.className).toContain("md:grid-cols-[auto_minmax(0,1fr)_100px_220px_260px]");
+    expect(renameButton.parentElement?.className).toContain("flex-wrap");
+    expect(renameButton.parentElement?.className).toContain("col-span-2");
+    expect(renameButton.parentElement?.className).toContain("md:col-span-1");
+    expect(renameButton.className).not.toContain("opacity-0");
+    expect(screen.getByRole("button", { name: "Edit readme.txt" }).className).not.toContain("opacity-0");
+    expect(screen.getByRole("button", { name: "Delete readme.txt" }).className).not.toContain("opacity-0");
+  });
+
+  it("moves the dragged file selection onto a folder row", () => {
+    const onMoveEntries = vi.fn();
+    const folderEntry = {
+      name: "Archives",
+      path: "Archives",
+      type: "directory" as const,
+      size: 0,
+      modified: 1_700_000_000,
+      status: "",
+      thumbnailPath: "",
+    };
+    const firstFile = {
+      name: "readme.txt",
+      path: "readme.txt",
+      type: "file" as const,
+      size: 12,
+      modified: 1_700_000_100,
+      status: "",
+      thumbnailPath: "",
+    };
+    const secondFile = {
+      name: "notes.txt",
+      path: "notes.txt",
+      type: "file" as const,
+      size: 18,
+      modified: 1_700_000_200,
+      status: "",
+      thumbnailPath: "",
+    };
+    const dataTransfer = {
+      dropEffect: "",
+      effectAllowed: "",
+      setData: vi.fn(),
+    };
+
+    render(
+      <BrowserTable
+        entries={[folderEntry, firstFile, secondFile]}
+        onMoveEntries={onMoveEntries}
+        onNavigate={vi.fn()}
+        selectedPaths={[firstFile.path, secondFile.path]}
+        scope="files"
+      />,
+    );
+
+    const draggedRow = screen.getByRole("link", { name: "Download readme.txt" }).closest("[draggable]") as HTMLElement;
+    const folderRow = screen.getByRole("button", { name: "Open Archives" }).closest("[draggable]") as HTMLElement;
+
+    fireEvent.dragStart(draggedRow, { dataTransfer });
+    fireEvent.dragOver(folderRow, { dataTransfer });
+    fireEvent.drop(folderRow, { dataTransfer });
+
+    expect(dataTransfer.setData).toHaveBeenCalledWith(BROWSER_MOVE_DRAG_TYPE, "1");
+    expect(onMoveEntries).toHaveBeenCalledWith([firstFile, secondFile], "Archives");
+  });
+
+  it("disables files row actions while busy", () => {
+    render(
+      <BrowserTable
+        busy
+        entries={[
+          {
+            name: "Saves",
+            path: "Saves",
+            type: "directory",
+            size: 0,
+            modified: 1_700_000_000,
+            status: "",
+            thumbnailPath: "",
+          },
+        ]}
+        onDelete={vi.fn()}
+        onNavigate={vi.fn()}
+        onNavigateParent={vi.fn()}
+        scope="files"
+      />,
+    );
+
+    expect(screen.getByRole("button", { name: "Open Saves" })).toHaveProperty("disabled", true);
+    expect(screen.getByRole("button", { name: "Delete Saves" })).toHaveProperty("disabled", true);
+    expect(screen.getByRole("button", { name: "Go to parent folder" })).toHaveProperty("disabled", true);
+  });
+
+  it("renders library rows as a flatter table with glyphs and row actions", () => {
+    render(
+      <BrowserTable
+        entries={[
+          {
+            name: "Pokemon Emerald.gba",
+            path: "Roms/Pokemon Emerald.gba",
+            type: "rom",
+            size: 1024,
+            modified: 1_700_000_000,
+            status: "",
+            thumbnailPath: "Images/GBA/Pokemon Emerald.png",
+          },
+          {
+            name: "Favorites",
+            path: "Roms/Favorites",
+            type: "directory",
+            size: 0,
+            modified: 1_700_000_100,
+            status: "",
+            thumbnailPath: "",
+          },
+        ]}
+        onDelete={vi.fn()}
+        onNavigate={vi.fn()}
+        onRename={vi.fn()}
+        onReplaceArt={vi.fn()}
+        scope="roms"
+        tag="GBA"
+      />,
+    );
+
+    expect(screen.getByText("Name")).toBeTruthy();
+    expect(screen.getByText("Size")).toBeTruthy();
+    expect(screen.getByText("Modified")).toBeTruthy();
+    expect(screen.queryByRole("button", { name: /Name/ })).toBeNull();
+    expect(screen.getByText("Action")).toBeTruthy();
+    expect(screen.queryByText("Type")).toBeNull();
+    expect(screen.queryByText("Select")).toBeNull();
+    expect(screen.queryByRole("checkbox")).toBeNull();
+    expect(screen.queryByAltText("Pokemon Emerald.gba")).toBeNull();
+    expect(screen.getByText("ROM")).toBeTruthy();
+    expect(screen.getByText("DIR")).toBeTruthy();
+    expect(screen.getByRole("link", { name: "Download Pokemon Emerald.gba" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Open Favorites" })).toBeTruthy();
+    expect(screen.getAllByRole("button", { name: /More actions for/ })).toHaveLength(2);
+    expect(mockApi.buildDownloadUrl).toHaveBeenCalledWith("roms", "Roms/Pokemon Emerald.gba", "GBA", undefined);
+  });
+
+  it("shows Replace Art only for ROM rows in the library overflow menu", () => {
+    render(
+      <BrowserTable
+        entries={[
+          {
+            name: "Pokemon Emerald.gba",
+            path: "Roms/Pokemon Emerald.gba",
+            type: "rom",
+            size: 1024,
+            modified: 1_700_000_000,
+            status: "",
+            thumbnailPath: "Images/GBA/Pokemon Emerald.png",
+          },
+        ]}
+        onDelete={vi.fn()}
+        onNavigate={vi.fn()}
+        onRename={vi.fn()}
+        onReplaceArt={vi.fn()}
+        scope="roms"
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "More actions for Pokemon Emerald.gba" }));
+
+    expect(screen.getByRole("menuitem", { name: "Rename" })).toBeTruthy();
+    expect(screen.getByRole("menuitem", { name: "Replace Art" })).toBeTruthy();
+    expect(screen.getByRole("menuitem", { name: "Delete" })).toBeTruthy();
+    expect(screen.getByRole("menu").closest("div.overflow-visible")).toBeTruthy();
+  });
+
+  it("shows a favorite toggle only for database-backed ROM rows", () => {
+    const onToggleFavorite = vi.fn();
+    const dbEntry = {
+      name: "Pokemon Emerald.gba",
+      path: "Pokemon Emerald.gba",
+      type: "rom",
+      size: 1024,
+      modified: 1_700_000_000,
+      status: "",
+      thumbnailPath: "Images/GBA/Pokemon Emerald.png",
+      favorite: false,
+      favoriteSupported: true,
+    };
+    const fsEntry = {
+      name: "Filesystem Only.gba",
+      path: "Filesystem Only.gba",
+      type: "rom",
+      size: 512,
+      modified: 1_700_000_100,
+      status: "",
+      thumbnailPath: "",
+      favorite: false,
+      favoriteSupported: false,
+    };
+
+    render(
+      <BrowserTable
+        entries={[dbEntry, fsEntry]}
+        onNavigate={vi.fn()}
+        onToggleFavorite={onToggleFavorite}
+        scope="roms"
+        tag="GBA"
+      />,
+    );
+
+    expect(screen.queryByRole("button", { name: "Add Filesystem Only.gba to favorites" })).toBeNull();
+
+    fireEvent.click(screen.getByRole("button", { name: "Add Pokemon Emerald.gba to favorites" }));
+
+    expect(onToggleFavorite).toHaveBeenCalledWith(dbEntry, true);
+  });
+
+  it("reports controlled files sort changes and exposes the active direction", () => {
+    const onSortChange = vi.fn();
+    const firstEntry = {
+      name: "alpha.txt",
+      path: "alpha.txt",
+      type: "file" as const,
+      size: 10,
+      modified: 1_700_000_200,
+      status: "",
+      thumbnailPath: "",
+    };
+    const secondEntry = {
+      name: "beta.bin",
+      path: "beta.bin",
+      type: "file" as const,
+      size: 9999,
+      modified: 1_700_000_100,
+      status: "",
+      thumbnailPath: "",
+    };
+
+    render(
+      <BrowserTable
+        entries={[firstEntry, secondEntry]}
+        onNavigate={vi.fn()}
+        onSortChange={onSortChange}
+        scope="files"
+        sort={{ column: "name", direction: "asc" }}
+      />,
+    );
+
+    const rows = () => screen.getAllByRole("checkbox").slice(1).map((cb) => cb.getAttribute("aria-label")?.replace("Select ", ""));
+
+    expect(screen.getByRole("button", { name: "Name, sorted ascending" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Size, not sorted" })).toBeTruthy();
+    expect(rows()).toEqual(["alpha.txt", "beta.bin"]);
+
+    fireEvent.click(screen.getByRole("button", { name: "Size, not sorted" }));
+    expect(onSortChange).toHaveBeenCalledWith({ column: "size", direction: "asc" });
+
+    fireEvent.click(screen.getByRole("button", { name: "Name, sorted ascending" }));
+    expect(onSortChange).toHaveBeenCalledWith({ column: "name", direction: "desc" });
+    expect(rows()).toEqual(["alpha.txt", "beta.bin"]);
+  });
+
+  it("reports controlled library sort changes", () => {
+    const onSortChange = vi.fn();
+    const romA = {
+      name: "Alpha Game.gba",
+      path: "Roms/Alpha Game.gba",
+      type: "rom" as const,
+      size: 2048,
+      modified: 1_700_000_200,
+      status: "",
+      thumbnailPath: "",
+    };
+    const romB = {
+      name: "Beta Game.gba",
+      path: "Roms/Beta Game.gba",
+      type: "rom" as const,
+      size: 512,
+      modified: 1_700_000_100,
+      status: "",
+      thumbnailPath: "",
+    };
+
+    render(
+      <BrowserTable
+        entries={[romA, romB]}
+        onNavigate={vi.fn()}
+        onSortChange={onSortChange}
+        scope="roms"
+        sort={{ column: "size", direction: "asc" }}
+        tag="GBA"
+      />,
+    );
+
+    const names = () => screen.getAllByText(/Game\.gba/).map((el) => el.textContent);
+
+    expect(names()).toEqual(["Alpha Game.gba", "Beta Game.gba"]);
+    expect(screen.getByRole("button", { name: "Size, sorted ascending" })).toBeTruthy();
+
+    fireEvent.click(screen.getByRole("button", { name: "Size, sorted ascending" }));
+    expect(onSortChange).toHaveBeenCalledWith({ column: "size", direction: "desc" });
+  });
+
+  it("omits Replace Art for non-ROM library scopes", () => {
+    render(
+      <BrowserTable
+        entries={[
+          {
+            name: "Pokemon Emerald.sav",
+            path: "Saves/Pokemon Emerald.sav",
+            type: "save",
+            size: 1024,
+            modified: 1_700_000_000,
+            status: "",
+            thumbnailPath: "",
+          },
+        ]}
+        onDelete={vi.fn()}
+        onNavigate={vi.fn()}
+        onRename={vi.fn()}
+        onReplaceArt={vi.fn()}
+        scope="saves"
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "More actions for Pokemon Emerald.sav" }));
+
+    expect(screen.getByRole("menuitem", { name: "Rename" })).toBeTruthy();
+    expect(screen.queryByRole("menuitem", { name: "Replace Art" })).toBeNull();
+    expect(screen.getByRole("menuitem", { name: "Delete" })).toBeTruthy();
+  });
+});

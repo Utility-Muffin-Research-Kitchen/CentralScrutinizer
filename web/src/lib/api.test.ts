@@ -1,0 +1,1064 @@
+import { afterEach, describe, expect, it, vi } from "vitest";
+
+import {
+  PAIRING_UNAVAILABLE_MESSAGE,
+  UPLOAD_BATCH_SIZE,
+  beginUploadFiles,
+  beginUploadFilesBatched,
+  buildDownloadUrl,
+  getBrowser,
+  getBrowserAll,
+  getMacDotfiles,
+  getPlatforms,
+  getLogs,
+  getSaveStates,
+  getStatus,
+  pairBrowser,
+  pairBrowserQr,
+  previewUpload,
+  previewUploadBatched,
+  readTextFile,
+  replaceArt,
+  revokeBrowser,
+  searchFiles,
+  setGameFavorite,
+  streamPlatforms,
+  uploadFiles,
+  UploadAbortedError,
+} from "./api";
+
+function makeNdjsonStream(chunks: string[]): ReadableStream<Uint8Array> {
+  const encoder = new TextEncoder();
+
+  return new ReadableStream({
+    start(controller) {
+      for (const chunk of chunks) {
+        controller.enqueue(encoder.encode(chunk));
+      }
+      controller.close();
+    },
+  });
+}
+
+class MockXhr {
+  static instances: MockXhr[] = [];
+  static autoLoad = true;
+
+  headers: Record<string, string> = {};
+  listeners: Record<string, () => void> = {};
+  method = "";
+  responseText = "";
+  status = 200;
+  uploadListener?: (event: { lengthComputable: boolean; loaded: number; total: number }) => void;
+  url = "";
+  body: FormData | null = null;
+  upload = {
+    addEventListener: (_event: string, listener: (event: { lengthComputable: boolean; loaded: number; total: number }) => void) => {
+      this.uploadListener = listener;
+    },
+  };
+
+  constructor() {
+    MockXhr.instances.push(this);
+  }
+
+  open(method: string, url: string) {
+    this.method = method;
+    this.url = url;
+  }
+
+  setRequestHeader(key: string, value: string) {
+    this.headers[key] = value;
+  }
+
+  addEventListener(event: string, listener: () => void) {
+    this.listeners[event] = listener;
+  }
+
+  send(body: FormData) {
+    this.body = body;
+    this.uploadListener?.({ lengthComputable: true, loaded: 5, total: 10 });
+    if (MockXhr.autoLoad) {
+      this.listeners.load?.();
+    }
+  }
+
+  abort() {
+    this.listeners.abort?.();
+  }
+}
+
+describe("buildDownloadUrl", () => {
+  it("builds scoped download URLs", () => {
+    expect(buildDownloadUrl("roms", "Pokemon Emerald.gba", "GBA")).toBe(
+      "/api/download?scope=roms&tag=GBA&path=Pokemon+Emerald.gba",
+    );
+  });
+
+  it("adds csrf to raw download URLs when requested", () => {
+    expect(buildDownloadUrl("files", "Captures/capture.png", undefined, "csrf-token")).toBe(
+      "/api/download?scope=files&path=Captures%2Fcapture.png&csrf=csrf-token",
+    );
+  });
+});
+
+describe("pairBrowser", () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it("posts the pairing code as urlencoded form data", async () => {
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({ paired: true, csrf: "csrf-token", trustedCount: 1 }),
+    });
+
+    vi.stubGlobal("fetch", fetchMock);
+
+    await pairBrowser("7391", "browser-1");
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      "/api/pair",
+      expect.objectContaining({
+        method: "POST",
+        headers: { "Content-Type": "application/x-www-form-urlencoded" },
+        body: "browser_id=browser-1&code=7391",
+      }),
+    );
+  });
+
+  it("maps pairing_unavailable to the handheld recovery message", async () => {
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: false,
+      status: 403,
+      json: async () => ({ error: "pairing_unavailable" }),
+    });
+
+    vi.stubGlobal("fetch", fetchMock);
+
+    await expect(pairBrowser("7391", "browser-1")).rejects.toMatchObject({
+      code: "pairing_unavailable",
+      message: PAIRING_UNAVAILABLE_MESSAGE,
+    });
+  });
+});
+
+describe("pairBrowserQr", () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it("posts the QR token and browser id as urlencoded form data", async () => {
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({ paired: true, csrf: "csrf-token", trustedCount: 1 }),
+    });
+
+    vi.stubGlobal("fetch", fetchMock);
+
+    await pairBrowserQr("qr-token", "browser-1");
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      "/api/pair",
+      expect.objectContaining({
+        method: "POST",
+        headers: { "Content-Type": "application/x-www-form-urlencoded" },
+        body: "browser_id=browser-1&qr_token=qr-token",
+      }),
+    );
+  });
+});
+
+describe("revokeBrowser", () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it("posts revoke with the csrf header", async () => {
+    const fetchMock = vi.fn().mockResolvedValue({ ok: true });
+
+    vi.stubGlobal("fetch", fetchMock);
+
+    await revokeBrowser("csrf-token");
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      "/api/revoke",
+      expect.objectContaining({
+        method: "POST",
+        headers: { "X-CS-CSRF": "csrf-token" },
+      }),
+    );
+  });
+});
+
+describe("authenticated GET helpers", () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it("sends csrf headers for protected JSON fetches", async () => {
+    const fetchMock = vi.fn().mockImplementation(() =>
+      Promise.resolve({
+        ok: true,
+        json: async () => ({ platform: "mac", port: 8877, trustedCount: 0, groups: [], files: [], results: [] }),
+        body: new ReadableStream<Uint8Array>({
+          start(controller) {
+            controller.enqueue(new TextEncoder().encode('{"type":"done"}\n'));
+            controller.close();
+          },
+        }),
+      }),
+    );
+
+    vi.stubGlobal("fetch", fetchMock);
+
+    await getStatus();
+    await getPlatforms("csrf-token");
+    await getBrowser("files", "csrf-token", undefined, "Captures");
+    await getSaveStates("GBA", "csrf-token");
+    await getLogs("csrf-token");
+    await getMacDotfiles("csrf-token");
+    await searchFiles("Captures", "Capture", "csrf-token");
+
+    expect(fetchMock).toHaveBeenNthCalledWith(1, "/api/status");
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      2,
+      "/api/platforms",
+      expect.objectContaining({ headers: { "X-CS-CSRF": "csrf-token" } }),
+    );
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      3,
+      "/api/browser?scope=files&path=Captures",
+      expect.objectContaining({ headers: { "X-CS-CSRF": "csrf-token" } }),
+    );
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      4,
+      "/api/states?tag=GBA",
+      expect.objectContaining({ headers: { "X-CS-CSRF": "csrf-token" } }),
+    );
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      5,
+      "/api/logs",
+      expect.objectContaining({ headers: { "X-CS-CSRF": "csrf-token" } }),
+    );
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      6,
+      "/api/tools/mac-dotfiles",
+      expect.objectContaining({ headers: { "X-CS-CSRF": "csrf-token" } }),
+    );
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      7,
+      "/api/files/search?path=Captures&q=Capture",
+      expect.objectContaining({ headers: { "X-CS-CSRF": "csrf-token" } }),
+    );
+  });
+
+  it("uses csrf for text-file reads", async () => {
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      text: async () => "payload",
+    });
+
+    vi.stubGlobal("fetch", fetchMock);
+
+    await expect(readTextFile("files", "Notes/Favorites.txt", "csrf-token")).resolves.toBe("payload");
+    expect(fetchMock).toHaveBeenCalledWith(
+      "/api/download?scope=files&path=Notes%2FFavorites.txt&csrf=csrf-token",
+      expect.objectContaining({ headers: { "X-CS-CSRF": "csrf-token" } }),
+    );
+  });
+
+  it("fetches every browser page for all-entry consumers", async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          scope: "files",
+          title: "Captures",
+          rootPath: "Captures",
+          path: "Captures",
+          breadcrumbs: [],
+          totalCount: 3,
+          offset: 0,
+          truncated: false,
+          entries: [
+            { name: "capture-1.png", path: "Captures/capture-1.png", type: "file", size: 1, modified: 1, status: "", thumbnailPath: "" },
+            { name: "capture-2.png", path: "Captures/capture-2.png", type: "file", size: 1, modified: 2, status: "", thumbnailPath: "" },
+          ],
+        }),
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          scope: "files",
+          title: "Captures",
+          rootPath: "Captures",
+          path: "Captures",
+          breadcrumbs: [],
+          totalCount: 3,
+          offset: 2,
+          truncated: false,
+          entries: [
+            { name: "capture-3.png", path: "Captures/capture-3.png", type: "file", size: 1, modified: 3, status: "", thumbnailPath: "" },
+          ],
+        }),
+      });
+
+    vi.stubGlobal("fetch", fetchMock);
+
+    const response = await getBrowserAll("files", "csrf-token", undefined, "Captures");
+
+    expect(response.entries.map((entry) => entry.name)).toEqual(["capture-1.png", "capture-2.png", "capture-3.png"]);
+    expect(response.totalCount).toBe(3);
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      1,
+      "/api/browser?scope=files&path=Captures",
+      expect.objectContaining({ headers: { "X-CS-CSRF": "csrf-token" } }),
+    );
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      2,
+      "/api/browser?scope=files&path=Captures&offset=2",
+      expect.objectContaining({ headers: { "X-CS-CSRF": "csrf-token" } }),
+    );
+  });
+
+  it("passes browser sort parameters when requested", async () => {
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        scope: "files",
+        title: "Captures",
+        rootPath: "Captures",
+        path: "Captures",
+        breadcrumbs: [],
+        totalCount: 0,
+        offset: 0,
+        truncated: false,
+        entries: [],
+      }),
+    });
+
+    vi.stubGlobal("fetch", fetchMock);
+
+    await getBrowser("files", "csrf-token", undefined, "Captures", {
+      sort: { column: "modified", direction: "desc" },
+    });
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      "/api/browser?scope=files&path=Captures&sort=modified&direction=desc",
+      expect.objectContaining({ headers: { "X-CS-CSRF": "csrf-token" } }),
+    );
+  });
+});
+
+describe("streamPlatforms", () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it("dispatches one onPlatform per NDJSON line and onDone at the end", async () => {
+    const lines = [
+      '{"type":"platform","group":"Nintendo","platform":{"tag":"GBA","name":"Game Boy Advance"}}\n',
+      '{"type":"platform","group":"Sega","platform":{"tag":"MD","name":"Sega Genesis"}}\n',
+      '{"type":"done"}\n',
+    ];
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      body: makeNdjsonStream(lines),
+    });
+
+    vi.stubGlobal("fetch", fetchMock);
+
+    const platforms: Array<{ group: string; tag: string }> = [];
+    let doneCalls = 0;
+
+    await streamPlatforms("csrf-token", {
+      onPlatform: (group, platform) => {
+        platforms.push({ group, tag: platform.tag });
+      },
+      onDone: () => {
+        doneCalls += 1;
+      },
+    });
+
+    expect(platforms).toEqual([
+      { group: "Nintendo", tag: "GBA" },
+      { group: "Sega", tag: "MD" },
+    ]);
+    expect(doneCalls).toBe(1);
+    expect(fetchMock).toHaveBeenCalledWith(
+      "/api/platforms",
+      expect.objectContaining({ headers: { "X-CS-CSRF": "csrf-token" } }),
+    );
+  });
+
+  it("handles NDJSON events split across chunk boundaries", async () => {
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      body: makeNdjsonStream([
+        '{"type":"platform","group":"Nintendo","platform":{"tag":"G',
+        'BA"}}\n{"type":"do',
+        'ne"}\n',
+      ]),
+    });
+
+    vi.stubGlobal("fetch", fetchMock);
+
+    const platforms: string[] = [];
+    let doneCalls = 0;
+
+    await streamPlatforms("csrf-token", {
+      onPlatform: (_group, platform) => {
+        platforms.push(platform.tag);
+      },
+      onDone: () => {
+        doneCalls += 1;
+      },
+    });
+
+    expect(platforms).toEqual(["GBA"]);
+    expect(doneCalls).toBe(1);
+  });
+
+  it("rejects when the NDJSON stream ends before the done event", async () => {
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      body: makeNdjsonStream([
+        '{"type":"platform","group":"Nintendo","platform":{"tag":"GBA"}}\n',
+      ]),
+    });
+
+    vi.stubGlobal("fetch", fetchMock);
+
+    await expect(streamPlatforms("csrf-token", {})).rejects.toMatchObject({
+      message: "Platforms stream ended before completion",
+    });
+  });
+
+  it("aggregates groups in order for getPlatforms", async () => {
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      body: makeNdjsonStream([
+        '{"type":"platform","group":"Nintendo","platform":{"tag":"GBA"}}\n',
+        '{"type":"platform","group":"Sega","platform":{"tag":"MD"}}\n',
+        '{"type":"platform","group":"Nintendo","platform":{"tag":"GBC"}}\n',
+        '{"type":"done"}\n',
+      ]),
+    });
+
+    vi.stubGlobal("fetch", fetchMock);
+
+    const response = await getPlatforms("csrf-token");
+
+    expect(response.groups.map((group) => group.name)).toEqual(["Nintendo", "Sega"]);
+    expect(response.groups[0].platforms.map((p) => p.tag)).toEqual(["GBA", "GBC"]);
+    expect(response.groups[1].platforms.map((p) => p.tag)).toEqual(["MD"]);
+  });
+});
+
+describe("uploadFiles", () => {
+  afterEach(() => {
+    MockXhr.instances = [];
+    MockXhr.autoLoad = true;
+    vi.unstubAllGlobals();
+  });
+
+  it("posts scoped form data with the csrf header", async () => {
+    const file = new File(["rom"], "Pokemon Emerald.gba", { type: "application/octet-stream" });
+    let progressValue = 0;
+
+    vi.stubGlobal("XMLHttpRequest", MockXhr as unknown as typeof XMLHttpRequest);
+
+    await uploadFiles(
+      {
+        scope: "roms",
+        tag: "GBA",
+        path: "",
+        files: [file],
+      },
+      "csrf-token",
+      (progress) => {
+        progressValue = progress;
+      },
+    );
+
+    const request = MockXhr.instances[0];
+
+    expect(request.method).toBe("POST");
+    expect(request.url).toBe("/api/upload");
+    expect(request.headers["X-CS-CSRF"]).toBe("csrf-token");
+    expect((request.body?.get("scope") as string) ?? "").toBe("roms");
+    expect((request.body?.get("tag") as string) ?? "").toBe("GBA");
+    expect(((request.body?.get("file") as File) ?? file).name).toBe("Pokemon Emerald.gba");
+    expect(progressValue).toBe(100);
+  });
+
+  it("preserves webkitRelativePath in multipart filenames for directory uploads", async () => {
+    const file = new File(["rom"], "Pokemon Emerald.gba", { type: "application/octet-stream" });
+
+    Object.defineProperty(file, "webkitRelativePath", {
+      configurable: true,
+      value: "Favorites/GBA/Pokemon Emerald.gba",
+    });
+
+    vi.stubGlobal("XMLHttpRequest", MockXhr as unknown as typeof XMLHttpRequest);
+
+    await uploadFiles(
+      {
+        scope: "files",
+        path: "Imports",
+        files: [file],
+      },
+      "csrf-token",
+    );
+
+    const request = MockXhr.instances[0];
+
+    expect(((request.body?.get("file") as File) ?? file).name).toBe("Favorites/GBA/Pokemon Emerald.gba");
+  });
+
+  it("posts explicit directory fields for empty folder uploads", async () => {
+    vi.stubGlobal("XMLHttpRequest", MockXhr as unknown as typeof XMLHttpRequest);
+
+    await uploadFiles(
+      {
+        directories: ["Favorites", "Favorites/Empty"],
+        files: [],
+        path: "Imports",
+        scope: "files",
+      },
+      "csrf-token",
+    );
+
+    expect(MockXhr.instances).toHaveLength(2);
+    expect(MockXhr.instances[0].body?.getAll("directory")).toEqual(["Favorites"]);
+    expect(MockXhr.instances[0].body?.getAll("file")).toEqual([]);
+    expect(MockXhr.instances[1].body?.getAll("directory")).toEqual(["Favorites/Empty"]);
+    expect(MockXhr.instances[1].body?.getAll("file")).toEqual([]);
+  });
+
+  it("includes overwrite=1 when overwriting is enabled", async () => {
+    vi.stubGlobal("XMLHttpRequest", MockXhr as unknown as typeof XMLHttpRequest);
+
+    await beginUploadFiles(
+      {
+        files: [new File(["payload"], "test.txt", { type: "text/plain" })],
+        overwriteExisting: true,
+        scope: "files",
+      },
+      "csrf-token",
+    ).promise;
+
+    expect(MockXhr.instances[0].body?.get("overwrite")).toBe("1");
+  });
+
+  it("can abort an upload in progress", async () => {
+    MockXhr.autoLoad = false;
+    vi.stubGlobal("XMLHttpRequest", MockXhr as unknown as typeof XMLHttpRequest);
+
+    const handle = beginUploadFiles(
+      {
+        scope: "files",
+        files: [new File(["payload"], "test.txt", { type: "text/plain" })],
+      },
+      "csrf-token",
+    );
+
+    handle.cancel();
+
+    await expect(handle.promise).rejects.toBeInstanceOf(UploadAbortedError);
+  });
+});
+
+describe("previewUpload", () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it("posts file paths and directories with the csrf header", async () => {
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({ overwriteableCount: 1, blockingCount: 0, overwriteable: [], blocking: [] }),
+    });
+
+    vi.stubGlobal("fetch", fetchMock);
+
+    await previewUpload(
+      {
+        scope: "files",
+        path: "Apps",
+        directories: ["Apps/Empty"],
+        filePaths: ["Apps/mlp1/CentralScrutinizer.pak/pak.json"],
+      },
+      "csrf-token",
+    );
+
+    const [, options] = fetchMock.mock.calls[0] as [string, { body: FormData; headers: Record<string, string> }];
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      "/api/upload/preview",
+      expect.objectContaining({
+        method: "POST",
+        headers: { "X-CS-CSRF": "csrf-token" },
+      }),
+    );
+    expect(options.body.getAll("directory")).toEqual(["Apps/Empty"]);
+    expect(options.body.getAll("file_path")).toEqual(["Apps/mlp1/CentralScrutinizer.pak/pak.json"]);
+  });
+
+  it("passes an abort signal to preview requests when provided", async () => {
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({ overwriteableCount: 0, blockingCount: 0, overwriteable: [], blocking: [] }),
+    });
+    const controller = new AbortController();
+
+    vi.stubGlobal("fetch", fetchMock);
+
+    await previewUpload(
+      {
+        scope: "files",
+        directories: [],
+        filePaths: ["Apps/mlp1/CentralScrutinizer.pak/pak.json"],
+      },
+      "csrf-token",
+      { signal: controller.signal },
+    );
+
+    const [, options] = fetchMock.mock.calls[0] as [string, { signal?: AbortSignal }];
+    expect(options.signal).toBe(controller.signal);
+  });
+
+  it("batches preview requests and aggregates conflict counts", async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          overwriteableCount: 0,
+          blockingCount: 1,
+          overwriteable: [],
+          blocking: [{ kind: "directory-over-file", path: "Apps" }],
+        }),
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          overwriteableCount: 1,
+          blockingCount: 0,
+          overwriteable: [{ kind: "overwrite", path: "Apps/mlp1/CentralScrutinizer.pak/pak.json" }],
+          blocking: [],
+        }),
+      });
+
+    vi.stubGlobal("fetch", fetchMock);
+
+    const summary = await previewUploadBatched(
+      {
+        scope: "files",
+        directories: ["Apps/Empty"],
+        filePaths: ["Apps/mlp1/CentralScrutinizer.pak/pak.json"],
+      },
+      "csrf-token",
+    );
+
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(summary).toEqual({
+      overwriteableCount: 1,
+      blockingCount: 1,
+      overwriteable: [{ kind: "overwrite", path: "Apps/mlp1/CentralScrutinizer.pak/pak.json" }],
+      blocking: [{ kind: "directory-over-file", path: "Apps" }],
+    });
+  });
+
+  it("keeps preview lists capped while counting unique conflicts across batches", async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          overwriteableCount: 4,
+          blockingCount: 0,
+          overwriteable: [
+            { kind: "overwrite", path: "path-1" },
+            { kind: "overwrite", path: "path-2" },
+            { kind: "overwrite", path: "path-3" },
+            { kind: "overwrite", path: "path-4" },
+          ],
+          blocking: [],
+        }),
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          overwriteableCount: 2,
+          blockingCount: 0,
+          overwriteable: [
+            { kind: "overwrite", path: "path-5" },
+            { kind: "overwrite", path: "path-6" },
+          ],
+          blocking: [],
+        }),
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          overwriteableCount: 1,
+          blockingCount: 0,
+          overwriteable: [{ kind: "overwrite", path: "path-6" }],
+          blocking: [],
+        }),
+      });
+
+    vi.stubGlobal("fetch", fetchMock);
+
+    const summary = await previewUploadBatched(
+      {
+        scope: "files",
+        directories: Array.from({ length: UPLOAD_BATCH_SIZE * 2 + 1 }, (_, index) => `dir-${index}`),
+        filePaths: [],
+      },
+      "csrf-token",
+    );
+
+    expect(summary.overwriteableCount).toBe(6);
+    expect(summary.overwriteable).toEqual([
+      { kind: "overwrite", path: "path-1" },
+      { kind: "overwrite", path: "path-2" },
+      { kind: "overwrite", path: "path-3" },
+      { kind: "overwrite", path: "path-4" },
+      { kind: "overwrite", path: "path-5" },
+    ]);
+  });
+
+  it("counts a blocked parent conflict once when multiple preview batches report it", async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          overwriteableCount: 0,
+          blockingCount: 1,
+          overwriteable: [],
+          blocking: [{ kind: "directory-over-file", path: "Apps" }],
+        }),
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          overwriteableCount: 0,
+          blockingCount: 1,
+          overwriteable: [],
+          blocking: [{ kind: "directory-over-file", path: "Apps" }],
+        }),
+      });
+
+    vi.stubGlobal("fetch", fetchMock);
+
+    const summary = await previewUploadBatched(
+      {
+        scope: "files",
+        directories: [],
+        filePaths: Array.from({ length: UPLOAD_BATCH_SIZE + 1 }, (_, index) => `Apps/file-${index}.txt`),
+      },
+      "csrf-token",
+    );
+
+    expect(summary.blockingCount).toBe(1);
+    expect(summary.blocking).toEqual([{ kind: "directory-over-file", path: "Apps" }]);
+  });
+});
+
+describe("beginUploadFilesBatched", () => {
+  afterEach(() => {
+    MockXhr.instances = [];
+    MockXhr.autoLoad = true;
+    vi.unstubAllGlobals();
+  });
+
+  it("sends files in batches of UPLOAD_BATCH_SIZE", async () => {
+    const files = Array.from({ length: UPLOAD_BATCH_SIZE + 5 }, (_, i) =>
+      new File(["x"], `file-${i}.bin`, { type: "application/octet-stream" }),
+    );
+
+    vi.stubGlobal("XMLHttpRequest", MockXhr as unknown as typeof XMLHttpRequest);
+
+    await beginUploadFilesBatched(
+      { scope: "roms", tag: "GBA", files },
+      "csrf-token",
+    ).promise;
+
+    expect(MockXhr.instances).toHaveLength(2);
+
+    const firstBatchFiles = MockXhr.instances[0].body?.getAll("file") as File[];
+    const secondBatchFiles = MockXhr.instances[1].body?.getAll("file") as File[];
+
+    expect(firstBatchFiles).toHaveLength(UPLOAD_BATCH_SIZE);
+    expect(secondBatchFiles).toHaveLength(5);
+  });
+
+  it("sends a single batch when files fit within the limit", async () => {
+    const files = [
+      new File(["a"], "a.bin"),
+      new File(["b"], "b.bin"),
+    ];
+
+    vi.stubGlobal("XMLHttpRequest", MockXhr as unknown as typeof XMLHttpRequest);
+
+    await beginUploadFilesBatched(
+      { scope: "files", files },
+      "csrf-token",
+    ).promise;
+
+    expect(MockXhr.instances).toHaveLength(1);
+
+    const batchFiles = MockXhr.instances[0].body?.getAll("file") as File[];
+
+    expect(batchFiles).toHaveLength(2);
+  });
+
+  it("reports aggregated progress across batches", async () => {
+    const fileA = new File(["aaaa"], "a.bin");
+    const fileB = new File(["bbbb"], "b.bin");
+    const files = Array.from({ length: UPLOAD_BATCH_SIZE }, () => fileA).concat([fileB]);
+    const progressValues: number[] = [];
+
+    vi.stubGlobal("XMLHttpRequest", MockXhr as unknown as typeof XMLHttpRequest);
+
+    await beginUploadFilesBatched(
+      { scope: "roms", files },
+      "csrf-token",
+      (p) => progressValues.push(p),
+    ).promise;
+
+    expect(progressValues.length).toBeGreaterThan(0);
+    expect(progressValues[progressValues.length - 1]).toBe(100);
+  });
+
+  it("resolves with a cancelled summary when cancelled before any batch runs", async () => {
+    MockXhr.autoLoad = false;
+    vi.stubGlobal("XMLHttpRequest", MockXhr as unknown as typeof XMLHttpRequest);
+
+    const files = Array.from({ length: UPLOAD_BATCH_SIZE + 5 }, (_, i) =>
+      new File(["x"], `file-${i}.bin`),
+    );
+
+    const handle = beginUploadFilesBatched(
+      { scope: "roms", files },
+      "csrf-token",
+    );
+
+    handle.cancel();
+
+    const summary = await handle.promise;
+    expect(summary).toEqual({
+      uploaded: 0,
+      failed: 0,
+      directoriesCreated: 0,
+      directoriesFailed: 0,
+      cancelled: true,
+      errorMessage: null,
+    });
+  });
+
+  it("uploads directories before file batches", async () => {
+    const files = [new File(["x"], "file.bin", { type: "application/octet-stream" })];
+
+    vi.stubGlobal("XMLHttpRequest", MockXhr as unknown as typeof XMLHttpRequest);
+
+    const summary = await beginUploadFilesBatched(
+      { directories: ["Root", "Root/Empty"], files, scope: "files" },
+      "csrf-token",
+    ).promise;
+
+    expect(summary).toEqual({
+      uploaded: 1,
+      failed: 0,
+      directoriesCreated: 2,
+      directoriesFailed: 0,
+      cancelled: false,
+      errorMessage: null,
+    });
+    expect(MockXhr.instances).toHaveLength(3);
+    expect(MockXhr.instances[0].body?.getAll("directory")).toEqual(["Root"]);
+    expect(MockXhr.instances[0].body?.getAll("file")).toEqual([]);
+    expect(MockXhr.instances[1].body?.getAll("directory")).toEqual(["Root/Empty"]);
+    expect(MockXhr.instances[1].body?.getAll("file")).toEqual([]);
+    expect(MockXhr.instances[2].body?.getAll("directory")).toEqual([]);
+    expect(MockXhr.instances[2].body?.getAll("file")).toHaveLength(1);
+  });
+
+  it("reports individual directory failures and continues remaining uploads", async () => {
+    const files = [new File(["x"], "file.bin", { type: "application/octet-stream" })];
+    let sendCount = 0;
+
+    class FailingSecondDirectoryXhr extends MockXhr {
+      send(body: FormData) {
+        sendCount += 1;
+        if (sendCount === 2) {
+          this.status = 409;
+          this.responseText = '{"error":"upload_type_conflict","path":"Root/Blocked"}';
+          this.body = body;
+          this.uploadListener?.({ lengthComputable: true, loaded: 0, total: 10 });
+          this.listeners.load?.();
+          return;
+        }
+        super.send(body);
+      }
+    }
+
+    vi.stubGlobal("XMLHttpRequest", FailingSecondDirectoryXhr as unknown as typeof XMLHttpRequest);
+
+    const summary = await beginUploadFilesBatched(
+      { directories: ["Root", "Root/Blocked", "Root/After"], files, scope: "files" },
+      "csrf-token",
+    ).promise;
+
+    expect(summary).toEqual({
+      uploaded: 1,
+      failed: 0,
+      directoriesCreated: 2,
+      directoriesFailed: 1,
+      cancelled: false,
+      errorMessage: 'Upload blocked because "Root/Blocked" conflicts with an existing file or folder.',
+    });
+    expect(MockXhr.instances).toHaveLength(4);
+  });
+
+  it("reports partial success when a mid-batch upload fails", async () => {
+    const files = Array.from({ length: UPLOAD_BATCH_SIZE + 5 }, (_, i) =>
+      new File(["x"], `file-${i}.bin`),
+    );
+    let sendCount = 0;
+
+    class FailingSecondBatchXhr extends MockXhr {
+      send(body: FormData) {
+        sendCount += 1;
+        if (sendCount === 2) {
+          this.status = 500;
+          this.body = body;
+          this.uploadListener?.({ lengthComputable: true, loaded: 0, total: 10 });
+          this.listeners.load?.();
+          return;
+        }
+        super.send(body);
+      }
+    }
+
+    vi.stubGlobal("XMLHttpRequest", FailingSecondBatchXhr as unknown as typeof XMLHttpRequest);
+
+    const summary = await beginUploadFilesBatched(
+      { scope: "roms", files },
+      "csrf-token",
+    ).promise;
+
+    expect(summary).toEqual({
+      uploaded: UPLOAD_BATCH_SIZE,
+      failed: 5,
+      directoriesCreated: 0,
+      directoriesFailed: 0,
+      cancelled: false,
+      errorMessage: "Upload failed",
+    });
+  });
+
+  it("counts files before a reported batch conflict as uploaded", async () => {
+    const files = Array.from({ length: UPLOAD_BATCH_SIZE + 3 }, (_, i) =>
+      new File(["x"], `file-${i}.bin`),
+    );
+    let sendCount = 0;
+
+    class ConflictingSecondBatchXhr extends MockXhr {
+      send(body: FormData) {
+        sendCount += 1;
+        if (sendCount === 2) {
+          this.status = 409;
+          this.responseText = `{"error":"upload_conflict","path":"Imports/file-${UPLOAD_BATCH_SIZE + 1}.bin"}`;
+          this.body = body;
+          this.uploadListener?.({ lengthComputable: true, loaded: 0, total: 10 });
+          this.listeners.load?.();
+          return;
+        }
+        super.send(body);
+      }
+    }
+
+    vi.stubGlobal("XMLHttpRequest", ConflictingSecondBatchXhr as unknown as typeof XMLHttpRequest);
+
+    const summary = await beginUploadFilesBatched(
+      { scope: "files", path: "Imports", files },
+      "csrf-token",
+    ).promise;
+
+    expect(summary).toEqual({
+      uploaded: UPLOAD_BATCH_SIZE + 1,
+      failed: 2,
+      directoriesCreated: 0,
+      directoriesFailed: 0,
+      cancelled: false,
+      errorMessage: `Upload blocked because "Imports/file-${UPLOAD_BATCH_SIZE + 1}.bin" already exists.`,
+    });
+  });
+});
+
+describe("replaceArt", () => {
+  afterEach(() => {
+    MockXhr.instances = [];
+    vi.unstubAllGlobals();
+  });
+
+  it("posts png art replacement form data with the csrf header", async () => {
+    const file = new File(["png"], "Pokemon Emerald.png", { type: "image/png" });
+    let progressValue = 0;
+
+    vi.stubGlobal("XMLHttpRequest", MockXhr as unknown as typeof XMLHttpRequest);
+
+    await replaceArt(
+      {
+        tag: "GBA",
+        path: "Pokemon Emerald.gba",
+        file,
+      },
+      "csrf-token",
+      (progress) => {
+        progressValue = progress;
+      },
+    );
+
+    const request = MockXhr.instances[0];
+
+    expect(request.method).toBe("POST");
+    expect(request.url).toBe("/api/art/replace");
+    expect(request.headers["X-CS-CSRF"]).toBe("csrf-token");
+    expect((request.body?.get("tag") as string) ?? "").toBe("GBA");
+    expect((request.body?.get("path") as string) ?? "").toBe("Pokemon Emerald.gba");
+    expect(((request.body?.get("file") as File) ?? file).name).toBe("Pokemon Emerald.png");
+    expect(progressValue).toBe(50);
+  });
+});
+
+describe("setGameFavorite", () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it("posts game favorite updates with the csrf header", async () => {
+    const fetchMock = vi.fn(async () => new Response(JSON.stringify({ ok: true }), { status: 200 }));
+
+    vi.stubGlobal("fetch", fetchMock);
+
+    await setGameFavorite({ tag: "GBA", path: "Pokemon Emerald.gba", favorite: true }, "csrf-token");
+
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    const [url, options] = fetchMock.mock.calls[0] as [string, RequestInit];
+
+    expect(url).toBe("/api/favorite/game");
+    expect(options.method).toBe("POST");
+    expect(options.headers).toEqual({
+      "Content-Type": "application/x-www-form-urlencoded",
+      "X-CS-CSRF": "csrf-token",
+    });
+    expect(options.body).toBe("tag=GBA&path=Pokemon+Emerald.gba&favorite=1");
+  });
+});

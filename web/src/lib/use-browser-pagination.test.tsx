@@ -1,0 +1,246 @@
+import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { afterEach, describe, expect, it, vi } from "vitest";
+
+import type { BrowserEntry, BrowserResponse, BrowserScope, BrowserSortState } from "./types";
+import { useBrowserPagination } from "./use-browser-pagination";
+
+const mockApi = vi.hoisted(() => ({
+  getBrowser: vi.fn(),
+}));
+
+vi.mock("./api", () => mockApi);
+
+function deferred<T>() {
+  let resolve: (value: T) => void = () => {};
+  let reject: (error: unknown) => void = () => {};
+  const promise = new Promise<T>((promiseResolve, promiseReject) => {
+    resolve = promiseResolve;
+    reject = promiseReject;
+  });
+
+  return { promise, reject, resolve };
+}
+
+function entry(name: string): BrowserEntry {
+  return {
+    name,
+    path: name,
+    type: "file",
+    size: 1,
+    modified: 1,
+    status: "",
+    thumbnailPath: "",
+  };
+}
+
+function browserResponse(entries: BrowserEntry[], totalCount = entries.length, offset = 0): BrowserResponse {
+  return {
+    scope: "files",
+    title: "Files",
+    rootPath: "SD Card",
+    path: "Captures",
+    breadcrumbs: [],
+    entries,
+    totalCount,
+    offset,
+    truncated: false,
+  };
+}
+
+function Harness({
+  csrf = "csrf-token",
+  enabled = true,
+  scope = "files",
+  sort = { column: "name", direction: "asc" },
+}: {
+  csrf?: string | null;
+  enabled?: boolean;
+  scope?: BrowserScope | null;
+  sort?: BrowserSortState;
+}) {
+  const browser = useBrowserPagination({
+    scope,
+    path: "Captures",
+    search: "",
+    sort,
+    csrf,
+    enabled,
+  });
+
+  return (
+    <div>
+      <div data-testid="entries">{browser.entries.map((item) => item.name).join(",")}</div>
+      <div data-testid="loading-more">{String(browser.isLoadingMore)}</div>
+      <button onClick={browser.loadMore} type="button">
+        Load more
+      </button>
+      <button
+        onClick={() => {
+          browser.loadMore();
+          browser.loadMore();
+        }}
+        type="button"
+      >
+        Load more twice
+      </button>
+      <button
+        onClick={() => {
+          void browser.refresh();
+        }}
+        type="button"
+      >
+        Refresh
+      </button>
+    </div>
+  );
+}
+
+describe("useBrowserPagination", () => {
+  afterEach(() => {
+    cleanup();
+    vi.clearAllMocks();
+  });
+
+  it("clears load-more state when refresh supersedes an in-flight page", async () => {
+    const loadMore = deferred<BrowserResponse>();
+
+    mockApi.getBrowser
+      .mockResolvedValueOnce(browserResponse([entry("first.png")], 2))
+      .mockReturnValueOnce(loadMore.promise)
+      .mockResolvedValueOnce(browserResponse([entry("fresh.png")], 1));
+
+    render(<Harness />);
+
+    await waitFor(() => {
+      expect(screen.getByTestId("entries").textContent).toBe("first.png");
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: "Load more" }));
+    await waitFor(() => {
+      expect(screen.getByTestId("loading-more").textContent).toBe("true");
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: "Refresh" }));
+    await waitFor(() => {
+      expect(screen.getByTestId("loading-more").textContent).toBe("false");
+      expect(screen.getByTestId("entries").textContent).toBe("fresh.png");
+    });
+
+    await act(async () => {
+      loadMore.resolve(browserResponse([entry("stale.png")], 2, 1));
+      await loadMore.promise;
+    });
+
+    expect(screen.getByTestId("loading-more").textContent).toBe("false");
+    expect(screen.getByTestId("entries").textContent).toBe("fresh.png");
+  });
+
+  it("ignores a stale load-more response after a newer page request supersedes it", async () => {
+    const staleLoadMore = deferred<BrowserResponse>();
+    const activeLoadMore = deferred<BrowserResponse>();
+
+    mockApi.getBrowser
+      .mockResolvedValueOnce(browserResponse([entry("first.png")], 3))
+      .mockReturnValueOnce(staleLoadMore.promise)
+      .mockReturnValueOnce(activeLoadMore.promise);
+
+    render(<Harness />);
+
+    await waitFor(() => {
+      expect(screen.getByTestId("entries").textContent).toBe("first.png");
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: "Load more twice" }));
+    await waitFor(() => {
+      expect(screen.getByTestId("loading-more").textContent).toBe("true");
+    });
+
+    await act(async () => {
+      staleLoadMore.resolve(browserResponse([entry("stale.png")], 3, 1));
+      await staleLoadMore.promise;
+    });
+
+    expect(screen.getByTestId("entries").textContent).toBe("first.png");
+    expect(screen.getByTestId("loading-more").textContent).toBe("true");
+
+    await act(async () => {
+      activeLoadMore.resolve(browserResponse([entry("active.png")], 2, 1));
+      await activeLoadMore.promise;
+    });
+
+    expect(screen.getByTestId("entries").textContent).toBe("first.png,active.png");
+    expect(screen.getByTestId("loading-more").textContent).toBe("false");
+  });
+
+  it("invalidates in-flight load-more responses when disabled", async () => {
+    const loadMore = deferred<BrowserResponse>();
+
+    mockApi.getBrowser
+      .mockResolvedValueOnce(browserResponse([entry("first.png")], 2))
+      .mockReturnValueOnce(loadMore.promise);
+    const { rerender } = render(<Harness />);
+
+    await waitFor(() => {
+      expect(screen.getByTestId("entries").textContent).toBe("first.png");
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: "Load more" }));
+    await waitFor(() => {
+      expect(screen.getByTestId("loading-more").textContent).toBe("true");
+    });
+
+    rerender(<Harness enabled={false} />);
+    await waitFor(() => {
+      expect(screen.getByTestId("loading-more").textContent).toBe("false");
+      expect(screen.getByTestId("entries").textContent).toBe("");
+    });
+
+    await act(async () => {
+      loadMore.resolve(browserResponse([entry("stale.png")], 2, 1));
+      await loadMore.promise;
+    });
+
+    expect(screen.getByTestId("entries").textContent).toBe("");
+  });
+
+  it("refetches the first page and keeps load-more on the requested sort", async () => {
+    mockApi.getBrowser
+      .mockResolvedValueOnce(browserResponse([entry("first.png")], 2))
+      .mockResolvedValueOnce(browserResponse([entry("largest.png")], 3))
+      .mockResolvedValueOnce(browserResponse([entry("next-largest.png")], 3, 1));
+
+    const { rerender } = render(<Harness />);
+
+    await waitFor(() => {
+      expect(screen.getByTestId("entries").textContent).toBe("first.png");
+    });
+
+    rerender(<Harness sort={{ column: "size", direction: "desc" }} />);
+
+    await waitFor(() => {
+      expect(screen.getByTestId("entries").textContent).toBe("largest.png");
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: "Load more" }));
+    await waitFor(() => {
+      expect(screen.getByTestId("entries").textContent).toBe("largest.png,next-largest.png");
+    });
+
+    expect(mockApi.getBrowser).toHaveBeenNthCalledWith(
+      2,
+      "files",
+      "csrf-token",
+      undefined,
+      "Captures",
+      expect.objectContaining({ offset: 0, sort: { column: "size", direction: "desc" } }),
+    );
+    expect(mockApi.getBrowser).toHaveBeenNthCalledWith(
+      3,
+      "files",
+      "csrf-token",
+      undefined,
+      "Captures",
+      expect.objectContaining({ offset: 1, sort: { column: "size", direction: "desc" } }),
+    );
+  });
+});

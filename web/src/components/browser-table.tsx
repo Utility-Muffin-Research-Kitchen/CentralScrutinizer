@@ -1,0 +1,886 @@
+import type { ReactElement } from "react";
+import { useEffect, useRef, useState } from "react";
+
+import { buildDownloadUrl } from "../lib/api";
+import { DEFAULT_BROWSER_SORT, nextBrowserSort } from "../lib/browser-sort";
+import { BROWSER_MOVE_DRAG_TYPE } from "../lib/drag-types";
+import { isPlaintextFileName } from "../lib/plaintext";
+import type { BrowserEntry, BrowserScope, BrowserSortColumn, BrowserSortState } from "../lib/types";
+
+const DASH = "\u2014";
+
+function SortIndicator({ column, sort }: { column: BrowserSortColumn; sort: BrowserSortState }) {
+  if (sort.column !== column) {
+    return null;
+  }
+  return <span aria-hidden="true">{sort.direction === "asc" ? "\u25b2" : "\u25bc"}</span>;
+}
+
+function sortAriaLabel(label: string, column: BrowserSortColumn, sort: BrowserSortState): string {
+  if (sort.column !== column) {
+    return `${label}, not sorted`;
+  }
+
+  return `${label}, sorted ${sort.direction === "asc" ? "ascending" : "descending"}`;
+}
+
+function SortableHeader({
+  column,
+  label,
+  sort,
+  onSortChange,
+  className = "",
+}: {
+  column: BrowserSortColumn;
+  label: string;
+  sort: BrowserSortState;
+  onSortChange?: (sort: BrowserSortState) => void;
+  className?: string;
+}) {
+  if (!onSortChange) {
+    return <span className={`flex items-center gap-1 uppercase tracking-wider ${className}`}>{label}</span>;
+  }
+
+  return (
+    <button
+      aria-label={sortAriaLabel(label, column, sort)}
+      className={`flex items-center gap-1 uppercase tracking-wider transition hover:text-[var(--text)] ${className}`}
+      onClick={() => onSortChange(nextBrowserSort(sort, column))}
+      type="button"
+    >
+      {label} <SortIndicator column={column} sort={sort} />
+    </button>
+  );
+}
+
+function formatSize(size: number): string {
+  if (!size) {
+    return DASH;
+  }
+
+  const units = ["B", "KB", "MB", "GB"];
+  const index = Math.min(Math.floor(Math.log(size) / Math.log(1024)), units.length - 1);
+  const value = size / 1024 ** index;
+  return `${value.toFixed(index === 0 ? 0 : 1)} ${units[index]}`;
+}
+
+function formatDate(value: number): string {
+  if (!value) {
+    return DASH;
+  }
+
+  return new Date(value * 1000).toLocaleString();
+}
+
+function FolderGlyph() {
+  return (
+    <svg aria-hidden="true" viewBox="0 0 24 24" className="h-5 w-5 shrink-0">
+      <path
+        fill="currentColor"
+        d="M3.5 7.25A2.25 2.25 0 0 1 5.75 5h3.94c.6 0 1.17.24 1.59.66L12.41 7H18.25A2.75 2.75 0 0 1 21 9.75v7.5A2.75 2.75 0 0 1 18.25 20h-12.5A2.75 2.75 0 0 1 3 17.25v-10z"
+      />
+    </svg>
+  );
+}
+
+function FileGlyph() {
+  return (
+    <svg aria-hidden="true" viewBox="0 0 24 24" className="h-5 w-5 shrink-0">
+      <path
+        fill="currentColor"
+        d="M7.25 3.75A2.75 2.75 0 0 0 4.5 6.5v11A2.75 2.75 0 0 0 7.25 20.25h9.5A2.75 2.75 0 0 0 19.5 17.5V9.2a2.75 2.75 0 0 0-.8-1.95l-2.65-2.7a2.75 2.75 0 0 0-1.97-.8z"
+      />
+      <path fill="currentColor" d="M14 4.75V8h3.25z" />
+    </svg>
+  );
+}
+
+function TrashGlyph() {
+  return (
+    <svg aria-hidden="true" viewBox="0 0 24 24" className="h-3.5 w-3.5">
+      <path
+        d="M4 7h16M9 7V5a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2v2m1 0v12a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2V7h12z"
+        fill="none"
+        stroke="currentColor"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        strokeWidth="1.8"
+      />
+    </svg>
+  );
+}
+
+function PencilGlyph() {
+  return (
+    <svg aria-hidden="true" viewBox="0 0 24 24" className="h-3.5 w-3.5">
+      <path
+        d="M4 20h4l10-10-4-4L4 16v4zm11-13l3 3"
+        fill="none"
+        stroke="currentColor"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        strokeWidth="1.8"
+      />
+    </svg>
+  );
+}
+
+function MoreGlyph() {
+  return (
+    <svg aria-hidden="true" viewBox="0 0 24 24" className="h-4 w-4">
+      <circle cx="5" cy="12" r="1.7" fill="currentColor" />
+      <circle cx="12" cy="12" r="1.7" fill="currentColor" />
+      <circle cx="19" cy="12" r="1.7" fill="currentColor" />
+    </svg>
+  );
+}
+
+function StarGlyph({ filled }: { filled: boolean }) {
+  return (
+    <svg aria-hidden="true" viewBox="0 0 24 24" className="h-4 w-4">
+      <path
+        d="m12 3.75 2.54 5.15 5.69.83-4.11 4.01.97 5.66L12 16.72 6.91 19.4l.97-5.66-4.11-4.01 5.69-.83z"
+        fill={filled ? "currentColor" : "none"}
+        stroke="currentColor"
+        strokeLinejoin="round"
+        strokeWidth="1.7"
+      />
+    </svg>
+  );
+}
+
+function ImageGlyph() {
+  return (
+    <svg aria-hidden="true" viewBox="0 0 24 24" className="h-5 w-5 shrink-0">
+      <path
+        d="M4 5h16a1 1 0 0 1 1 1v12a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1zm1 13 4.5-5 3.5 4 2.5-3 4 4"
+        fill="none"
+        stroke="currentColor"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        strokeWidth="1.6"
+      />
+      <circle cx="9" cy="10" r="1.5" fill="currentColor" />
+    </svg>
+  );
+}
+
+function CartridgeGlyph() {
+  return (
+    <svg aria-hidden="true" viewBox="0 0 24 24" className="h-5 w-5 shrink-0">
+      <path
+        fill="currentColor"
+        d="M6 3h9.2a2 2 0 0 1 1.4.6l2.8 2.8a2 2 0 0 1 .6 1.4V19a2 2 0 0 1-2 2H10v-3H8v3H6a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2z"
+      />
+      <rect x="7" y="6" width="9" height="4" rx="0.8" fill="rgba(0,0,0,0.35)" />
+    </svg>
+  );
+}
+
+function ChipGlyph() {
+  return (
+    <svg aria-hidden="true" viewBox="0 0 24 24" className="h-5 w-5 shrink-0">
+      <rect x="6" y="6" width="12" height="12" rx="1.5" fill="currentColor" />
+      <g stroke="currentColor" strokeWidth="1.4" strokeLinecap="round">
+        <path d="M9 3v3M12 3v3M15 3v3M9 18v3M12 18v3M15 18v3M3 9h3M3 12h3M3 15h3M18 9h3M18 12h3M18 15h3" />
+      </g>
+    </svg>
+  );
+}
+
+type ScopeVisual = {
+  label: string;
+  Glyph: () => ReactElement;
+  tone: "accent" | "muted";
+};
+
+function scopeVisual(scope: BrowserScope, entryType: string): ScopeVisual {
+  if (entryType === "directory") {
+    return { label: "DIR", Glyph: FolderGlyph, tone: "muted" };
+  }
+
+  switch (scope) {
+    case "roms":
+      return { label: "ROM", Glyph: CartridgeGlyph, tone: "accent" };
+    case "saves":
+      return { label: "SAV", Glyph: FileGlyph, tone: "muted" };
+    case "cheats":
+      return { label: "CHT", Glyph: FileGlyph, tone: "muted" };
+    case "overlays":
+      return { label: "OVR", Glyph: ImageGlyph, tone: "muted" };
+    case "bios":
+      return { label: "BIO", Glyph: ChipGlyph, tone: "muted" };
+    default:
+      return { label: entryType.slice(0, 3).toUpperCase(), Glyph: FileGlyph, tone: "muted" };
+  }
+}
+
+function RowGlyph({ scope, entry }: { scope: BrowserScope; entry: BrowserEntry }) {
+  const { label, Glyph, tone } = scopeVisual(scope, entry.type);
+  const container =
+    tone === "accent"
+      ? "bg-[var(--accent-soft)] text-[var(--accent)]"
+      : "bg-black/15 text-[var(--muted)]";
+
+  return (
+    <div
+      className={`flex h-12 w-10 flex-col items-center justify-center gap-0.5 rounded-lg ${container}`}
+    >
+      <Glyph />
+      <span className="text-[9px] font-black uppercase tracking-[0.15em]">{label}</span>
+    </div>
+  );
+}
+
+function SelectionCheckbox({
+  ariaLabel,
+  checked,
+  disabled,
+  indeterminate = false,
+  onChange,
+}: {
+  ariaLabel: string;
+  checked: boolean;
+  disabled: boolean;
+  indeterminate?: boolean;
+  onChange?: (checked: boolean) => void;
+}) {
+  const inputRef = useRef<HTMLInputElement | null>(null);
+
+  useEffect(() => {
+    if (inputRef.current) {
+      inputRef.current.indeterminate = indeterminate;
+    }
+  }, [indeterminate]);
+
+  return (
+    <input
+      ref={inputRef}
+      aria-label={ariaLabel}
+      checked={checked}
+      className="h-4 w-4 rounded border border-[var(--accent)] bg-[var(--accent-soft)] text-[var(--accent)] shadow-[inset_0_0_0_1px_rgba(255,255,255,0.04)] focus:ring-2 focus:ring-[var(--accent)] disabled:cursor-not-allowed disabled:opacity-40"
+      disabled={disabled}
+      onChange={(event) => {
+        onChange?.(event.target.checked);
+      }}
+      style={{ accentColor: "var(--accent)" }}
+      type="checkbox"
+    />
+  );
+}
+
+function RowMoreMenu({
+  busy,
+  canReplaceArt,
+  onDelete,
+  onRename,
+  onReplaceArt,
+  entry,
+}: {
+  busy: boolean;
+  canReplaceArt: boolean;
+  onDelete?: (entry: BrowserEntry) => void;
+  onRename?: (entry: BrowserEntry) => void;
+  onReplaceArt?: (entry: BrowserEntry) => void;
+  entry: BrowserEntry;
+}) {
+  const [open, setOpen] = useState(false);
+  const wrapperRef = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    if (!open) {
+      return;
+    }
+    const handle = (event: MouseEvent) => {
+      if (!wrapperRef.current?.contains(event.target as Node)) {
+        setOpen(false);
+      }
+    };
+    const handleKey = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        setOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", handle);
+    document.addEventListener("keydown", handleKey);
+    return () => {
+      document.removeEventListener("mousedown", handle);
+      document.removeEventListener("keydown", handleKey);
+    };
+  }, [open]);
+
+  if (!onRename && !onDelete && !onReplaceArt) {
+    return null;
+  }
+
+  return (
+    <div className="relative" ref={wrapperRef}>
+      <button
+        aria-haspopup="menu"
+        aria-expanded={open}
+        aria-label={`More actions for ${entry.name}`}
+        className="inline-flex h-9 w-9 items-center justify-center rounded-md border border-[var(--border)] text-[var(--muted)] transition hover:border-[var(--accent)]/50 hover:text-[var(--text)] disabled:cursor-not-allowed disabled:opacity-40"
+        disabled={busy}
+        onClick={() => setOpen((current) => !current)}
+        type="button"
+      >
+        <MoreGlyph />
+      </button>
+      {open ? (
+        <div
+          role="menu"
+          className="absolute right-0 top-full z-20 mt-1 min-w-[11rem] overflow-hidden rounded-xl border border-[var(--border)] bg-[var(--panel)] shadow-[var(--shadow)]"
+        >
+          {onRename ? (
+            <button
+              role="menuitem"
+              className="flex w-full items-center gap-2 px-4 py-2.5 text-left text-sm text-[var(--text)] transition hover:bg-white/[0.05] disabled:cursor-not-allowed disabled:opacity-40"
+              disabled={busy}
+              onClick={() => {
+                setOpen(false);
+                onRename(entry);
+              }}
+              type="button"
+            >
+              <PencilGlyph />
+              Rename
+            </button>
+          ) : null}
+          {canReplaceArt && onReplaceArt ? (
+            <button
+              role="menuitem"
+              className="flex w-full items-center gap-2 px-4 py-2.5 text-left text-sm text-[var(--text)] transition hover:bg-white/[0.05] disabled:cursor-not-allowed disabled:opacity-40"
+              disabled={busy}
+              onClick={() => {
+                setOpen(false);
+                onReplaceArt(entry);
+              }}
+              type="button"
+            >
+              <ImageGlyph />
+              Replace Art
+            </button>
+          ) : null}
+          {onDelete ? (
+            <button
+              role="menuitem"
+              className="flex w-full items-center gap-2 border-t border-[var(--line)] px-4 py-2.5 text-left text-sm text-rose-200 transition hover:bg-rose-500/10 disabled:cursor-not-allowed disabled:opacity-40"
+              disabled={busy}
+              onClick={() => {
+                setOpen(false);
+                onDelete(entry);
+              }}
+              type="button"
+            >
+              <TrashGlyph />
+              Delete
+            </button>
+          ) : null}
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+function FilesTable({
+  allSelected = false,
+  busy,
+  csrf,
+  entries,
+  onDelete,
+  onEdit,
+  onMoveEntries,
+  onNavigate,
+  onNavigateParent,
+  onRename,
+  onSelectAll,
+  onSelectEntry,
+  selectedPaths = [],
+  someSelected = false,
+  sort,
+  onSortChange,
+  tag,
+}: {
+  allSelected?: boolean;
+  busy: boolean;
+  csrf?: string | null;
+  entries: BrowserEntry[];
+  onDelete?: (entry: BrowserEntry) => void;
+  onEdit?: (entry: BrowserEntry) => void;
+  onMoveEntries?: (entries: BrowserEntry[], destinationPath: string) => void;
+  onNavigate: (path?: string) => void;
+  onNavigateParent?: () => void;
+  onRename?: (entry: BrowserEntry) => void;
+  onSelectAll?: (checked: boolean) => void;
+  onSelectEntry?: (entry: BrowserEntry, checked: boolean) => void;
+  selectedPaths?: string[];
+  someSelected?: boolean;
+  sort: BrowserSortState;
+  onSortChange?: (sort: BrowserSortState) => void;
+  tag?: string;
+}) {
+  const [dropTargetPath, setDropTargetPath] = useState<string | null>(null);
+  const dragPathsRef = useRef<string[] | null>(null);
+  const gridClass =
+    "grid grid-cols-[auto_minmax(0,1fr)] gap-3 md:grid-cols-[auto_minmax(0,1fr)_100px_220px_260px] md:gap-4";
+  const selectedPathSet = new Set(selectedPaths);
+  const selectedEntries = entries.filter((entry) => selectedPathSet.has(entry.path));
+
+  function clearDragState() {
+    dragPathsRef.current = null;
+    setDropTargetPath(null);
+  }
+
+  function draggedEntriesFor(entry: BrowserEntry): BrowserEntry[] {
+    if (selectedPathSet.has(entry.path) && selectedEntries.length > 0) {
+      return selectedEntries;
+    }
+
+    return [entry];
+  }
+
+  function canDropOn(targetPath: string): boolean {
+    const draggedPaths = dragPathsRef.current;
+
+    if (!draggedPaths || draggedPaths.length === 0) {
+      return false;
+    }
+
+    return draggedPaths.every(
+      (draggedPath) => draggedPath !== targetPath && !targetPath.startsWith(`${draggedPath}/`),
+    );
+  }
+
+  return (
+    <div className="overflow-hidden rounded-[24px] border border-[var(--border)] bg-[var(--panel)]">
+      <div
+        className={`hidden border-b border-[var(--line)] bg-white/[0.02] px-4 py-3 text-xs font-semibold uppercase tracking-wider text-[var(--muted)] md:grid ${gridClass}`}
+      >
+        <span className="flex items-center justify-center">
+          <SelectionCheckbox
+            ariaLabel="Select all visible items"
+            checked={allSelected}
+            disabled={busy || entries.length === 0}
+            indeterminate={someSelected}
+            onChange={onSelectAll}
+          />
+        </span>
+        <SortableHeader column="name" label="Name" sort={sort} onSortChange={onSortChange} />
+        <SortableHeader column="size" label="Size" sort={sort} onSortChange={onSortChange} />
+        <SortableHeader column="modified" label="Modified" sort={sort} onSortChange={onSortChange} />
+        <span className="text-right">Action</span>
+      </div>
+
+      {onNavigateParent ? (
+        <div className={`items-center border-t border-[var(--line)] px-4 py-3 text-sm ${gridClass}`}>
+          <span aria-hidden="true" className="block h-4 w-4" />
+          <button
+            aria-label="Go to parent folder"
+            className="flex items-center gap-3 text-left italic text-[var(--muted)] transition hover:text-[var(--text)] disabled:cursor-not-allowed disabled:opacity-50"
+            disabled={busy}
+            onClick={onNavigateParent}
+            type="button"
+          >
+            <svg aria-hidden="true" className="h-4 w-4 shrink-0" fill="none" viewBox="0 0 24 24">
+              <path
+                d="M15 6l-6 6 6 6"
+                stroke="currentColor"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth="2"
+              />
+            </svg>
+            ..
+          </button>
+          <span className="hidden text-[var(--muted)] md:block">{DASH}</span>
+          <span className="hidden text-[var(--muted)] md:block">{DASH}</span>
+          <span className="hidden md:block" />
+        </div>
+      ) : null}
+
+      {entries.length === 0 && !onNavigateParent ? (
+        <div className="px-5 py-10 text-center text-sm italic text-[var(--muted)]">
+          No files found in this directory.
+        </div>
+      ) : (
+        entries.map((entry) => {
+          const isDir = entry.type === "directory";
+          const isSelected = selectedPathSet.has(entry.path);
+          const isDropTarget = dropTargetPath === entry.path;
+
+          return (
+            <div
+              key={entry.path}
+              className={`group items-center border-t border-[var(--line)] px-4 py-3 text-sm transition ${isDropTarget ? "bg-[var(--accent-soft)]/30 ring-1 ring-[var(--accent)]/40" : "hover:bg-white/[0.03]"} ${gridClass}`}
+              draggable={Boolean(onMoveEntries) && !busy}
+              onDragEnd={clearDragState}
+              onDragLeave={() => {
+                if (isDropTarget) {
+                  setDropTargetPath(null);
+                }
+              }}
+              onDragOver={
+                isDir && onMoveEntries
+                  ? (event) => {
+                      if (!canDropOn(entry.path)) {
+                        return;
+                      }
+
+                      event.preventDefault();
+                      event.dataTransfer.dropEffect = "move";
+                      if (!isDropTarget) {
+                        setDropTargetPath(entry.path);
+                      }
+                    }
+                  : undefined
+              }
+              onDragStart={
+                onMoveEntries
+                  ? (event) => {
+                      const draggedEntries = draggedEntriesFor(entry);
+
+                      dragPathsRef.current = draggedEntries.map((candidate) => candidate.path);
+                      event.dataTransfer.effectAllowed = "move";
+                      event.dataTransfer.setData(BROWSER_MOVE_DRAG_TYPE, "1");
+                      event.dataTransfer.setData("text/plain", dragPathsRef.current.join("\n"));
+                    }
+                  : undefined
+              }
+              onDrop={
+                isDir && onMoveEntries
+                  ? (event) => {
+                      const draggedPaths = dragPathsRef.current ?? [];
+                      const draggedEntries = entries.filter((candidate) => draggedPaths.includes(candidate.path));
+
+                      if (!canDropOn(entry.path) || draggedEntries.length === 0) {
+                        clearDragState();
+                        return;
+                      }
+
+                      event.preventDefault();
+                      clearDragState();
+                      onMoveEntries(draggedEntries, entry.path);
+                    }
+                  : undefined
+              }
+            >
+              <div className="flex items-center justify-center">
+                <SelectionCheckbox
+                  ariaLabel={`Select ${entry.name}`}
+                  checked={isSelected}
+                  disabled={busy}
+                  onChange={(checked) => {
+                    onSelectEntry?.(entry, checked);
+                  }}
+                />
+              </div>
+              <div className="min-w-0">
+                {isDir ? (
+                  <button
+                    aria-label={`Open ${entry.name}`}
+                    className="flex w-full min-w-0 items-center gap-3 text-left disabled:cursor-not-allowed disabled:opacity-60"
+                    disabled={busy}
+                    onClick={() => {
+                      onNavigate(entry.path);
+                    }}
+                    type="button"
+                  >
+                    <span className="shrink-0 text-[var(--muted)] transition group-hover:text-[var(--accent)]">
+                      <FolderGlyph />
+                    </span>
+                    <span className="truncate font-medium text-[var(--text)] transition group-hover:text-white">
+                      {entry.name}
+                    </span>
+                  </button>
+                ) : (
+                  <a
+                    aria-label={`Download ${entry.name}`}
+                    className="flex min-w-0 items-center gap-3"
+                    href={buildDownloadUrl("files", entry.path, tag, csrf)}
+                  >
+                    <span className="shrink-0 text-[var(--muted)] transition group-hover:text-[var(--accent)]">
+                      <FileGlyph />
+                    </span>
+                    <span className="truncate font-medium text-[var(--text)] transition group-hover:text-white">
+                      {entry.name}
+                    </span>
+                  </a>
+                )}
+              </div>
+              <span className="hidden text-[var(--muted)] tabular-nums md:block">
+                {isDir ? DASH : formatSize(entry.size)}
+              </span>
+              <span className="hidden font-mono text-xs tabular-nums text-[var(--muted)] md:block">
+                {formatDate(entry.modified)}
+              </span>
+              <div className="col-span-2 flex flex-wrap justify-end gap-1 whitespace-nowrap md:col-span-1 md:flex-nowrap">
+                {onRename ? (
+                  <button
+                    aria-label={`Rename ${entry.name}`}
+                    className="inline-flex items-center gap-1 rounded-md px-2 py-1 text-xs font-semibold text-[var(--muted)] transition hover:text-[var(--text)] disabled:cursor-not-allowed disabled:opacity-40"
+                    disabled={busy}
+                    onClick={() => {
+                      onRename(entry);
+                    }}
+                    type="button"
+                  >
+                    <PencilGlyph />
+                    Rename
+                  </button>
+                ) : null}
+                {onEdit && !isDir && isPlaintextFileName(entry.name) ? (
+                  <button
+                    aria-label={`Edit ${entry.name}`}
+                    className="inline-flex items-center gap-1 rounded-md px-2 py-1 text-xs font-semibold text-[var(--muted)] transition hover:text-[var(--text)] disabled:cursor-not-allowed disabled:opacity-40"
+                    disabled={busy}
+                    onClick={() => {
+                      onEdit(entry);
+                    }}
+                    type="button"
+                  >
+                    <PencilGlyph />
+                    Edit
+                  </button>
+                ) : null}
+                {onDelete ? (
+                  <button
+                    aria-label={`Delete ${entry.name}`}
+                    className="inline-flex items-center gap-1 rounded-md px-2 py-1 text-xs font-semibold text-[var(--accent)] transition hover:text-[var(--accent-strong)] disabled:cursor-not-allowed disabled:opacity-40"
+                    disabled={busy}
+                    onClick={() => {
+                      onDelete(entry);
+                    }}
+                    type="button"
+                  >
+                    <TrashGlyph />
+                    Delete
+                  </button>
+                ) : null}
+              </div>
+            </div>
+          );
+        })
+      )}
+    </div>
+  );
+}
+
+function LibraryTable({
+  busy,
+  csrf,
+  entries,
+  onDelete,
+  onNavigate,
+  onRename,
+  onReplaceArt,
+  onToggleFavorite,
+  scope,
+  sort,
+  onSortChange,
+  tag,
+}: {
+  busy: boolean;
+  csrf?: string | null;
+  entries: BrowserEntry[];
+  onDelete?: (entry: BrowserEntry) => void;
+  onNavigate: (path?: string) => void;
+  onRename?: (entry: BrowserEntry) => void;
+  onReplaceArt?: (entry: BrowserEntry) => void;
+  onToggleFavorite?: (entry: BrowserEntry, favorite: boolean) => void;
+  scope: BrowserScope;
+  sort: BrowserSortState;
+  onSortChange?: (sort: BrowserSortState) => void;
+  tag?: string;
+}) {
+  const gridClass =
+    "grid grid-cols-[minmax(0,1fr),auto] gap-3 md:grid-cols-[minmax(0,1fr)_110px_220px_140px] md:gap-4";
+
+  return (
+    <div className="relative overflow-visible rounded-[24px] border border-[var(--border)] bg-[var(--panel)]">
+      <div
+        className={`hidden border-b border-[var(--line)] bg-white/[0.02] px-4 py-3 text-xs font-semibold uppercase tracking-wider text-[var(--muted)] md:grid ${gridClass}`}
+      >
+        <SortableHeader column="name" label="Name" sort={sort} onSortChange={onSortChange} />
+        <SortableHeader column="size" label="Size" sort={sort} onSortChange={onSortChange} />
+        <SortableHeader column="modified" label="Modified" sort={sort} onSortChange={onSortChange} />
+        <span className="text-right">Action</span>
+      </div>
+
+      {entries.length === 0 ? (
+        <div className="px-5 py-10 text-center text-sm italic text-[var(--muted)]">
+          Nothing found in this folder.
+        </div>
+      ) : (
+        entries.map((entry) => {
+          const isDir = entry.type === "directory";
+          const canReplaceArt = scope === "roms" && entry.type === "rom";
+          const canToggleFavorite =
+            scope === "roms" && entry.type === "rom" && Boolean(entry.favoriteSupported) && Boolean(onToggleFavorite);
+          const favoriteLabel = entry.favorite
+            ? `Remove ${entry.name} from favorites`
+            : `Add ${entry.name} to favorites`;
+
+          return (
+            <div
+              key={entry.path}
+              className={`group items-center border-t border-[var(--line)] px-4 py-3 text-sm transition hover:bg-white/[0.03] ${gridClass}`}
+            >
+              <div className="min-w-0">
+                <div className="flex min-w-0 items-center gap-3">
+                  <RowGlyph entry={entry} scope={scope} />
+                  <div className="min-w-0">
+                    <p className="truncate font-medium text-[var(--text)] transition group-hover:text-white">{entry.name}</p>
+                    <p className="truncate text-xs text-[var(--muted)] md:hidden">
+                      {isDir ? "Folder" : formatSize(entry.size)}
+                      {entry.modified ? ` · ${formatDate(entry.modified)}` : ""}
+                    </p>
+                  </div>
+                </div>
+              </div>
+              <span className="hidden text-[var(--muted)] tabular-nums md:block">
+                {isDir ? DASH : formatSize(entry.size)}
+              </span>
+              <span className="hidden font-mono text-xs tabular-nums text-[var(--muted)] md:block">
+                {formatDate(entry.modified)}
+              </span>
+              <div className="flex items-center justify-end gap-2">
+                {canToggleFavorite ? (
+                  <button
+                    aria-label={favoriteLabel}
+                    className={`inline-flex h-9 w-9 items-center justify-center rounded-md border transition disabled:cursor-not-allowed disabled:opacity-40 ${
+                      entry.favorite
+                        ? "border-amber-300/45 bg-amber-300/10 text-amber-200 hover:border-amber-200/70"
+                        : "border-[var(--border)] text-[var(--muted)] hover:border-[var(--accent)]/50 hover:text-[var(--text)]"
+                    }`}
+                    disabled={busy}
+                    onClick={() => {
+                      onToggleFavorite?.(entry, !entry.favorite);
+                    }}
+                    title={favoriteLabel}
+                    type="button"
+                  >
+                    <StarGlyph filled={Boolean(entry.favorite)} />
+                  </button>
+                ) : null}
+                {isDir ? (
+                  <button
+                    aria-label={`Open ${entry.name}`}
+                    className="rounded-md border border-[var(--border)] px-3 py-2 text-xs font-medium transition hover:border-[var(--accent)]/50 disabled:cursor-not-allowed disabled:opacity-50"
+                    disabled={busy}
+                    onClick={() => {
+                      onNavigate(entry.path);
+                    }}
+                    type="button"
+                  >
+                    Open
+                  </button>
+                ) : (
+                  <a
+                    aria-label={`Download ${entry.name}`}
+                    className="rounded-md bg-[var(--accent)] px-3 py-2 text-xs font-semibold text-white transition hover:bg-[var(--accent-strong)]"
+                    href={buildDownloadUrl(scope, entry.path, tag, csrf)}
+                  >
+                    Download
+                  </a>
+                )}
+                <RowMoreMenu
+                  busy={busy}
+                  canReplaceArt={canReplaceArt}
+                  entry={entry}
+                  onDelete={onDelete}
+                  onRename={onRename}
+                  onReplaceArt={onReplaceArt}
+                />
+              </div>
+            </div>
+          );
+        })
+      )}
+    </div>
+  );
+}
+
+export function BrowserTable({
+  allSelected = false,
+  busy = false,
+  csrf,
+  entries,
+  onDelete,
+  onEdit,
+  onMoveEntries,
+  onNavigate,
+  onNavigateParent,
+  onRename,
+  onReplaceArt,
+  onToggleFavorite,
+  onSelectAll,
+  onSelectEntry,
+  selectedPaths,
+  someSelected = false,
+  scope,
+  sort = DEFAULT_BROWSER_SORT,
+  onSortChange,
+  tag,
+}: {
+  allSelected?: boolean;
+  busy?: boolean;
+  csrf?: string | null;
+  entries: BrowserEntry[];
+  onDelete?: (entry: BrowserEntry) => void;
+  onEdit?: (entry: BrowserEntry) => void;
+  onMoveEntries?: (entries: BrowserEntry[], destinationPath: string) => void;
+  onNavigate: (path?: string) => void;
+  onNavigateParent?: () => void;
+  onRename?: (entry: BrowserEntry) => void;
+  onReplaceArt?: (entry: BrowserEntry) => void;
+  onToggleFavorite?: (entry: BrowserEntry, favorite: boolean) => void;
+  onSelectAll?: (checked: boolean) => void;
+  onSelectEntry?: (entry: BrowserEntry, checked: boolean) => void;
+  selectedPaths?: string[];
+  someSelected?: boolean;
+  scope: BrowserScope;
+  sort?: BrowserSortState;
+  onSortChange?: (sort: BrowserSortState) => void;
+  tag?: string;
+}) {
+  if (scope === "files") {
+    return (
+      <FilesTable
+        allSelected={allSelected}
+        busy={busy}
+        csrf={csrf}
+        entries={entries}
+        onDelete={onDelete}
+        onEdit={onEdit}
+        onMoveEntries={onMoveEntries}
+        onNavigate={onNavigate}
+        onNavigateParent={onNavigateParent}
+        onRename={onRename}
+        onSelectAll={onSelectAll}
+        onSelectEntry={onSelectEntry}
+        selectedPaths={selectedPaths}
+        someSelected={someSelected}
+        sort={sort}
+        onSortChange={onSortChange}
+        tag={tag}
+      />
+    );
+  }
+
+  return (
+    <LibraryTable
+      busy={busy}
+      csrf={csrf}
+      entries={entries}
+      onDelete={onDelete}
+      onNavigate={onNavigate}
+      onRename={onRename}
+      onReplaceArt={onReplaceArt}
+      onToggleFavorite={onToggleFavorite}
+      scope={scope}
+      sort={sort}
+      onSortChange={onSortChange}
+      tag={tag}
+    />
+  );
+}

@@ -113,6 +113,9 @@ async function expectJson<T>(response: Response, errorMessage: string): Promise<
     if (errorCode === "pairing_unavailable") {
       throw new ApiError(PAIRING_UNAVAILABLE_MESSAGE, response.status, errorCode);
     }
+    if (errorCode === "upload_source_required") {
+      throw new ApiError("Open an SD card source before uploading files.", response.status, errorCode);
+    }
 
     throw new ApiError(errorMessage, response.status, errorCode);
   }
@@ -146,6 +149,9 @@ function parseUploadError(xhr: XMLHttpRequest): Error {
         body.error,
         errorPath,
       );
+    }
+    if (body.error === "upload_source_required") {
+      return new ApiError("Open an SD card source before uploading files.", xhr.status, body.error);
     }
   } catch {
     // Ignore non-JSON upload failures.
@@ -741,6 +747,21 @@ export async function setGameFavorite(request: FavoriteRequest, csrf: string): P
     const errorCode = await readErrorCode(response);
 
     throw new ApiError("Favorite update failed", response.status, errorCode);
+  }
+}
+
+export async function requestLibraryRescan(csrf: string): Promise<void> {
+  const response = await fetch("/api/library/rescan", {
+    method: "POST",
+    headers: {
+      "X-CS-CSRF": csrf,
+    },
+  });
+
+  if (!response.ok) {
+    const errorCode = await readErrorCode(response);
+
+    throw new ApiError("Library rescan failed", response.status, errorCode);
   }
 }
 

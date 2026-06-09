@@ -26,6 +26,20 @@ static void set_sdcard_root_realpath(const char *root) {
 
     assert(realpath(root, resolved) != NULL);
     setenv("SDCARD_PATH", resolved, 1);
+    unsetenv("SDCARD_PATHS");
+    unsetenv("CS_WEB_ROOT");
+}
+
+static void set_sdcard_roots_realpath(const char *first, const char *second) {
+    char first_resolved[PATH_MAX];
+    char second_resolved[PATH_MAX];
+    char joined[(PATH_MAX * 2) + 2];
+
+    assert(realpath(first, first_resolved) != NULL);
+    assert(realpath(second, second_resolved) != NULL);
+    assert(snprintf(joined, sizeof(joined), "%s:%s", first_resolved, second_resolved) > 0);
+    setenv("SDCARD_PATHS", joined, 1);
+    unsetenv("SDCARD_PATH");
     unsetenv("CS_WEB_ROOT");
 }
 
@@ -178,8 +192,59 @@ static void test_dotclean_reports_truncation_without_losing_total_count(void) {
     assert(entries[0].path[0] != '\0');
 }
 
+static void test_dotclean_scans_all_sources_with_virtual_paths(void) {
+    char template[] = "/tmp/cs-dotclean-sources-XXXXXX";
+    char *root;
+    char first_root[PATH_MAX];
+    char second_root[PATH_MAX];
+    char first_roms[PATH_MAX];
+    char second_roms[PATH_MAX];
+    char first_artifact[PATH_MAX];
+    char second_artifact[PATH_MAX];
+    cs_paths paths = {0};
+    cs_dotclean_entry entries[16];
+    size_t count = 0;
+    int truncated = 1;
+
+    root = mkdtemp(template);
+    assert(root != NULL);
+
+    assert(snprintf(first_root, sizeof(first_root), "%s/card-a", root) > 0);
+    assert(snprintf(second_root, sizeof(second_root), "%s/card-b", root) > 0);
+    assert(snprintf(first_roms, sizeof(first_roms), "%s/Roms", first_root) > 0);
+    assert(snprintf(second_roms, sizeof(second_roms), "%s/Roms", second_root) > 0);
+    assert(snprintf(first_artifact, sizeof(first_artifact), "%s/._one.gba", first_roms) > 0);
+    assert(snprintf(second_artifact, sizeof(second_artifact), "%s/.DS_Store", second_roms) > 0);
+
+    make_dir(first_root);
+    make_dir(second_root);
+    make_dir(first_roms);
+    make_dir(second_roms);
+    write_file(first_artifact, "appledouble");
+    write_file(second_artifact, "finder");
+
+    set_sdcard_roots_realpath(first_root, second_root);
+    assert(cs_paths_init(&paths) == 0);
+    assert(paths.source_count == 2);
+    assert(cs_dotclean_scan(&paths, entries, sizeof(entries) / sizeof(entries[0]), &count, &truncated) == 0);
+
+    assert(count == 2);
+    assert(truncated == 0);
+    assert(has_path(entries, count, "card-a/Roms/._one.gba") == 1);
+    assert(has_path(entries, count, "card-b/Roms/.DS_Store") == 1);
+
+    assert(remove(first_artifact) == 0);
+    assert(remove(second_artifact) == 0);
+    assert(rmdir(first_roms) == 0);
+    assert(rmdir(second_roms) == 0);
+    assert(rmdir(first_root) == 0);
+    assert(rmdir(second_root) == 0);
+    assert(rmdir(root) == 0);
+}
+
 int main(void) {
     test_dotclean_finds_expected_entries_and_skips_large_trees();
     test_dotclean_reports_truncation_without_losing_total_count();
+    test_dotclean_scans_all_sources_with_virtual_paths();
     return 0;
 }

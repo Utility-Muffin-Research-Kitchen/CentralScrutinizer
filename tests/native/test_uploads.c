@@ -459,6 +459,67 @@ static void test_no_replace_fallback_path(void) {
     assert(unsetenv("CS_FORCE_RENAME_NOREPLACE_FALLBACK") == 0);
 }
 
+static void test_temp_upload_root_can_live_on_secondary_source(void) {
+    cs_paths paths;
+    char sandbox_template[] = "/tmp/cs-upload-secondary-source-XXXXXX";
+    char first_root[CS_PATH_MAX];
+    char second_root[CS_PATH_MAX];
+    char first_resolved[CS_PATH_MAX];
+    char second_resolved[CS_PATH_MAX];
+    char source_list[(CS_PATH_MAX * 2) + 2];
+    char userdata_root[CS_PATH_MAX];
+    char tmp_root[CS_PATH_MAX];
+    char uploads_root[CS_PATH_MAX];
+    char app_root[CS_PATH_MAX];
+    char platform_userdata_root[CS_PATH_MAX];
+    char platform_root[CS_PATH_MAX];
+    char platforms_root[CS_PATH_MAX];
+    char leaf_root[CS_PATH_MAX];
+    char system_root[CS_PATH_MAX];
+
+    assert(mkdtemp(sandbox_template) != NULL);
+    path_join(first_root, sizeof(first_root), sandbox_template, "card-a");
+    path_join(second_root, sizeof(second_root), sandbox_template, "card-b");
+    assert(mkdir(first_root, 0775) == 0);
+    assert(mkdir(second_root, 0775) == 0);
+    assert(realpath(first_root, first_resolved) != NULL);
+    assert(realpath(second_root, second_resolved) != NULL);
+    path_join(userdata_root, sizeof(userdata_root), second_resolved, ".system/leaf/platforms/mlp1/userdata");
+    path_join(system_root, sizeof(system_root), second_resolved, ".system");
+    path_join(leaf_root, sizeof(leaf_root), system_root, "leaf");
+    path_join(platforms_root, sizeof(platforms_root), leaf_root, "platforms");
+    path_join(platform_root, sizeof(platform_root), platforms_root, "mlp1");
+    path_join(platform_userdata_root, sizeof(platform_userdata_root), platform_root, "userdata");
+    path_join(app_root, sizeof(app_root), platform_userdata_root, "CentralScrutinizer");
+    path_join(uploads_root, sizeof(uploads_root), app_root, "uploads");
+    path_join(tmp_root, sizeof(tmp_root), uploads_root, "tmp");
+    assert(snprintf(source_list, sizeof(source_list), "%s:%s", first_resolved, second_resolved) > 0);
+
+    setenv("SDCARD_PATHS", source_list, 1);
+    setenv("USERDATA_PATH", userdata_root, 1);
+    unsetenv("SDCARD_PATH");
+    unsetenv("CS_WEB_ROOT");
+
+    assert(cs_paths_init(&paths) == 0);
+    assert(strcmp(paths.temp_upload_root, tmp_root) == 0);
+    assert(cs_upload_prepare_temp_root(&paths) == 0);
+    assert(access(tmp_root, F_OK) == 0);
+
+    unsetenv("SDCARD_PATHS");
+    unsetenv("USERDATA_PATH");
+    assert(rmdir(tmp_root) == 0);
+    assert(rmdir(uploads_root) == 0);
+    assert(rmdir(app_root) == 0);
+    assert(rmdir(platform_userdata_root) == 0);
+    assert(rmdir(platform_root) == 0);
+    assert(rmdir(platforms_root) == 0);
+    assert(rmdir(leaf_root) == 0);
+    assert(rmdir(system_root) == 0);
+    assert(rmdir(first_root) == 0);
+    assert(rmdir(second_root) == 0);
+    assert(rmdir(sandbox_template) == 0);
+}
+
 int main(void) {
     cs_paths paths;
     cs_upload_plan plan;
@@ -529,6 +590,7 @@ int main(void) {
     test_no_replace_fallback_path();
     test_reserved_temp_paths_are_unique();
     test_prepare_final_directory_merges_existing_directories();
+    test_temp_upload_root_can_live_on_secondary_source();
 
     return 0;
 }

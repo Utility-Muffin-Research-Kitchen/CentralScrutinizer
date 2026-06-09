@@ -183,4 +183,28 @@ describe("platform-display", () => {
     expect(visibleTags).toContain("GBA");
     expect(visibleTags).not.toContain("MGBA");
   });
+
+  it("keeps empty installed consoles visible in installed-only mode", () => {
+    const groups = buildGroups();
+
+    groups[0].platforms.push({
+      tag: "GB",
+      name: "Game Boy",
+      group: "Nintendo",
+      icon: "GB",
+      isCustom: false,
+      ...emulatorState(),
+      romPath: "Roms/Game Boy (GB)",
+      savePath: "Saves/GB",
+      biosPath: "Bios/GB",
+      supportedResources: supportedResources(),
+      counts: { roms: 0, saves: 0, states: 0, bios: 0, overlays: 0, cheats: 0 },
+    });
+
+    const visibleGroups = filterPlatformGroups(groups, "", "installed", false);
+    const visibleTags = flattenPlatformGroups(visibleGroups).map((platform) => platform.tag);
+
+    expect(visibleTags).toContain("GB");
+    expect(visibleTags).not.toContain("MGBA");
+  });
 });

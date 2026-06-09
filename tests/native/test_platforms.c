@@ -237,9 +237,9 @@ static void test_shortcut_directories_are_excluded_from_discovery(void) {
 
     md = find_platform_entry(discovered, discovered_count, "MD");
     assert(md != NULL);
-    assert(strcmp(md->rom_directory, "MD") == 0);
+    assert(strcmp(md->rom_directory, "Sega Genesis (MD)") == 0);
     assert(cs_platform_resolve(&paths, "MD", &resolved) == 0);
-    assert(strcmp(resolved.rom_directory, "MD") == 0);
+    assert(strcmp(resolved.rom_directory, "Sega Genesis (MD)") == 0);
     assert(cs_platform_is_shortcut_directory("0) Sonic - Spindash (MD)", shortcut_dir) == 1);
     assert(cs_platform_is_shortcut_directory("\xE2\x98\x85 Old Shortcut (MD)", "/tmp/legacy-shortcut") == 1);
 
@@ -301,6 +301,39 @@ static void test_custom_rom_directories_are_not_exposed_in_library(void) {
     assert(remove(dreamcast_file) == 0);
     assert(rmdir(textures_dir) == 0);
     assert(rmdir(dreamcast_dir) == 0);
+    assert(rmdir(roms_dir) == 0);
+    assert(rmdir(root) == 0);
+}
+
+static void test_missing_known_rom_directory_uses_canonical_leaf_name(void) {
+    char template[] = "/tmp/cs-platforms-canonical-XXXXXX";
+    char *root;
+    char roms_dir[PATH_MAX];
+    cs_paths paths = {0};
+    cs_platform_info discovered[256];
+    cs_platform_info resolved = {0};
+    size_t discovered_count = 0;
+    const cs_platform_info *gba;
+
+    root = mkdtemp(template);
+    assert(root != NULL);
+    assert(snprintf(roms_dir, sizeof(roms_dir), "%s/Roms", root) > 0);
+    make_dir(roms_dir);
+
+    set_sdcard_root_realpath(root);
+    assert(cs_paths_init(&paths) == 0);
+    assert(cs_platform_discover(&paths,
+                                discovered,
+                                sizeof(discovered) / sizeof(discovered[0]),
+                                &discovered_count)
+           == 0);
+
+    gba = find_platform_entry(discovered, discovered_count, "GBA");
+    assert(gba != NULL);
+    assert(strcmp(gba->rom_directory, "Game Boy Advance (GBA)") == 0);
+    assert(cs_platform_resolve(&paths, "GBA", &resolved) == 0);
+    assert(strcmp(resolved.rom_directory, "Game Boy Advance (GBA)") == 0);
+
     assert(rmdir(roms_dir) == 0);
     assert(rmdir(root) == 0);
 }
@@ -440,16 +473,25 @@ static void test_emulator_scan_checks_leaf_cores_and_info(void) {
     char cores_dir[PATH_MAX];
     char info_dir[PATH_MAX];
     char gba_core[PATH_MAX];
+    char snes_core[PATH_MAX];
+    char sega_info[PATH_MAX];
+    char ps_core[PATH_MAX];
     char foo_info[PATH_MAX];
     cs_paths paths = {0};
     char codes[128][CS_PLATFORM_CODE_MAX];
     size_t code_count = 0;
     const cs_platform_info *gba = cs_platform_find("GBA");
     const cs_platform_info *fc = cs_platform_find("FC");
+    const cs_platform_info *sfc = cs_platform_find("SFC");
+    const cs_platform_info *md = cs_platform_find("MD");
+    const cs_platform_info *ps = cs_platform_find("PS");
     const cs_platform_info *ports = cs_platform_find("PORTS");
 
     assert(gba != NULL);
     assert(fc != NULL);
+    assert(sfc != NULL);
+    assert(md != NULL);
+    assert(ps != NULL);
     assert(ports != NULL);
 
     root = mkdtemp(template);
@@ -462,6 +504,9 @@ static void test_emulator_scan_checks_leaf_cores_and_info(void) {
     assert(snprintf(cores_dir, sizeof(cores_dir), "%s/.system/leaf/platforms/mlp1/cores", root) > 0);
     assert(snprintf(info_dir, sizeof(info_dir), "%s/.system/leaf/platforms/mlp1/info", root) > 0);
     assert(snprintf(gba_core, sizeof(gba_core), "%s/gba_libretro.so", cores_dir) > 0);
+    assert(snprintf(snes_core, sizeof(snes_core), "%s/snes9x_libretro.so", cores_dir) > 0);
+    assert(snprintf(sega_info, sizeof(sega_info), "%s/genesis_plus_gx_libretro.info", info_dir) > 0);
+    assert(snprintf(ps_core, sizeof(ps_core), "%s/pcsx_rearmed_libretro.so", cores_dir) > 0);
     assert(snprintf(foo_info, sizeof(foo_info), "%s/foo_libretro.info", info_dir) > 0);
 
     make_dir(roms_dir);
@@ -472,18 +517,28 @@ static void test_emulator_scan_checks_leaf_cores_and_info(void) {
     make_dir(cores_dir);
     make_dir(info_dir);
     write_file(gba_core, "core");
+    write_file(snes_core, "core");
+    write_file(sega_info, "info");
+    write_file(ps_core, "core");
     write_file(foo_info, "info");
 
     set_sdcard_root_realpath(root);
     assert(cs_paths_init(&paths) == 0);
     assert(cs_platform_collect_installed_emulators(&paths, codes, sizeof(codes) / sizeof(codes[0]), &code_count) == 0);
-    assert(code_count >= cs_platform_count());
+    assert(code_count >= 8);
     assert(cs_platform_has_installed_emulator(gba, (const char (*)[CS_PLATFORM_CODE_MAX]) codes, code_count) == 1);
-    assert(cs_platform_has_installed_emulator(fc, (const char (*)[CS_PLATFORM_CODE_MAX]) codes, code_count) == 1);
+    assert(cs_platform_has_installed_emulator(fc, (const char (*)[CS_PLATFORM_CODE_MAX]) codes, code_count) == 0);
+    assert(cs_platform_has_installed_emulator(sfc, (const char (*)[CS_PLATFORM_CODE_MAX]) codes, code_count) == 1);
+    assert(cs_platform_has_installed_emulator(md, (const char (*)[CS_PLATFORM_CODE_MAX]) codes, code_count) == 1);
+    assert(cs_platform_has_installed_emulator(ps, (const char (*)[CS_PLATFORM_CODE_MAX]) codes, code_count) == 1);
     assert(cs_platform_has_installed_emulator(ports, (const char (*)[CS_PLATFORM_CODE_MAX]) codes, code_count) == 1);
     assert(has_emulator_code((const char (*)[CS_PLATFORM_CODE_MAX]) codes, code_count, "FOO") == 1);
+    assert(has_emulator_code((const char (*)[CS_PLATFORM_CODE_MAX]) codes, code_count, "SNES9X") == 1);
 
     assert(remove(gba_core) == 0);
+    assert(remove(snes_core) == 0);
+    assert(remove(sega_info) == 0);
+    assert(remove(ps_core) == 0);
     assert(remove(foo_info) == 0);
     assert(rmdir(info_dir) == 0);
     assert(rmdir(cores_dir) == 0);
@@ -503,6 +558,7 @@ int main(void) {
     test_alias_rom_directories_are_resolved();
     test_shortcut_directories_are_excluded_from_discovery();
     test_custom_rom_directories_are_not_exposed_in_library();
+    test_missing_known_rom_directory_uses_canonical_leaf_name();
     test_custom_rom_directories_are_exposed_when_emulator_installed();
     test_ports_are_only_discovered_when_installed();
     test_emulator_scan_checks_leaf_cores_and_info();

@@ -27,6 +27,7 @@ import {
   previewUploadBatched,
   readTextFile,
   replaceArt,
+  requestLibraryRescan,
   renameItem,
   revokeBrowser,
   searchFiles,
@@ -92,6 +93,26 @@ function joinRelativePath(base: string | undefined, name: string): string {
   return base ? `${base}/${name}` : name;
 }
 
+function uploadClientPath(file: File): string {
+  const relativePath = (file as File & { webkitRelativePath?: string }).webkitRelativePath;
+
+  return relativePath && relativePath.length > 0 ? relativePath : file.name;
+}
+
+function filePathMayAffectLibrary(path: string | undefined): boolean {
+  if (!path) {
+    return true;
+  }
+
+  const parts = path
+    .split("/")
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((part) => part.toLocaleLowerCase());
+
+  return parts.some((part) => part === "roms" || part === "images" || part === "imgs" || part === "apps");
+}
+
 function buildRenamedPath(existingPath: string, nextName: string): string {
   const lastSlash = existingPath.lastIndexOf("/");
 
@@ -106,6 +127,37 @@ function buildMovedPath(entry: BrowserEntry, destinationPath: string): string {
   const normalized = normalizeRelativeDirectory(destinationPath);
 
   return normalized ? `${normalized}/${entry.name}` : entry.name;
+}
+
+function scopeMutationMayAffectLibrary(
+  scopeState: { scope: BrowserScope; path?: string } | null,
+  paths: string[] = [],
+): boolean {
+  if (!scopeState) {
+    return false;
+  }
+  if (scopeState.scope === "roms") {
+    return true;
+  }
+  if (scopeState.scope !== "files") {
+    return false;
+  }
+
+  const candidates = paths.length > 0 ? paths : [scopeState.path];
+
+  return candidates.some(filePathMayAffectLibrary);
+}
+
+function uploadMutationMayAffectLibrary(
+  scopeState: { scope: BrowserScope; path?: string } | null,
+  selection: UploadSelection,
+): boolean {
+  const paths = [
+    ...selection.directories.map((path) => joinRelativePath(scopeState?.path, path)),
+    ...selection.files.map((file) => joinRelativePath(scopeState?.path, uploadClientPath(file))),
+  ];
+
+  return scopeMutationMayAffectLibrary(scopeState, paths);
 }
 
 async function pickSingleFile(accept?: string): Promise<File | null> {
@@ -427,6 +479,18 @@ export default function Page() {
     await browserRefreshRef.current();
   }
 
+  async function refreshAfterLibraryMutation(currentCsrf = session?.csrf) {
+    if (currentCsrf) {
+      try {
+        await requestLibraryRescan(currentCsrf);
+      } catch (error) {
+        console.warn("Library rescan failed", error);
+      }
+    }
+
+    await refreshCurrentData(currentCsrf);
+  }
+
   const browserResponse = useMemo(
     () => (browser.metadata ? { ...browser.metadata, entries: browser.entries } : null),
     [browser.metadata, browser.entries],
@@ -447,6 +511,19 @@ export default function Page() {
     }
 
     return null;
+  }
+
+  function uploadNeedsFileSource(scopeState: { scope: BrowserScope; path?: string } | null): boolean {
+    return scopeState?.scope === "files" && !scopeState.path && browser.metadata?.rootPath === "sources";
+  }
+
+  function ensureUploadTarget(scopeState: { scope: BrowserScope; path?: string } | null): boolean {
+    if (uploadNeedsFileSource(scopeState)) {
+      setNotice("Open an SD card source before uploading files.");
+      return false;
+    }
+
+    return true;
   }
 
   useEffect(() => {
@@ -806,7 +883,7 @@ export default function Page() {
     const scopeState = currentScopeState();
     const csrf = session.csrf;
 
-    if (!scopeState || !csrf || !hasUploadItems(selection)) {
+    if (!scopeState || !csrf || !hasUploadItems(selection) || !ensureUploadTarget(scopeState)) {
       return;
     }
 
@@ -831,7 +908,14 @@ export default function Page() {
         /* Refresh regardless of outcome — earlier batches may have committed before a later
          * batch failed or the user cancelled, so the browser view is out of sync either way.
          */
-        await refreshCurrentData();
+        if (
+          (summary.uploaded > 0 || summary.directoriesCreated > 0) &&
+          uploadMutationMayAffectLibrary(scopeState, selection)
+        ) {
+          await refreshAfterLibraryMutation();
+        } else {
+          await refreshCurrentData();
+        }
 
         const uploadedParts = formatUploadParts(summary.uploaded, summary.directoriesCreated);
         const failedParts = formatUploadParts(summary.failed, summary.directoriesFailed);
@@ -864,7 +948,7 @@ export default function Page() {
   const handleUploadFolder = async () => {
     const scopeState = currentScopeState();
 
-    if (!scopeState || (scopeState.scope !== "roms" && scopeState.scope !== "files")) {
+    if (!scopeState || (scopeState.scope !== "roms" && scopeState.scope !== "files") || !ensureUploadTarget(scopeState)) {
       return;
     }
 
@@ -878,7 +962,7 @@ export default function Page() {
   const handleUploadZip = async () => {
     const scopeState = currentScopeState();
 
-    if (!scopeState || (scopeState.scope !== "roms" && scopeState.scope !== "files")) {
+    if (!scopeState || (scopeState.scope !== "roms" && scopeState.scope !== "files") || !ensureUploadTarget(scopeState)) {
       return;
     }
 
@@ -915,7 +999,7 @@ export default function Page() {
 
     const scopeState = currentScopeState();
 
-    if (!scopeState) {
+    if (!scopeState || !ensureUploadTarget(scopeState)) {
       return;
     }
 
@@ -1071,7 +1155,7 @@ export default function Page() {
             setTransfer((current) => ({ ...current, progress }));
           },
         );
-        await refreshCurrentData();
+        await refreshAfterLibraryMutation(csrf);
         setNotice(`Artwork updated for ${entry.name}.`);
       } catch (error) {
         setNotice(error instanceof Error ? error.message : "Artwork update failed.");
@@ -1127,7 +1211,11 @@ export default function Page() {
         },
         csrf,
       );
-      await refreshCurrentData();
+      if (scopeMutationMayAffectLibrary(scopeState, [joinRelativePath(scopeState.path, name.trim())])) {
+        await refreshAfterLibraryMutation(csrf);
+      } else {
+        await refreshCurrentData();
+      }
       setNotice(`Created folder ${name.trim()}.`);
     });
   };
@@ -1161,7 +1249,11 @@ export default function Page() {
           },
           csrf,
         );
-        await refreshCurrentData();
+        if (scopeMutationMayAffectLibrary(scopeState, [entry.path, buildRenamedPath(entry.path, trimmedName)])) {
+          await refreshAfterLibraryMutation(csrf);
+        } else {
+          await refreshCurrentData();
+        }
         setNotice(`Renamed ${entry.name} to ${trimmedName}.`);
       } catch (error) {
         setNotice(error instanceof Error ? error.message : "Rename failed.");
@@ -1221,7 +1313,11 @@ export default function Page() {
         const failureCount = moves.length - successCount;
         const destinationLabel = normalizedDestination || "SD Card root";
 
-        await refreshCurrentData();
+        if (successCount > 0 && scopeMutationMayAffectLibrary(scopeState, moves.flatMap(({ entry, to }) => [entry.path, to]))) {
+          await refreshAfterLibraryMutation(csrf);
+        } else {
+          await refreshCurrentData();
+        }
         if (failureCount === 0) {
           setNotice(`Moved ${formatItemCount(successCount)} to ${destinationLabel}.`);
           return;
@@ -1336,7 +1432,11 @@ export default function Page() {
         const successCount = results.filter((result) => result.status === "fulfilled").length;
         const failureCount = total - successCount;
 
-        await refreshCurrentData();
+        if (successCount > 0 && scopeMutationMayAffectLibrary(scopeState, entries.map((entry) => entry.path))) {
+          await refreshAfterLibraryMutation(csrf);
+        } else {
+          await refreshCurrentData();
+        }
         if (failureCount === 0) {
           setNotice(`Deleted ${formatItemCount(successCount)}.`);
           return;
@@ -1423,7 +1523,7 @@ export default function Page() {
     if (viewState.view === "tools" && viewState.tool === "mac-dot-clean") {
       return {
         destination: "tools" as const,
-        description: "Scan and remove safe macOS transfer artifacts from the SD card.",
+        description: "Scan and remove safe macOS transfer artifacts from SD storage.",
         searchKey: "library" as const,
         searchPlaceholder: "Search",
         showPageHeader: false,

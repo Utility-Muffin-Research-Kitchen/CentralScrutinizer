@@ -147,6 +147,24 @@ static int cs_upload_is_declared_under_root(const char *path, const char *root) 
     return path[root_len] == '\0' || path[root_len] == '/';
 }
 
+static const char *cs_upload_guard_root_for_path(const cs_paths *paths, const char *path) {
+    size_t i;
+
+    if (!paths || !path) {
+        return NULL;
+    }
+    for (i = 0; i < paths->source_count; ++i) {
+        if (cs_upload_is_declared_under_root(path, paths->sources[i].root)) {
+            return paths->sources[i].root;
+        }
+    }
+    if (cs_upload_is_declared_under_root(path, paths->sdcard_root)) {
+        return paths->sdcard_root;
+    }
+
+    return NULL;
+}
+
 static int cs_upload_write_relative_path(const char *root,
                                          const char *path,
                                          char *relative,
@@ -391,8 +409,13 @@ int cs_upload_plan_make(const cs_paths *paths,
     struct stat st;
     cs_upload_plan temp = {0};
     const char *final_dir = relative_dir ? relative_dir : "";
+    const char *temp_guard_root;
 
     if (!paths || !final_root || !final_guard_root || !filename || !plan) {
+        return -1;
+    }
+    temp_guard_root = cs_upload_guard_root_for_path(paths, paths->temp_upload_root);
+    if (!temp_guard_root) {
         return -1;
     }
     if (!cs_upload_component_is_safe(filename)) {
@@ -448,7 +471,7 @@ int cs_upload_plan_make(const cs_paths *paths,
     if (cs_upload_write_path(temp.temp_guard_root,
                              sizeof(temp.temp_guard_root),
                              "%s",
-                             paths->shared_state_root)
+                             temp_guard_root)
         != 0) {
         return -1;
     }
@@ -465,11 +488,17 @@ int cs_upload_plan_make(const cs_paths *paths,
 }
 
 int cs_upload_prepare_temp_root(const cs_paths *paths) {
+    const char *temp_guard_root;
+
     if (!paths) {
         return -1;
     }
+    temp_guard_root = cs_upload_guard_root_for_path(paths, paths->temp_upload_root);
+    if (!temp_guard_root) {
+        return -1;
+    }
 
-    return cs_upload_prepare_directory_within_root(paths->sdcard_root, paths->temp_upload_root);
+    return cs_upload_prepare_directory_within_root(temp_guard_root, paths->temp_upload_root);
 }
 
 int cs_upload_prepare_final_directory(const char *final_root,

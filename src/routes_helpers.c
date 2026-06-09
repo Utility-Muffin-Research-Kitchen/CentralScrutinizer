@@ -160,3 +160,20 @@ int cs_routes_guard_get_strict(struct mg_connection *conn, void *cbdata) {
 
     return 0;
 }
+
+int cs_routes_guard_post(struct mg_connection *conn, void *cbdata) {
+    const char *cookie = mg_get_header(conn, "Cookie");
+    const char *csrf = mg_get_header(conn, "X-CS-CSRF");
+
+    if (!cs_routes_method_is(conn, "POST")) {
+        return cs_routes_write_json(conn, 405, "Method Not Allowed", "{\"error\":\"method_not_allowed\"}");
+    }
+    if (!cbdata) {
+        return cs_routes_write_json(conn, 500, "Internal Server Error", "{\"error\":\"missing_app\"}");
+    }
+    if (!cs_server_cookie_is_valid(cookie) || !cs_server_csrf_is_valid(cookie, csrf)) {
+        return cs_routes_write_json(conn, 403, "Forbidden", "{\"ok\":false}");
+    }
+
+    return 0;
+}

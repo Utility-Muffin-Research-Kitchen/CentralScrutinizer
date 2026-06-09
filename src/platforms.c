@@ -250,6 +250,32 @@ typedef struct cs_discovered_rom_dir {
     char dir_name[256];
 } cs_discovered_rom_dir;
 
+typedef struct cs_leaf_core_platforms {
+    const char *core_code;
+    const char *platform_codes[8];
+} cs_leaf_core_platforms;
+
+static const cs_leaf_core_platforms g_leaf_core_platforms[] = {
+    {.core_code = "FAKE08", .platform_codes = {"P8", NULL}},
+    {.core_code = "FBALPHA2012", .platform_codes = {"FBN", NULL}},
+    {.core_code = "FBNEO", .platform_codes = {"FBN", NULL}},
+    {.core_code = "FCEUMM", .platform_codes = {"FC", "FDS", NULL}},
+    {.core_code = "GAMBATTE", .platform_codes = {"GB", "GBC", NULL}},
+    {.core_code = "GENESIS_PLUS_GX", .platform_codes = {"MD", "SMS", "GG", "SG1000", "SEGACD", NULL}},
+    {.core_code = "HANDY", .platform_codes = {"LYNX", NULL}},
+    {.core_code = "MAME", .platform_codes = {"FBN", NULL}},
+    {.core_code = "MAME2003_PLUS", .platform_codes = {"FBN", NULL}},
+    {.core_code = "MAME2010", .platform_codes = {"FBN", NULL}},
+    {.core_code = "MEDNAFEN_NGP", .platform_codes = {"NGP", "NGPC", NULL}},
+    {.core_code = "MEDNAFEN_PCE_FAST", .platform_codes = {"PCE", NULL}},
+    {.core_code = "MGBA", .platform_codes = {"GBA", "MGBA", NULL}},
+    {.core_code = "PCSX_REARMED", .platform_codes = {"PS", NULL}},
+    {.core_code = "PROSYSTEM", .platform_codes = {"A7800", NULL}},
+    {.core_code = "SNES9X", .platform_codes = {"SFC", "SUPA", "SGB", NULL}},
+    {.core_code = "STELLA2014", .platform_codes = {"A2600", NULL}},
+    {.core_code = "SWANSTATION", .platform_codes = {"PS", NULL}},
+};
+
 static int cs_write_string(char *dst, size_t size, const char *value) {
     int written;
 
@@ -435,6 +461,36 @@ static int cs_platform_add_emulator_code(char codes[][CS_PLATFORM_CODE_MAX],
     return cs_write_string(codes[(*count)++], CS_PLATFORM_CODE_MAX, code);
 }
 
+static int cs_platform_add_leaf_core_code(char codes[][CS_PLATFORM_CODE_MAX],
+                                          size_t *count,
+                                          size_t capacity,
+                                          const char *core_code) {
+    size_t i;
+
+    if (cs_platform_add_emulator_code(codes, count, capacity, core_code) != 0) {
+        return -1;
+    }
+
+    for (i = 0; i < sizeof(g_leaf_core_platforms) / sizeof(g_leaf_core_platforms[0]); ++i) {
+        size_t alias_index;
+
+        if (strcmp(g_leaf_core_platforms[i].core_code, core_code) != 0) {
+            continue;
+        }
+        for (alias_index = 0; g_leaf_core_platforms[i].platform_codes[alias_index] != NULL; ++alias_index) {
+            if (cs_platform_add_emulator_code(codes,
+                                              count,
+                                              capacity,
+                                              g_leaf_core_platforms[i].platform_codes[alias_index])
+                != 0) {
+                return -1;
+            }
+        }
+    }
+
+    return 0;
+}
+
 static int cs_platform_collect_leaf_codes_from_dir(const char *dir_path,
                                                    char codes[][CS_PLATFORM_CODE_MAX],
                                                    size_t *count,
@@ -500,7 +556,7 @@ static int cs_platform_collect_leaf_codes_from_dir(const char *dir_path,
         if (!cs_platform_component_is_safe(code)) {
             continue;
         }
-        if (cs_platform_add_emulator_code(codes, count, capacity, code) != 0) {
+        if (cs_platform_add_leaf_core_code(codes, count, capacity, code) != 0) {
             closedir(dir);
             return -1;
         }
@@ -750,10 +806,6 @@ int cs_platform_resolve(const cs_paths *paths, const char *tag, cs_platform_info
                    != 0) {
             return -1;
         }
-        if (discovered_index < 0
-            && cs_write_string(target->rom_directory, sizeof(target->rom_directory), target->primary_code) != 0) {
-            return -1;
-        }
         return 0;
     }
 
@@ -815,13 +867,6 @@ int cs_platform_discover(const cs_paths *paths,
                 && cs_write_string(platforms[count].rom_directory,
                                    sizeof(platforms[count].rom_directory),
                                    dirs[discovered_index].dir_name)
-                       != 0) {
-                return -1;
-            }
-            if (discovered_index < 0
-                && cs_write_string(platforms[count].rom_directory,
-                                   sizeof(platforms[count].rom_directory),
-                                   platforms[count].primary_code)
                        != 0) {
                 return -1;
             }
@@ -927,20 +972,10 @@ int cs_platform_collect_installed_emulators(const cs_paths *paths,
     }
 
     if (cs_platform_is_directory(paths->cores_root) || cs_platform_is_directory(paths->info_root)) {
-        const cs_platform_info *platform;
-        size_t i;
-
-        /* Leaf exposes RetroArch cores rather than per-system emulator paks.
-         * Static platforms are treated as available when Leaf has a core/info
-         * root; scanned file names add support for custom rom directories.
+        /* Leaf exposes RetroArch core IDs rather than per-system emulator paks.
+         * Keep raw core IDs for custom ROM folders and add known Leaf platform
+         * tags through the mapping table above.
          */
-        for (i = 0; i < cs_platform_count() && count < capacity; ++i) {
-            platform = cs_platform_at(i);
-            if (platform && cs_platform_requires_emulator(platform)
-                && cs_platform_add_emulator_code(codes, &count, capacity, platform->tag) != 0) {
-                return -1;
-            }
-        }
         if (cs_platform_collect_leaf_codes_from_dir(paths->cores_root, codes, &count, capacity) != 0
             || cs_platform_collect_leaf_codes_from_dir(paths->info_root, codes, &count, capacity) != 0) {
             return -1;

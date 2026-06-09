@@ -11,5 +11,6 @@ int cs_routes_stream_escaped_string(struct mg_connection *conn, const char *valu
 int cs_routes_stream_unsigned(struct mg_connection *conn, unsigned long long value);
 int cs_routes_stream_signed(struct mg_connection *conn, long long value);
 int cs_routes_guard_get_strict(struct mg_connection *conn, void *cbdata);
+int cs_routes_guard_post(struct mg_connection *conn, void *cbdata);
 
 #endif

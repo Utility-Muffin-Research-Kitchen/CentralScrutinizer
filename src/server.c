@@ -62,6 +62,7 @@ int cs_route_logs_download_handler(struct mg_connection *conn, void *cbdata);
 int cs_route_logs_tail_handler(struct mg_connection *conn, void *cbdata);
 int cs_route_upload_handler(struct mg_connection *conn, void *cbdata);
 int cs_route_upload_preview_handler(struct mg_connection *conn, void *cbdata);
+int cs_route_library_rescan_handler(struct mg_connection *conn, void *cbdata);
 int cs_route_rename_handler(struct mg_connection *conn, void *cbdata);
 int cs_route_delete_handler(struct mg_connection *conn, void *cbdata);
 int cs_route_create_folder_handler(struct mg_connection *conn, void *cbdata);
@@ -156,6 +157,9 @@ static int cs_server_begin_request(struct mg_connection *conn) {
     }
     if (strcmp(uri, "/api/upload/preview") == 0) {
         return cs_route_upload_preview_handler(conn, app);
+    }
+    if (strcmp(uri, "/api/library/rescan") == 0) {
+        return cs_route_library_rescan_handler(conn, app);
     }
     if (strcmp(uri, "/api/item/rename") == 0) {
         return cs_route_rename_handler(conn, app);

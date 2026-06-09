@@ -19,6 +19,7 @@ import {
   previewUploadBatched,
   readTextFile,
   replaceArt,
+  requestLibraryRescan,
   revokeBrowser,
   searchFiles,
   setGameFavorite,
@@ -183,6 +184,28 @@ describe("revokeBrowser", () => {
 
     expect(fetchMock).toHaveBeenCalledWith(
       "/api/revoke",
+      expect.objectContaining({
+        method: "POST",
+        headers: { "X-CS-CSRF": "csrf-token" },
+      }),
+    );
+  });
+});
+
+describe("requestLibraryRescan", () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it("posts a library rescan request with the csrf header", async () => {
+    const fetchMock = vi.fn(async () => new Response(JSON.stringify({ ok: true }), { status: 200 }));
+
+    vi.stubGlobal("fetch", fetchMock);
+
+    await requestLibraryRescan("csrf-token");
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      "/api/library/rescan",
       expect.objectContaining({
         method: "POST",
         headers: { "X-CS-CSRF": "csrf-token" },

@@ -131,7 +131,7 @@ export function MacDotCleanToolView({
           </button>
           <h2 className="mt-4 text-lg font-semibold">Mac Dot Cleanup</h2>
           <p className="mt-1 max-w-2xl text-sm text-[var(--muted)]">
-            Scan the SD card for safe macOS transfer artifacts including `.DS_Store`, AppleDouble `._*` sidecars,
+            Scan SD storage for safe macOS transfer artifacts including `.DS_Store`, AppleDouble `._*` sidecars,
             Spotlight or Finder metadata folders, and `__MACOSX` directories. Matches inside `__MACOSX` are removed
             along with the folder.
           </p>

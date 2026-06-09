@@ -37,6 +37,7 @@ const mockApi = vi.hoisted(() => ({
   previewUploadBatched: vi.fn(),
   readTextFile: vi.fn(),
   replaceArt: vi.fn(),
+  requestLibraryRescan: vi.fn(),
   renameItem: vi.fn(),
   revokeBrowser: vi.fn(),
   setGameFavorite: vi.fn(),
@@ -336,7 +337,7 @@ function fileBrowserResponse(entries: Array<{
   modified: number;
   status: string;
   thumbnailPath: string;
-}> = [], overrides: Partial<{ path: string; breadcrumbs: Array<{ label: string; path: string }>; truncated: boolean }> = {}) {
+}> = [], overrides: Partial<{ rootPath: string; path: string; breadcrumbs: Array<{ label: string; path: string }>; truncated: boolean }> = {}) {
   return {
     scope: "files" as const,
     title: "Files",
@@ -1196,6 +1197,40 @@ describe("Page", () => {
       expect.any(Function),
     );
     expect(folderFile.webkitRelativePath).toBe("Favorites/GBA/Pokemon Emerald.gba");
+  });
+
+  it("asks for an SD source before uploading at the multi-source files root", async () => {
+    const uploadFile = new File(["note"], "note.txt", { type: "text/plain" });
+
+    mockApi.getSession.mockResolvedValue(pairedSession());
+    mockApi.getPlatforms.mockResolvedValue(platformGroups());
+    mockApi.getBrowser.mockResolvedValue(
+      fileBrowserResponse(
+        [
+          {
+            name: "card-a",
+            path: "card-a",
+            type: "directory",
+            size: 0,
+            modified: 1_700_000_000,
+            status: "",
+            thumbnailPath: "",
+          },
+        ],
+        { rootPath: "sources" },
+      ),
+    );
+
+    render(<Page />);
+
+    await openFileBrowserTool();
+    expect(await screen.findByRole("button", { name: "Upload File" })).toBeTruthy();
+    const uploadInput = document.querySelector('input[type="file"]') as HTMLInputElement;
+
+    fireEvent.change(uploadInput, { target: { files: createFileList([uploadFile]) } });
+
+    expect(await screen.findByText("Open an SD card source before uploading files.")).toBeTruthy();
+    expect(mockApi.beginUploadFilesBatched).not.toHaveBeenCalled();
   });
 
   it("uploads ZIP fallback selections from the file browser tool", async () => {

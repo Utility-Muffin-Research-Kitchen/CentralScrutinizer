@@ -138,7 +138,7 @@ static void cs_ui_draw_info_pair(TTF_Font *key_font,
 
     key_h = TTF_FontHeight(key_font);
     value_h = cat_measure_wrapped_text_height(value_font, value, width);
-    cat_draw_text(key_font, key, x, *cursor_y, theme->accent);
+    cat_draw_text(key_font, key, x, *cursor_y, theme->hint);
     cat_draw_text_wrapped(value_font, value, x, *cursor_y + key_h + value_gap, width, theme->text, CAT_ALIGN_LEFT);
     *cursor_y += key_h + value_h + row_gap;
 }
@@ -161,12 +161,15 @@ static int cs_ui_run_pair_qr_screen(cs_app *app, const cs_ui_model *model) {
         {.button = CAT_BTN_B, .label = "Back"},
         {.button = CAT_BTN_A, .label = "Refresh", .is_confirm = true},
     };
+    cat_status_bar_opts status_bar = {0};
     uint8_t temp[qrcodegen_BUFFER_LEN_FOR_VERSION(CS_UI_QR_MAX_VERSION)];
     uint8_t qrcode[qrcodegen_BUFFER_LEN_FOR_VERSION(CS_UI_QR_MAX_VERSION)];
     char token[64];
     char url[256];
     char ttl_text[96];
     int initial_trusted_count;
+    int show_status_bar;
+    int show_hints;
     int regenerate = 1;
 
     if (!app || !model) {
@@ -174,6 +177,8 @@ static int cs_ui_run_pair_qr_screen(cs_app *app, const cs_ui_model *model) {
     }
 
     initial_trusted_count = model->trusted_browser_count;
+    show_status_bar = cat_status_bar_from_env(&status_bar);
+    show_hints = cat_hints_enabled_from_env();
     snprintf(ttl_text,
              sizeof(ttl_text),
              "Valid for %d minutes or until it is used.",
@@ -250,7 +255,7 @@ static int cs_ui_run_pair_qr_screen(cs_app *app, const cs_ui_model *model) {
         }
 
         screen_w = cat_get_screen_width();
-        content_rect = cat_get_content_rect(true, true, false);
+        content_rect = cat_get_content_rect(true, show_hints, show_status_bar != 0);
         side_pad = cs_ui_scale_px(screen_w, 14);
         top_pad = cs_ui_scale_px(screen_w, 12);
         bottom_pad = cs_ui_scale_px(screen_w, 10);
@@ -279,7 +284,7 @@ static int cs_ui_run_pair_qr_screen(cs_app *app, const cs_ui_model *model) {
         warning_y = content_rect.y + content_rect.h - bottom_pad - ttl_h;
 
         cat_draw_background();
-        cat_draw_screen_title_centered("Pair by QR", NULL);
+        cat_draw_screen_title("Pair by QR", show_status_bar ? &status_bar : NULL);
         cat_draw_rect(qr_x - border, qr_y - border, qr_px + (border * 2), qr_px + (border * 2), theme->accent);
         cat_draw_rect(qr_x, qr_y, qr_px, qr_px, white);
 
@@ -302,7 +307,9 @@ static int cs_ui_run_pair_qr_screen(cs_app *app, const cs_ui_model *model) {
                              screen_w - (side_pad * 2),
                              theme->hint,
                              CAT_ALIGN_CENTER);
-        cat_draw_footer(footer, (int) (sizeof(footer) / sizeof(footer[0])));
+        if (show_hints) {
+            cat_draw_footer(footer, (int) (sizeof(footer) / sizeof(footer[0])));
+        }
         cat_present();
     }
 }
@@ -330,12 +337,18 @@ static int cs_ui_run_settings_screen(cs_app *app) {
         {.button = CAT_BTN_B, .label = "Back"},
         {.button = CAT_BTN_A, .label = "Choose", .is_confirm = true},
     };
+    cat_status_bar_opts status_bar = {0};
+    int show_status_bar;
+    int show_hints;
     int focused_index = 0;
     int visible_start_index = 0;
 
     if (!app) {
         return CS_UI_ACTION_EXIT;
     }
+
+    show_status_bar = cat_status_bar_from_env(&status_bar);
+    show_hints = cat_hints_enabled_from_env();
 
     for (;;) {
         cat_options_list_opts opts = {0};
@@ -352,6 +365,10 @@ static int cs_ui_run_settings_screen(cs_app *app) {
         opts.initial_selected_index = focused_index;
         opts.visible_start_index = visible_start_index;
         opts.return_on_option_change = 1;
+        opts.status_bar = show_status_bar ? &status_bar : NULL;
+        if (!show_hints) {
+            opts.footer_count = 0;
+        }
 
         rc = cat_options_list(&opts, &result);
         focused_index = result.focused_index;
@@ -432,6 +449,9 @@ int cs_ui_run_server_screen(cs_app *app, const cs_ui_model *model) {
     char trusted[32];
     const char *pairing_description;
     const char *terminal_state;
+    cat_status_bar_opts status_bar = {0};
+    int show_status_bar;
+    int show_hints;
     static int scroll_offset = 0;
     cat_footer_item footer[] = {
         {.button = CAT_BTN_B, .label = "Exit"},
@@ -449,6 +469,8 @@ int cs_ui_run_server_screen(cs_app *app, const cs_ui_model *model) {
 
     snprintf(url, sizeof(url), "http://%s:%d", model->ip, model->port);
     snprintf(trusted, sizeof(trusted), "%d", model->trusted_browser_count);
+    show_status_bar = cat_status_bar_from_env(&status_bar);
+    show_hints = cat_hints_enabled_from_env();
     pairing_description = model->trusted_browser_count > 0
                               ? "This screen refreshes automatically after a client pairs. Press Y to generate a new QR code for another trusted client."
                               : "Open the URL in a browser and enter the PIN once, or press Y for a QR code. PINs and QR links are single-use.";
@@ -488,7 +510,7 @@ int cs_ui_run_server_screen(cs_app *app, const cs_ui_model *model) {
                 return CS_UI_ACTION_EXIT;
             }
 
-            content_rect = cat_get_content_rect(true, true, false);
+            content_rect = cat_get_content_rect(true, show_hints, show_status_bar != 0);
             margin_pad = cs_ui_scale_px(content_rect.w, 12);
             content_pad = cs_ui_scale_px(content_rect.w, 24);
             top_pad = cs_ui_scale_px(content_rect.w, 8);
@@ -577,10 +599,10 @@ int cs_ui_run_server_screen(cs_app *app, const cs_ui_model *model) {
             }
 
             cat_draw_background();
-            cat_draw_screen_title_centered("Central Scrutinizer", NULL);
+            cat_draw_screen_title("Central Scrutinizer", show_status_bar ? &status_bar : NULL);
             cursor_y = content_rect.y + top_pad - scroll_offset;
             SDL_RenderSetClipRect(cat_get_renderer(), &content_rect);
-            cat_draw_text(section_font, "Server", margin, cursor_y, theme->accent);
+            cat_draw_text(section_font, "Server", margin, cursor_y, theme->text);
             cursor_y += TTF_FontHeight(section_font) + section_gap;
             cs_ui_draw_info_pair(key_font, value_font, theme, margin, width, info_value_gap, info_row_gap, &cursor_y, "URL", url);
             cs_ui_draw_info_pair(
@@ -601,14 +623,16 @@ int cs_ui_run_server_screen(cs_app *app, const cs_ui_model *model) {
             cs_ui_draw_info_pair(
                 key_font, value_font, theme, margin, width, info_value_gap, info_row_gap, &cursor_y, "Status", model->status_message);
             cursor_y += block_gap;
-            cat_draw_text(section_font, "Pairing", margin, cursor_y, theme->accent);
+            cat_draw_text(section_font, "Pairing", margin, cursor_y, theme->text);
             cursor_y += TTF_FontHeight(section_font) + section_gap;
             cat_draw_text_wrapped(value_font, pairing_description, margin, cursor_y, width, theme->text, CAT_ALIGN_LEFT);
             SDL_RenderSetClipRect(cat_get_renderer(), NULL);
             if (max_scroll > 0) {
                 cat_draw_scrollbar(scrollbar_x, content_rect.y, content_rect.h, content_rect.h, total_content_h, scroll_offset);
             }
-            cat_draw_footer(footer, (int) (sizeof(footer) / sizeof(footer[0])));
+            if (show_hints) {
+                cat_draw_footer(footer, (int) (sizeof(footer) / sizeof(footer[0])));
+            }
             cat_present();
             SDL_Delay(16);
         }

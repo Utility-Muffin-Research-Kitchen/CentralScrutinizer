@@ -76,8 +76,23 @@ static int cs_dotclean_add_entry(cs_dotclean_entry *entries,
     return 0;
 }
 
+static int cs_dotclean_join_relative(char *dst, size_t dst_size, const char *left, const char *right) {
+    if (!dst || dst_size == 0 || !right) {
+        return -1;
+    }
+    if (!left || left[0] == '\0') {
+        return CS_SAFE_SNPRINTF(dst, dst_size, "%s", right);
+    }
+    if (right[0] == '\0') {
+        return CS_SAFE_SNPRINTF(dst, dst_size, "%s", left);
+    }
+
+    return CS_SAFE_SNPRINTF(dst, dst_size, "%s/%s", left, right);
+}
+
 static int cs_dotclean_scan_dir(const char *absolute_path,
-                                const char *relative_path,
+                                const char *scan_relative_path,
+                                const char *entry_prefix,
                                 int depth,
                                 cs_dotclean_entry *entries,
                                 size_t *count,
@@ -85,7 +100,7 @@ static int cs_dotclean_scan_dir(const char *absolute_path,
     DIR *dir;
     struct dirent *entry;
 
-    if (!absolute_path || !relative_path || !count) {
+    if (!absolute_path || !scan_relative_path || !entry_prefix || !count) {
         return -1;
     }
     if (depth >= CS_DOTCLEAN_MAX_DEPTH) {
@@ -99,7 +114,8 @@ static int cs_dotclean_scan_dir(const char *absolute_path,
 
     while ((entry = readdir(dir)) != NULL) {
         char child_absolute[CS_PATH_MAX];
-        char child_relative[CS_PATH_MAX];
+        char child_scan_relative[CS_PATH_MAX];
+        char child_entry_relative[CS_PATH_MAX];
         struct stat st;
         const char *reason = NULL;
         int is_dir;
@@ -107,16 +123,23 @@ static int cs_dotclean_scan_dir(const char *absolute_path,
         if (strcmp(entry->d_name, ".") == 0 || strcmp(entry->d_name, "..") == 0) {
             continue;
         }
-        if (relative_path[0] == '\0') {
-            if (CS_SAFE_SNPRINTF(child_relative, sizeof(child_relative), "%s", entry->d_name) != 0) {
+        if (scan_relative_path[0] == '\0') {
+            if (CS_SAFE_SNPRINTF(child_scan_relative, sizeof(child_scan_relative), "%s", entry->d_name) != 0) {
                 continue;
             }
-        } else if (CS_SAFE_SNPRINTF(child_relative,
-                                    sizeof(child_relative),
+        } else if (CS_SAFE_SNPRINTF(child_scan_relative,
+                                    sizeof(child_scan_relative),
                                     "%s/%s",
-                                    relative_path,
+                                    scan_relative_path,
                                     entry->d_name)
                        != 0) {
+            continue;
+        }
+        if (cs_dotclean_join_relative(child_entry_relative,
+                                      sizeof(child_entry_relative),
+                                      entry_prefix,
+                                      child_scan_relative)
+            != 0) {
             continue;
         }
         if (CS_SAFE_SNPRINTF(child_absolute, sizeof(child_absolute), "%s/%s", absolute_path, entry->d_name) != 0) {
@@ -127,11 +150,11 @@ static int cs_dotclean_scan_dir(const char *absolute_path,
         }
 
         is_dir = S_ISDIR(st.st_mode) ? 1 : 0;
-        if (is_dir && cs_dotclean_should_skip_subtree(child_relative)) {
+        if (is_dir && cs_dotclean_should_skip_subtree(child_scan_relative)) {
             continue;
         }
         if (cs_dotclean_should_match(entry->d_name, depth, is_dir, &reason)) {
-            if (cs_dotclean_add_entry(entries, count, capacity, child_relative, is_dir, reason, &st) != 0) {
+            if (cs_dotclean_add_entry(entries, count, capacity, child_entry_relative, is_dir, reason, &st) != 0) {
                 (void) closedir(dir);
                 return -1;
             }
@@ -139,7 +162,15 @@ static int cs_dotclean_scan_dir(const char *absolute_path,
                 continue;
             }
         }
-        if (is_dir && cs_dotclean_scan_dir(child_absolute, child_relative, depth + 1, entries, count, capacity) != 0) {
+        if (is_dir
+            && cs_dotclean_scan_dir(child_absolute,
+                                    child_scan_relative,
+                                    entry_prefix,
+                                    depth + 1,
+                                    entries,
+                                    count,
+                                    capacity)
+                   != 0) {
             (void) closedir(dir);
             return -1;
         }
@@ -172,8 +203,27 @@ int cs_dotclean_scan(const cs_paths *paths,
     if (!paths) {
         return -1;
     }
-    if (cs_dotclean_scan_dir(paths->sdcard_root, "", 0, entries, &count, entry_capacity) != 0) {
-        return -1;
+    if (paths->source_count > 1) {
+        size_t i;
+
+        for (i = 0; i < paths->source_count; ++i) {
+            if (cs_dotclean_scan_dir(paths->sources[i].root,
+                                     "",
+                                     paths->sources[i].alias,
+                                     0,
+                                     entries,
+                                     &count,
+                                     entry_capacity)
+                != 0) {
+                return -1;
+            }
+        }
+    } else {
+        const char *root = paths->source_count == 1 ? paths->sources[0].root : paths->sdcard_root;
+
+        if (cs_dotclean_scan_dir(root, "", "", 0, entries, &count, entry_capacity) != 0) {
+            return -1;
+        }
     }
     if (entries) {
         size_t limit = count < entry_capacity ? count : entry_capacity;

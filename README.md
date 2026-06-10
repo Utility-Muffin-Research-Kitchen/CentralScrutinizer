@@ -80,7 +80,7 @@ The Leaf fork uses these SD card locations:
 - `Images/`
 - `Saves/`
 - `States/`
-- `Bios/`
+- `BIOS/`
 - `Cheats/`
 - `.system/leaf/platforms/mlp1/cores/`
 - `.system/leaf/platforms/mlp1/info/`

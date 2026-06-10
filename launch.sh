@@ -99,7 +99,7 @@ export IMAGES_PATH="${IMAGES_PATH:-$SDCARD_PATH/Images}"
 export APPS_PATH="${APPS_PATH:-$SDCARD_PATH/Apps}"
 export SAVES_PATH="${SAVES_PATH:-$SDCARD_PATH/Saves}"
 export STATES_PATH="${STATES_PATH:-$SDCARD_PATH/States}"
-export BIOS_PATH="${BIOS_PATH:-$SDCARD_PATH/Bios}"
+export BIOS_PATH="${BIOS_PATH:-$SDCARD_PATH/BIOS}"
 export CHEATS_PATH="${CHEATS_PATH:-$SDCARD_PATH/Cheats}"
 
 if [ -n "${UMRK_PLATFORM_PATH:-}" ] && [ -z "${CORES_PATH:-}" ]; then

@@ -586,7 +586,7 @@ static int cs_stream_platform_object(struct mg_connection *conn,
         || cs_stream_escaped_string(conn, platform->rom_directory) != 0
         || cs_stream_literal(conn, "\",\"savePath\":\"Saves/") != 0
         || cs_stream_escaped_string(conn, platform->primary_code) != 0
-        || cs_stream_literal(conn, "\",\"biosPath\":\"Bios/") != 0
+        || cs_stream_literal(conn, "\",\"biosPath\":\"BIOS/") != 0
         || cs_stream_escaped_string(conn, platform->primary_code) != 0
         || cs_stream_literal(conn, "\",\"supportedResources\":{\"roms\":") != 0
         || cs_stream_literal(conn, supports_roms ? "true" : "false") != 0

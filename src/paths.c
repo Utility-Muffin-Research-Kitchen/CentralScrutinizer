@@ -252,7 +252,7 @@ static int add_source(cs_paths *paths, const char *root, size_t index) {
                                 "BIOS_PATH",
                                 index,
                                 source->root,
-                                "/Bios")
+                                "/BIOS")
                != 0
         || populate_source_path(source->saves_root,
                                 sizeof(source->saves_root),

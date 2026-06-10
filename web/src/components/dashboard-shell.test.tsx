@@ -25,7 +25,7 @@ function makePlatformGroup(name: string, tag: string): PlatformGroup {
         emulatorWarning: null,
         romPath: `Roms/${tag}`,
         savePath: `Saves/${tag}`,
-        biosPath: `Bios/${tag}`,
+        biosPath: `BIOS/${tag}`,
         supportedResources: {
           roms: true,
           saves: false,

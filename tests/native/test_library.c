@@ -126,7 +126,7 @@ static void test_fixture_browser_scopes_and_rejection(void) {
 
     assert(cs_browser_list(&paths, CS_SCOPE_BIOS, ps, "", 0, NULL, &result) == CS_BROWSER_LIST_OK);
     assert(strcmp(result.title, "BIOS - Sony PlayStation") == 0);
-    assert(strcmp(result.root_path, "fixtures/mock_sdcard/Bios/PS") == 0);
+    assert(strcmp(result.root_path, "fixtures/mock_sdcard/BIOS/PS") == 0);
     assert(result.count == 1);
     entry = find_entry(&result, "scph1001.bin");
     assert(entry != NULL);
@@ -142,7 +142,7 @@ static void test_fixture_browser_scopes_and_rejection(void) {
     assert(strcmp(result.title, "File Browser") == 0);
     assert(strcmp(result.root_path, "fixtures/mock_sdcard") == 0);
     assert(find_entry(&result, ".system") != NULL);
-    assert(find_entry(&result, "Bios") != NULL);
+    assert(find_entry(&result, "BIOS") != NULL);
     assert(find_entry(&result, "Roms") != NULL);
     assert(find_entry(&result, "Saves") != NULL);
 
@@ -475,7 +475,7 @@ static void test_symlinked_absolute_sdcard_root_is_canonicalized_for_files_scope
     assert(snprintf(actual_sdcard, sizeof(actual_sdcard), "%s/sdcard-real", root) > 0);
     assert(snprintf(linked_sdcard, sizeof(linked_sdcard), "%s/SDCARD", root) > 0);
     assert(snprintf(roms_dir, sizeof(roms_dir), "%s/Roms", actual_sdcard) > 0);
-    assert(snprintf(bios_dir, sizeof(bios_dir), "%s/Bios", actual_sdcard) > 0);
+    assert(snprintf(bios_dir, sizeof(bios_dir), "%s/BIOS", actual_sdcard) > 0);
     assert(snprintf(saves_dir, sizeof(saves_dir), "%s/Saves", actual_sdcard) > 0);
 
     make_dir(actual_sdcard);
@@ -493,7 +493,7 @@ static void test_symlinked_absolute_sdcard_root_is_canonicalized_for_files_scope
     assert(cs_browser_list(&paths, CS_SCOPE_FILES, NULL, "", 0, NULL, &result) == CS_BROWSER_LIST_OK);
     assert(strcmp(result.root_path, expected_root) == 0);
     assert(find_entry(&result, "Roms") != NULL);
-    assert(find_entry(&result, "Bios") != NULL);
+    assert(find_entry(&result, "BIOS") != NULL);
     assert(find_entry(&result, "Saves") != NULL);
 
     assert(unlink(linked_sdcard) == 0);

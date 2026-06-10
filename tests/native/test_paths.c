@@ -19,7 +19,7 @@ static void assert_default_paths(const cs_paths *paths) {
     assert(strcmp(paths->images_root, "/mnt/sdcard/Images") == 0);
     assert(strcmp(paths->saves_root, "/mnt/sdcard/Saves") == 0);
     assert(strcmp(paths->states_root, "/mnt/sdcard/States") == 0);
-    assert(strcmp(paths->bios_root, "/mnt/sdcard/Bios") == 0);
+    assert(strcmp(paths->bios_root, "/mnt/sdcard/BIOS") == 0);
     assert(paths->overlays_root[0] == '\0');
     assert(strcmp(paths->temp_upload_root, "/mnt/sdcard/.system/leaf/platforms/mlp1/userdata/CentralScrutinizer/uploads/tmp") == 0);
     assert(paths->source_count == 1);
@@ -35,7 +35,7 @@ static void assert_fixture_paths(const cs_paths *paths) {
     assert(strcmp(paths->images_root, "fixtures/mock_sdcard/Images") == 0);
     assert(strcmp(paths->saves_root, "fixtures/mock_sdcard/Saves") == 0);
     assert(strcmp(paths->states_root, "fixtures/mock_sdcard/States") == 0);
-    assert(strcmp(paths->bios_root, "fixtures/mock_sdcard/Bios") == 0);
+    assert(strcmp(paths->bios_root, "fixtures/mock_sdcard/BIOS") == 0);
     assert(paths->overlays_root[0] == '\0');
     assert(strcmp(paths->temp_upload_root, "fixtures/mock_sdcard/.system/leaf/platforms/mlp1/userdata/CentralScrutinizer/uploads/tmp") == 0);
     assert(paths->source_count == 1);
@@ -139,7 +139,7 @@ int main(void) {
     assert_fixture_file("fixtures/mock_sdcard/Roms/Game Boy Advance (GBA)");
     assert_fixture_file("fixtures/mock_sdcard/Images/GBA/Pokemon Emerald Renamed.png");
     assert_fixture_file("fixtures/mock_sdcard/Roms/PlayStation (PS)/Castlevania - Symphony of the Night.chd");
-    assert_fixture_file("fixtures/mock_sdcard/Bios/PS/scph1001.bin");
+    assert_fixture_file("fixtures/mock_sdcard/BIOS/PS/scph1001.bin");
     assert_fixture_file("fixtures/mock_sdcard/.system/leaf/platforms/mlp1/userdata/CentralScrutinizer/.keep");
 
     setenv("SDCARD_PATH", "fixtures/mock_sdcard", 1);

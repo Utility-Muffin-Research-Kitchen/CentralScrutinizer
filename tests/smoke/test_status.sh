@@ -89,7 +89,7 @@ echo "$MISSING_CSRF_PLATFORMS" | tail -n 1 | grep -q '^403$'
 
 AUTH_PLATFORMS="$(curl -sf -b "$COOKIE_JAR" -H "X-CS-CSRF: $CSRF_TOKEN" http://127.0.0.1:8877/api/platforms)"
 printf '%s' "$AUTH_PLATFORMS" | grep -q '"type":"done"'
-curl -sf -b "$COOKIE_JAR" "http://127.0.0.1:8877/api/download?scope=files&path=Bios%2FGBA%2Fgba_bios.bin&csrf=$CSRF_TOKEN" >/dev/null
+curl -sf -b "$COOKIE_JAR" "http://127.0.0.1:8877/api/download?scope=files&path=BIOS%2FGBA%2Fgba_bios.bin&csrf=$CSRF_TOKEN" >/dev/null
 
 MISSING_CSRF_REVOKE="$(curl -s -b "$COOKIE_JAR" -X POST -w '\n%{http_code}' http://127.0.0.1:8877/api/revoke)"
 echo "$MISSING_CSRF_REVOKE" | head -n 1 | grep -q '"ok":false'

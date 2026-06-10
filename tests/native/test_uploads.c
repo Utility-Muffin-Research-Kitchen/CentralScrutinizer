@@ -556,7 +556,7 @@ int main(void) {
                                0,
                                &plan)
            == 0);
-    assert(strstr(plan.final_path, "Bios/PS/scph1001-alt.bin") != NULL);
+    assert(strstr(plan.final_path, "BIOS/PS/scph1001-alt.bin") != NULL);
 
     assert(cs_upload_plan_make(&paths,
                                paths.sdcard_root,

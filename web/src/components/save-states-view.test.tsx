@@ -85,7 +85,7 @@ describe("SaveStatesView", () => {
           ...emulatorState(),
           romPath: "Roms/Game Boy Advance (GBA)",
           savePath: "Saves/GBA",
-          biosPath: "Bios/GBA",
+          biosPath: "BIOS/GBA",
           supportedResources: supportedResources(),
           counts: { roms: 2, saves: 1, states: 1, bios: 0, overlays: 0, cheats: 0 },
         }}
@@ -154,7 +154,7 @@ describe("SaveStatesView", () => {
           ...emulatorState(),
           romPath: "Roms/Game Boy Advance (GBA)",
           savePath: "Saves/GBA",
-          biosPath: "Bios/GBA",
+          biosPath: "BIOS/GBA",
           supportedResources: supportedResources(),
           counts: { roms: 2, saves: 1, states: 1, bios: 0, overlays: 0, cheats: 0 },
         }}
@@ -225,7 +225,7 @@ describe("SaveStatesView", () => {
           ...emulatorState(),
           romPath: "Roms/Game Boy Advance (GBA)",
           savePath: "Saves/GBA",
-          biosPath: "Bios/GBA",
+          biosPath: "BIOS/GBA",
           supportedResources: supportedResources(),
           counts: { roms: 2, saves: 1, states: 1, bios: 0, overlays: 0, cheats: 0 },
         }}
@@ -281,7 +281,7 @@ describe("SaveStatesView", () => {
           ...emulatorState(),
           romPath: "Roms/Game Boy Advance (GBA)",
           savePath: "Saves/GBA",
-          biosPath: "Bios/GBA",
+          biosPath: "BIOS/GBA",
           supportedResources: supportedResources(),
           counts: { roms: 2, saves: 1, states: 1, bios: 0, overlays: 0, cheats: 0 },
         }}

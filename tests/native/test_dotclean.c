@@ -103,8 +103,8 @@ static void test_dotclean_finds_expected_entries_and_skips_large_trees(void) {
     assert(snprintf(userdata_dir, sizeof(userdata_dir), "%s/.system/leaf/platforms/mlp1/userdata", root) > 0);
     assert(snprintf(app_dir, sizeof(app_dir), "%s/.system/leaf/platforms/mlp1/userdata/CentralScrutinizer", root) > 0);
     assert(snprintf(app_ds_store, sizeof(app_ds_store), "%s/.system/leaf/platforms/mlp1/userdata/CentralScrutinizer/.DS_Store", root) > 0);
-    assert(snprintf(bios_dir, sizeof(bios_dir), "%s/Bios", root) > 0);
-    assert(snprintf(bios_apple_double, sizeof(bios_apple_double), "%s/Bios/._gba_bios.bin", root) > 0);
+    assert(snprintf(bios_dir, sizeof(bios_dir), "%s/BIOS", root) > 0);
+    assert(snprintf(bios_apple_double, sizeof(bios_apple_double), "%s/BIOS/._gba_bios.bin", root) > 0);
     assert(snprintf(deep_root, sizeof(deep_root), "%s/Roms/deep", root) > 0);
 
     make_dir(spotlight);
@@ -154,7 +154,7 @@ static void test_dotclean_finds_expected_entries_and_skips_large_trees(void) {
     assert(has_path(entries, count, "Roms/Pokemon Emerald.gba") == 0);
     assert(has_path(entries, count, "Roms/.fseventsd") == 0);
     assert(has_path(entries, count, ".system/leaf/platforms/mlp1/userdata/CentralScrutinizer/.DS_Store") == 0);
-    assert(has_path(entries, count, "Bios/._gba_bios.bin") == 0);
+    assert(has_path(entries, count, "BIOS/._gba_bios.bin") == 0);
     assert(has_path(entries, count, "Roms/deep/level00/level01/level02/level03/level04/level05/level06/level07/level08/level09/level10/level11/level12/level13/level14/level15/level16/level17/level18/level19/level20/level21/level22/level23/level24/level25/level26/level27/level28/level29/level30/level31/level32/level33/.DS_Store")
            == 0);
 }

@@ -14,7 +14,7 @@ static int cs_dotclean_is_top_level_target(const char *name) {
 }
 
 static int cs_dotclean_should_skip_subtree(const char *relative_path) {
-    return relative_path && (strcmp(relative_path, ".system") == 0 || strcmp(relative_path, "Bios") == 0);
+    return relative_path && (strcmp(relative_path, ".system") == 0 || strcmp(relative_path, "BIOS") == 0);
 }
 
 static int cs_dotclean_should_match(const char *name, int depth, int is_dir, const char **reason_out) {

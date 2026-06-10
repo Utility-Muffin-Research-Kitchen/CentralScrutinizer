@@ -88,7 +88,7 @@ describe("BrowserView", () => {
         response={{
           scope: "bios",
           title: "BIOS - PlayStation",
-          rootPath: "Bios/PS",
+          rootPath: "BIOS/PS",
           path: "",
           breadcrumbs: [],
           totalCount: 0,

@@ -109,11 +109,35 @@ static void test_static_platform_metadata(void) {
     assert(info != NULL);
     assert(strcmp(info->primary_code, "FC") == 0);
 
+    info = cs_platform_find("N64");
+    assert(info != NULL);
+    assert(strcmp(info->name, "Nintendo 64") == 0);
+    assert(strcmp(info->group, "Nintendo") == 0);
+    assert(strcmp(info->rom_directory, "Nintendo 64 (N64)") == 0);
+
+    info = cs_platform_find("DC");
+    assert(info != NULL);
+    assert(strcmp(info->name, "Dreamcast") == 0);
+    assert(strcmp(info->group, "Sega") == 0);
+
+    info = cs_platform_find("SATURN");
+    assert(info != NULL);
+    assert(strcmp(info->name, "Sega Saturn") == 0);
+
+    info = cs_platform_find("NEOGEO");
+    assert(info != NULL);
+    assert(strcmp(info->group, "SNK") == 0);
+
+    info = cs_platform_find("WS");
+    assert(info != NULL);
+    assert(strcmp(info->group, "Bandai") == 0);
+
     assert_known_icon("CPC", "CPC");
     assert_known_icon("C128", "C128");
     assert_known_icon("C64", "C64");
     assert_known_icon("MSX", "MSX");
     assert_known_icon("P8", "PICO8");
+    assert_known_icon("PCECD", "PCE");
     assert_known_icon("VIC", "VIC20");
 }
 
@@ -476,22 +500,46 @@ static void test_emulator_scan_checks_leaf_cores_and_info(void) {
     char snes_core[PATH_MAX];
     char sega_info[PATH_MAX];
     char ps_core[PATH_MAX];
+    char n64_core[PATH_MAX];
+    char dc_core[PATH_MAX];
+    char neogeo_core[PATH_MAX];
+    char pce_info[PATH_MAX];
+    char ws_core[PATH_MAX];
+    char saturn_core[PATH_MAX];
     char foo_info[PATH_MAX];
     cs_paths paths = {0};
     char codes[128][CS_PLATFORM_CODE_MAX];
     size_t code_count = 0;
+    const cs_platform_info *thirty_two_x = cs_platform_find("32X");
     const cs_platform_info *gba = cs_platform_find("GBA");
     const cs_platform_info *fc = cs_platform_find("FC");
     const cs_platform_info *sfc = cs_platform_find("SFC");
+    const cs_platform_info *sfc_jp = cs_platform_find("SFC_JP");
     const cs_platform_info *md = cs_platform_find("MD");
     const cs_platform_info *ps = cs_platform_find("PS");
+    const cs_platform_info *n64 = cs_platform_find("N64");
+    const cs_platform_info *dc = cs_platform_find("DC");
+    const cs_platform_info *neogeo = cs_platform_find("NEOGEO");
+    const cs_platform_info *pcecd = cs_platform_find("PCECD");
+    const cs_platform_info *ws = cs_platform_find("WS");
+    const cs_platform_info *wsc = cs_platform_find("WSC");
+    const cs_platform_info *saturn = cs_platform_find("SATURN");
     const cs_platform_info *ports = cs_platform_find("PORTS");
 
+    assert(thirty_two_x != NULL);
     assert(gba != NULL);
     assert(fc != NULL);
     assert(sfc != NULL);
+    assert(sfc_jp != NULL);
     assert(md != NULL);
     assert(ps != NULL);
+    assert(n64 != NULL);
+    assert(dc != NULL);
+    assert(neogeo != NULL);
+    assert(pcecd != NULL);
+    assert(ws != NULL);
+    assert(wsc != NULL);
+    assert(saturn != NULL);
     assert(ports != NULL);
 
     root = mkdtemp(template);
@@ -507,6 +555,12 @@ static void test_emulator_scan_checks_leaf_cores_and_info(void) {
     assert(snprintf(snes_core, sizeof(snes_core), "%s/snes9x_libretro.so", cores_dir) > 0);
     assert(snprintf(sega_info, sizeof(sega_info), "%s/genesis_plus_gx_libretro.info", info_dir) > 0);
     assert(snprintf(ps_core, sizeof(ps_core), "%s/pcsx_rearmed_libretro.so", cores_dir) > 0);
+    assert(snprintf(n64_core, sizeof(n64_core), "%s/mupen64plus_next_libretro.so", cores_dir) > 0);
+    assert(snprintf(dc_core, sizeof(dc_core), "%s/flycast_libretro.so", cores_dir) > 0);
+    assert(snprintf(neogeo_core, sizeof(neogeo_core), "%s/fbneo_libretro.so", cores_dir) > 0);
+    assert(snprintf(pce_info, sizeof(pce_info), "%s/mednafen_pce_fast_libretro.info", info_dir) > 0);
+    assert(snprintf(ws_core, sizeof(ws_core), "%s/mednafen_wswan_libretro.so", cores_dir) > 0);
+    assert(snprintf(saturn_core, sizeof(saturn_core), "%s/yabasanshiro_libretro.so", cores_dir) > 0);
     assert(snprintf(foo_info, sizeof(foo_info), "%s/foo_libretro.info", info_dir) > 0);
 
     make_dir(roms_dir);
@@ -520,25 +574,51 @@ static void test_emulator_scan_checks_leaf_cores_and_info(void) {
     write_file(snes_core, "core");
     write_file(sega_info, "info");
     write_file(ps_core, "core");
+    write_file(n64_core, "core");
+    write_file(dc_core, "core");
+    write_file(neogeo_core, "core");
+    write_file(pce_info, "info");
+    write_file(ws_core, "core");
+    write_file(saturn_core, "core");
     write_file(foo_info, "info");
 
     set_sdcard_root_realpath(root);
     assert(cs_paths_init(&paths) == 0);
     assert(cs_platform_collect_installed_emulators(&paths, codes, sizeof(codes) / sizeof(codes[0]), &code_count) == 0);
     assert(code_count >= 8);
+    assert(cs_platform_has_installed_emulator(thirty_two_x, (const char (*)[CS_PLATFORM_CODE_MAX]) codes, code_count) == 1);
     assert(cs_platform_has_installed_emulator(gba, (const char (*)[CS_PLATFORM_CODE_MAX]) codes, code_count) == 1);
     assert(cs_platform_has_installed_emulator(fc, (const char (*)[CS_PLATFORM_CODE_MAX]) codes, code_count) == 0);
     assert(cs_platform_has_installed_emulator(sfc, (const char (*)[CS_PLATFORM_CODE_MAX]) codes, code_count) == 1);
+    assert(cs_platform_has_installed_emulator(sfc_jp, (const char (*)[CS_PLATFORM_CODE_MAX]) codes, code_count) == 1);
     assert(cs_platform_has_installed_emulator(md, (const char (*)[CS_PLATFORM_CODE_MAX]) codes, code_count) == 1);
     assert(cs_platform_has_installed_emulator(ps, (const char (*)[CS_PLATFORM_CODE_MAX]) codes, code_count) == 1);
+    assert(cs_platform_has_installed_emulator(n64, (const char (*)[CS_PLATFORM_CODE_MAX]) codes, code_count) == 1);
+    assert(cs_platform_has_installed_emulator(dc, (const char (*)[CS_PLATFORM_CODE_MAX]) codes, code_count) == 1);
+    assert(cs_platform_has_installed_emulator(neogeo, (const char (*)[CS_PLATFORM_CODE_MAX]) codes, code_count) == 1);
+    assert(cs_platform_has_installed_emulator(pcecd, (const char (*)[CS_PLATFORM_CODE_MAX]) codes, code_count) == 1);
+    assert(cs_platform_has_installed_emulator(ws, (const char (*)[CS_PLATFORM_CODE_MAX]) codes, code_count) == 1);
+    assert(cs_platform_has_installed_emulator(wsc, (const char (*)[CS_PLATFORM_CODE_MAX]) codes, code_count) == 1);
+    assert(cs_platform_has_installed_emulator(saturn, (const char (*)[CS_PLATFORM_CODE_MAX]) codes, code_count) == 1);
     assert(cs_platform_has_installed_emulator(ports, (const char (*)[CS_PLATFORM_CODE_MAX]) codes, code_count) == 1);
     assert(has_emulator_code((const char (*)[CS_PLATFORM_CODE_MAX]) codes, code_count, "FOO") == 1);
+    assert(has_emulator_code((const char (*)[CS_PLATFORM_CODE_MAX]) codes, code_count, "DC") == 1);
+    assert(has_emulator_code((const char (*)[CS_PLATFORM_CODE_MAX]) codes, code_count, "NEOGEO") == 1);
+    assert(has_emulator_code((const char (*)[CS_PLATFORM_CODE_MAX]) codes, code_count, "N64") == 1);
+    assert(has_emulator_code((const char (*)[CS_PLATFORM_CODE_MAX]) codes, code_count, "MUPEN64PLUS_NEXT") == 1);
     assert(has_emulator_code((const char (*)[CS_PLATFORM_CODE_MAX]) codes, code_count, "SNES9X") == 1);
+    assert(has_emulator_code((const char (*)[CS_PLATFORM_CODE_MAX]) codes, code_count, "WS") == 1);
 
     assert(remove(gba_core) == 0);
     assert(remove(snes_core) == 0);
     assert(remove(sega_info) == 0);
     assert(remove(ps_core) == 0);
+    assert(remove(n64_core) == 0);
+    assert(remove(dc_core) == 0);
+    assert(remove(neogeo_core) == 0);
+    assert(remove(pce_info) == 0);
+    assert(remove(ws_core) == 0);
+    assert(remove(saturn_core) == 0);
     assert(remove(foo_info) == 0);
     assert(rmdir(info_dir) == 0);
     assert(rmdir(cores_dir) == 0);

@@ -71,7 +71,7 @@ static void make_leaf_platform_dirs(const char *root, char *rom_dir, size_t rom_
     char roms_root[PATH_MAX];
 
     assert(snprintf(roms_root, sizeof(roms_root), "%s/Roms", root) > 0);
-    assert(snprintf(rom_dir, rom_dir_size, "%s/Roms/Game Boy Advance (GBA)", root) > 0);
+    assert(snprintf(rom_dir, rom_dir_size, "%s/Roms/GBA", root) > 0);
     assert(snprintf(states_dir, states_dir_size, "%s/States", root) > 0);
     make_dir(roms_root);
     make_dir(rom_dir);
@@ -268,7 +268,7 @@ static void test_multi_source_state_paths_use_file_browser_aliases(void) {
     make_dir(secondary_root);
 
     assert(snprintf(roms_root, sizeof(roms_root), "%s/Roms", secondary_root) > 0);
-    assert(snprintf(rom_dir, sizeof(rom_dir), "%s/Roms/Game Boy Advance (GBA)", secondary_root) > 0);
+    assert(snprintf(rom_dir, sizeof(rom_dir), "%s/Roms/GBA", secondary_root) > 0);
     assert(snprintf(states_dir, sizeof(states_dir), "%s/States", secondary_root) > 0);
     make_dir(roms_root);
     make_dir(rom_dir);

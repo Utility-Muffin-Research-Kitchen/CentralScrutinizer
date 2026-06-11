@@ -93,6 +93,8 @@ static const cs_browser_entry *find_entry_by_type(const cs_browser_result *resul
 static void test_fixture_browser_scopes_and_rejection(void) {
     cs_paths paths = {0};
     cs_browser_result result = {0};
+    cs_platform_info gba_resolved = {0};
+    cs_platform_info ps_resolved = {0};
     const cs_platform_info *gba;
     const cs_platform_info *ps;
     const cs_browser_entry *entry;
@@ -101,10 +103,12 @@ static void test_fixture_browser_scopes_and_rejection(void) {
     unsetenv("CS_WEB_ROOT");
 
     assert(cs_paths_init(&paths) == 0);
-    gba = cs_platform_find("GBA");
-    ps = cs_platform_find("PS");
-    assert(gba != NULL);
-    assert(ps != NULL);
+    /* Resolve like the routes do so legacy "Name (CODE)" fixture folders are
+       picked up; the static table now defaults to the Jawaka short names. */
+    assert(cs_platform_resolve(&paths, "GBA", &gba_resolved) == 0);
+    assert(cs_platform_resolve(&paths, "PS", &ps_resolved) == 0);
+    gba = &gba_resolved;
+    ps = &ps_resolved;
 
     assert(cs_browser_list(&paths, CS_SCOPE_ROMS, gba, "", 0, NULL, &result) == CS_BROWSER_LIST_OK);
     assert(strcmp(result.scope, "roms") == 0);
@@ -180,15 +184,15 @@ static void test_rom_thumbnail_resolution_is_png_only(void) {
     char rom_file[PATH_MAX];
     char png_art[PATH_MAX];
     char jpg_art[PATH_MAX];
-    const cs_platform_info *gba = cs_platform_find("GBA");
+    cs_platform_info gba_resolved = {0};
+    const cs_platform_info *gba = &gba_resolved;
     const cs_browser_entry *entry;
 
-    assert(gba != NULL);
     root = mkdtemp(template);
     assert(root != NULL);
 
     assert(snprintf(roms_dir, sizeof(roms_dir), "%s/Roms", root) > 0);
-    assert(snprintf(system_dir, sizeof(system_dir), "%s/Roms/Game Boy Advance (GBA)", root) > 0);
+    assert(snprintf(system_dir, sizeof(system_dir), "%s/Roms/GBA", root) > 0);
     assert(snprintf(images_dir, sizeof(images_dir), "%s/Images", root) > 0);
     assert(snprintf(image_system_dir, sizeof(image_system_dir), "%s/Images/GBA", root) > 0);
     assert(snprintf(rom_file, sizeof(rom_file), "%s/Box Art Test.gba", system_dir) > 0);
@@ -205,6 +209,7 @@ static void test_rom_thumbnail_resolution_is_png_only(void) {
 
     set_sdcard_root_realpath(root);
     assert(cs_paths_init(&paths) == 0);
+    assert(cs_platform_resolve(&paths, "GBA", &gba_resolved) == 0);
     assert(cs_browser_list(&paths, CS_SCOPE_ROMS, gba, "", 0, NULL, &result) == CS_BROWSER_LIST_OK);
     entry = find_entry(&result, "Box Art Test.gba");
     assert(entry != NULL);
@@ -395,7 +400,7 @@ static void test_symlink_entries_are_skipped(void) {
     assert(root != NULL);
 
     assert(snprintf(roms_dir, sizeof(roms_dir), "%s/Roms", root) > 0);
-    assert(snprintf(system_dir, sizeof(system_dir), "%s/Roms/Game Boy Advance (GBA)", root) > 0);
+    assert(snprintf(system_dir, sizeof(system_dir), "%s/Roms/GBA", root) > 0);
     assert(snprintf(real_rom, sizeof(real_rom), "%s/Pokemon Emerald.gba", system_dir) > 0);
     assert(snprintf(outside_file, sizeof(outside_file), "%s/not-a-rom.bin", root) > 0);
     assert(snprintf(link_path, sizeof(link_path), "%s/Outside Link.gba", system_dir) > 0);
@@ -439,7 +444,7 @@ static void test_symlinked_scope_root_is_rejected(void) {
     assert(snprintf(roms_dir, sizeof(roms_dir), "%s/Roms", root) > 0);
     assert(snprintf(outside_dir, sizeof(outside_dir), "%s/outside-system", root) > 0);
     assert(snprintf(real_rom, sizeof(real_rom), "%s/Pokemon Emerald.gba", outside_dir) > 0);
-    assert(snprintf(system_link, sizeof(system_link), "%s/Roms/Game Boy Advance (GBA)", root) > 0);
+    assert(snprintf(system_link, sizeof(system_link), "%s/Roms/GBA", root) > 0);
 
     make_dir(roms_dir);
     make_dir(outside_dir);
@@ -524,7 +529,7 @@ static void test_symlinked_roms_parent_is_rejected(void) {
     assert(outside_root != NULL);
 
     assert(snprintf(real_roms_dir, sizeof(real_roms_dir), "%s/real-roms", outside_root) > 0);
-    assert(snprintf(system_dir, sizeof(system_dir), "%s/real-roms/Game Boy Advance (GBA)", outside_root) > 0);
+    assert(snprintf(system_dir, sizeof(system_dir), "%s/real-roms/GBA", outside_root) > 0);
     assert(snprintf(rom_file, sizeof(rom_file), "%s/Pokemon Emerald.gba", system_dir) > 0);
     assert(snprintf(roms_link, sizeof(roms_link), "%s/Roms", root) > 0);
 
@@ -562,7 +567,7 @@ static void test_pagination_window_and_total_count(void) {
     assert(root != NULL);
 
     assert(snprintf(roms_dir, sizeof(roms_dir), "%s/Roms", root) > 0);
-    assert(snprintf(system_dir, sizeof(system_dir), "%s/Roms/Game Boy Advance (GBA)", root) > 0);
+    assert(snprintf(system_dir, sizeof(system_dir), "%s/Roms/GBA", root) > 0);
     make_dir(roms_dir);
     make_dir(system_dir);
 
@@ -632,7 +637,7 @@ static void test_sorted_pagination_window_uses_requested_order(void) {
     assert(root != NULL);
 
     assert(snprintf(roms_dir, sizeof(roms_dir), "%s/Roms", root) > 0);
-    assert(snprintf(system_dir, sizeof(system_dir), "%s/Roms/Game Boy Advance (GBA)", root) > 0);
+    assert(snprintf(system_dir, sizeof(system_dir), "%s/Roms/GBA", root) > 0);
     make_dir(roms_dir);
     make_dir(system_dir);
 
@@ -706,7 +711,7 @@ static void test_query_filters_results_case_insensitively(void) {
     assert(root != NULL);
 
     assert(snprintf(roms_dir, sizeof(roms_dir), "%s/Roms", root) > 0);
-    assert(snprintf(system_dir, sizeof(system_dir), "%s/Roms/Game Boy Advance (GBA)", root) > 0);
+    assert(snprintf(system_dir, sizeof(system_dir), "%s/Roms/GBA", root) > 0);
     assert(snprintf(pokemon_emerald, sizeof(pokemon_emerald), "%s/Pokemon Emerald.gba", system_dir) > 0);
     assert(snprintf(pokemon_ruby, sizeof(pokemon_ruby), "%s/Pokemon Ruby.gba", system_dir) > 0);
     assert(snprintf(metroid, sizeof(metroid), "%s/Metroid Fusion.gba", system_dir) > 0);
@@ -773,9 +778,9 @@ static void test_ports_browser_supports_hidden_ports_and_rejects_other_resources
     assert(root != NULL);
 
     assert(snprintf(roms_dir, sizeof(roms_dir), "%s/Roms", root) > 0);
-    assert(snprintf(ports_dir, sizeof(ports_dir), "%s/Roms/Ports (PORTS)", root) > 0);
-    assert(snprintf(hidden_ports_dir, sizeof(hidden_ports_dir), "%s/Roms/Ports (PORTS)/.ports", root) > 0);
-    assert(snprintf(shortcut_dir, sizeof(shortcut_dir), "%s/Roms/Ports (PORTS)/0) Search (SHORTCUT)", root) > 0);
+    assert(snprintf(ports_dir, sizeof(ports_dir), "%s/Roms/PORTS", root) > 0);
+    assert(snprintf(hidden_ports_dir, sizeof(hidden_ports_dir), "%s/Roms/PORTS/.ports", root) > 0);
+    assert(snprintf(shortcut_dir, sizeof(shortcut_dir), "%s/Roms/PORTS/0) Search (SHORTCUT)", root) > 0);
     assert(snprintf(shortcut_marker, sizeof(shortcut_marker), "%s/.shortcut", shortcut_dir) > 0);
     assert(snprintf(root_script, sizeof(root_script), "%s/PokeMMO.sh", ports_dir) > 0);
     assert(snprintf(port_manifest, sizeof(port_manifest), "%s/port.json", hidden_ports_dir) > 0);

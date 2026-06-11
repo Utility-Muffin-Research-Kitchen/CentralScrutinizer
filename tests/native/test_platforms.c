@@ -92,18 +92,22 @@ static void test_static_platform_metadata(void) {
     assert(cs_platform_find(NULL) == NULL);
     assert(cs_platform_find("") == NULL);
     assert(cs_platform_find("DOES_NOT_EXIST") == NULL);
-    assert(cs_platform_find("nes") == NULL);
+
+    /* Codes resolve case-insensitively, mirroring Jawaka's folder matching. */
+    info = cs_platform_find("nes");
+    assert(info != NULL);
+    assert(strcmp(info->primary_code, "FC") == 0);
 
     info = cs_platform_find("PS");
     assert(info != NULL);
     assert(strcmp(info->tag, "PS") == 0);
     assert(strcmp(info->group, "Sony") == 0);
-    assert(strcmp(info->rom_directory, "Sony PlayStation (PS)") == 0);
+    assert(strcmp(info->rom_directory, "PS") == 0);
 
     info = cs_platform_find("SNES");
     assert(info != NULL);
     assert(strcmp(info->primary_code, "SFC") == 0);
-    assert(strcmp(info->rom_directory, "Super Nintendo Entertainment System (SFC)") == 0);
+    assert(strcmp(info->rom_directory, "SFC") == 0);
 
     info = cs_platform_find("NES");
     assert(info != NULL);
@@ -113,7 +117,32 @@ static void test_static_platform_metadata(void) {
     assert(info != NULL);
     assert(strcmp(info->name, "Nintendo 64") == 0);
     assert(strcmp(info->group, "Nintendo") == 0);
-    assert(strcmp(info->rom_directory, "Nintendo 64 (N64)") == 0);
+    assert(strcmp(info->rom_directory, "N64") == 0);
+
+    /* Jawaka system ids and folder patterns resolve to the same platforms. */
+    info = cs_platform_find("ARCADE");
+    assert(info != NULL);
+    assert(strcmp(info->tag, "FBN") == 0);
+    assert(strcmp(info->rom_directory, "ARCADE") == 0);
+
+    info = cs_platform_find("PSX");
+    assert(info != NULL);
+    assert(strcmp(info->tag, "PS") == 0);
+
+    info = cs_platform_find("PICO8");
+    assert(info != NULL);
+    assert(strcmp(info->tag, "P8") == 0);
+    assert(strcmp(info->rom_directory, "PICO8") == 0);
+
+    info = cs_platform_find("MS");
+    assert(info != NULL);
+    assert(strcmp(info->tag, "SMS") == 0);
+    assert(strcmp(info->rom_directory, "MS") == 0);
+
+    info = cs_platform_find("SEVENTYEIGHTHUNDRED");
+    assert(info != NULL);
+    assert(strcmp(info->tag, "A7800") == 0);
+    assert(strcmp(info->rom_directory, "SEVENTYEIGHTHUNDRED") == 0);
 
     info = cs_platform_find("DC");
     assert(info != NULL);
@@ -148,7 +177,7 @@ static void test_portmaster_platform_metadata(void) {
     assert(strcmp(info->name, "Ports") == 0);
     assert(strcmp(info->group, "PortMaster") == 0);
     assert(strcmp(info->icon, "PORTMASTER") == 0);
-    assert(strcmp(info->rom_directory, "Ports (PORTS)") == 0);
+    assert(strcmp(info->rom_directory, "PORTS") == 0);
     assert(cs_platform_supports_resource(info, "roms") == 1);
     assert(cs_platform_supports_resource(info, "saves") == 0);
     assert(cs_platform_supports_resource(info, "states") == 0);
@@ -157,6 +186,29 @@ static void test_portmaster_platform_metadata(void) {
     assert(cs_platform_supports_resource(info, "cheats") == 0);
     assert(cs_platform_requires_emulator(info) == 0);
     assert(cs_platform_allows_hidden_rom_entries(info) == 1);
+}
+
+static void test_path_core_platforms_do_not_require_emulator(void) {
+    const cs_platform_info *nds = cs_platform_find("NDS");
+    const cs_platform_info *psp = cs_platform_find("PSP");
+    const cs_platform_info *gw = cs_platform_find("GW");
+
+    /* NDS and PSP launch via Jawaka path cores, so the missing-libretro-core
+       warning must not apply; saves and friends are still browsable. */
+    assert(nds != NULL);
+    assert(strcmp(nds->rom_directory, "NDS") == 0);
+    assert(cs_platform_requires_emulator(nds) == 0);
+    assert(cs_platform_supports_resource(nds, "roms") == 1);
+    assert(cs_platform_supports_resource(nds, "saves") == 1);
+    assert(cs_platform_allows_hidden_rom_entries(nds) == 0);
+
+    assert(psp != NULL);
+    assert(strcmp(psp->rom_directory, "PSP") == 0);
+    assert(cs_platform_requires_emulator(psp) == 0);
+
+    /* Game & Watch runs through a regular libretro core. */
+    assert(gw != NULL);
+    assert(cs_platform_requires_emulator(gw) == 1);
 }
 
 static void test_leaf_standard_platform_resources(void) {
@@ -261,9 +313,9 @@ static void test_shortcut_directories_are_excluded_from_discovery(void) {
 
     md = find_platform_entry(discovered, discovered_count, "MD");
     assert(md != NULL);
-    assert(strcmp(md->rom_directory, "Sega Genesis (MD)") == 0);
+    assert(strcmp(md->rom_directory, "MD") == 0);
     assert(cs_platform_resolve(&paths, "MD", &resolved) == 0);
-    assert(strcmp(resolved.rom_directory, "Sega Genesis (MD)") == 0);
+    assert(strcmp(resolved.rom_directory, "MD") == 0);
     assert(cs_platform_is_shortcut_directory("0) Sonic - Spindash (MD)", shortcut_dir) == 1);
     assert(cs_platform_is_shortcut_directory("\xE2\x98\x85 Old Shortcut (MD)", "/tmp/legacy-shortcut") == 1);
 
@@ -354,9 +406,9 @@ static void test_missing_known_rom_directory_uses_canonical_leaf_name(void) {
 
     gba = find_platform_entry(discovered, discovered_count, "GBA");
     assert(gba != NULL);
-    assert(strcmp(gba->rom_directory, "Game Boy Advance (GBA)") == 0);
+    assert(strcmp(gba->rom_directory, "GBA") == 0);
     assert(cs_platform_resolve(&paths, "GBA", &resolved) == 0);
-    assert(strcmp(resolved.rom_directory, "Game Boy Advance (GBA)") == 0);
+    assert(strcmp(resolved.rom_directory, "GBA") == 0);
 
     assert(rmdir(roms_dir) == 0);
     assert(rmdir(root) == 0);
@@ -506,6 +558,8 @@ static void test_emulator_scan_checks_leaf_cores_and_info(void) {
     char pce_info[PATH_MAX];
     char ws_core[PATH_MAX];
     char saturn_core[PATH_MAX];
+    char gw_core[PATH_MAX];
+    char dos_core[PATH_MAX];
     char foo_info[PATH_MAX];
     cs_paths paths = {0};
     char codes[128][CS_PLATFORM_CODE_MAX];
@@ -525,7 +579,11 @@ static void test_emulator_scan_checks_leaf_cores_and_info(void) {
     const cs_platform_info *wsc = cs_platform_find("WSC");
     const cs_platform_info *saturn = cs_platform_find("SATURN");
     const cs_platform_info *ports = cs_platform_find("PORTS");
+    const cs_platform_info *gw = cs_platform_find("GW");
+    const cs_platform_info *dos = cs_platform_find("DOS");
 
+    assert(gw != NULL);
+    assert(dos != NULL);
     assert(thirty_two_x != NULL);
     assert(gba != NULL);
     assert(fc != NULL);
@@ -561,6 +619,8 @@ static void test_emulator_scan_checks_leaf_cores_and_info(void) {
     assert(snprintf(pce_info, sizeof(pce_info), "%s/mednafen_pce_fast_libretro.info", info_dir) > 0);
     assert(snprintf(ws_core, sizeof(ws_core), "%s/mednafen_wswan_libretro.so", cores_dir) > 0);
     assert(snprintf(saturn_core, sizeof(saturn_core), "%s/yabasanshiro_libretro.so", cores_dir) > 0);
+    assert(snprintf(gw_core, sizeof(gw_core), "%s/gw_libretro.so", cores_dir) > 0);
+    assert(snprintf(dos_core, sizeof(dos_core), "%s/dosbox_pure_libretro.so", cores_dir) > 0);
     assert(snprintf(foo_info, sizeof(foo_info), "%s/foo_libretro.info", info_dir) > 0);
 
     make_dir(roms_dir);
@@ -580,6 +640,8 @@ static void test_emulator_scan_checks_leaf_cores_and_info(void) {
     write_file(pce_info, "info");
     write_file(ws_core, "core");
     write_file(saturn_core, "core");
+    write_file(gw_core, "core");
+    write_file(dos_core, "core");
     write_file(foo_info, "info");
 
     set_sdcard_root_realpath(root);
@@ -601,6 +663,8 @@ static void test_emulator_scan_checks_leaf_cores_and_info(void) {
     assert(cs_platform_has_installed_emulator(wsc, (const char (*)[CS_PLATFORM_CODE_MAX]) codes, code_count) == 1);
     assert(cs_platform_has_installed_emulator(saturn, (const char (*)[CS_PLATFORM_CODE_MAX]) codes, code_count) == 1);
     assert(cs_platform_has_installed_emulator(ports, (const char (*)[CS_PLATFORM_CODE_MAX]) codes, code_count) == 1);
+    assert(cs_platform_has_installed_emulator(gw, (const char (*)[CS_PLATFORM_CODE_MAX]) codes, code_count) == 1);
+    assert(cs_platform_has_installed_emulator(dos, (const char (*)[CS_PLATFORM_CODE_MAX]) codes, code_count) == 1);
     assert(has_emulator_code((const char (*)[CS_PLATFORM_CODE_MAX]) codes, code_count, "FOO") == 1);
     assert(has_emulator_code((const char (*)[CS_PLATFORM_CODE_MAX]) codes, code_count, "DC") == 1);
     assert(has_emulator_code((const char (*)[CS_PLATFORM_CODE_MAX]) codes, code_count, "NEOGEO") == 1);
@@ -619,6 +683,8 @@ static void test_emulator_scan_checks_leaf_cores_and_info(void) {
     assert(remove(pce_info) == 0);
     assert(remove(ws_core) == 0);
     assert(remove(saturn_core) == 0);
+    assert(remove(gw_core) == 0);
+    assert(remove(dos_core) == 0);
     assert(remove(foo_info) == 0);
     assert(rmdir(info_dir) == 0);
     assert(rmdir(cores_dir) == 0);
@@ -633,6 +699,7 @@ static void test_emulator_scan_checks_leaf_cores_and_info(void) {
 int main(void) {
     test_static_platform_metadata();
     test_portmaster_platform_metadata();
+    test_path_core_platforms_do_not_require_emulator();
     test_leaf_standard_platform_resources();
     test_parse_rejects_unsafe_custom_platform_codes();
     test_alias_rom_directories_are_resolved();

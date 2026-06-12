@@ -64,8 +64,8 @@ export function TerminalToolView({
         fontFamily: '"Menlo", "SFMono-Regular", "Consolas", monospace',
         fontSize: 13,
         theme: {
-          background: "#111111",
-          foreground: "#f4f4f4",
+          background: "#0f160e",
+          foreground: "#e8f1e3",
         },
       });
       fitAddon = new fitModule.FitAddon();

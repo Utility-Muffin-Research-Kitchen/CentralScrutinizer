@@ -1,19 +1,22 @@
 @import "tailwindcss";
 
+/* Leaf identity - matches the launcher's soft-green scheme and the docs site
+   (leaf-docs src/styles/leaf.css). Source palette (Jawaka settings schemes):
+   accent #7FB069, base #0F160E, text #E8F1E3, hint #7E9579. */
 :root {
   --radius-shell: 28px;
   --shell-gap: 1.25rem;
-  --bg: #292929;
-  --bg-deep: #1e1e1e;
-  --panel: #333333;
-  --panel-alt: #3d3d3d;
-  --accent: #9b2256;
-  --accent-strong: #b52a66;
-  --accent-soft: rgba(155, 34, 86, 0.15);
-  --text: #eeeeee;
-  --muted: #888888;
-  --border: #444444;
-  --line: #3a3a3a;
+  --bg: #1c2618;
+  --bg-deep: #0f160e;
+  --panel: #243020;
+  --panel-alt: #2e3b28;
+  --accent: #7fb069;
+  --accent-strong: #8fc07b;
+  --accent-soft: rgba(127, 176, 105, 0.15);
+  --text: #e8f1e3;
+  --muted: #7e9579;
+  --border: #37412f;
+  --line: #2b3525;
   --shadow: 0 20px 60px rgba(0, 0, 0, 0.4);
 }
 
@@ -29,7 +32,7 @@ body {
 body {
   min-height: 100vh;
   background:
-    radial-gradient(circle at top, rgba(155, 34, 86, 0.16), transparent 28rem),
+    radial-gradient(circle at top, rgba(127, 176, 105, 0.14), transparent 28rem),
     linear-gradient(180deg, var(--bg) 0%, var(--bg-deep) 100%);
 }
 

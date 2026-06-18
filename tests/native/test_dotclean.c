@@ -10,6 +10,13 @@
 #include "cs_paths.h"
 
 static void make_dir(const char *path) {
+    /* Create parents so a 2-level new-layout path (.userdata/<platform>) works
+       like the old deep chain; the leaf dir must still be freshly made. */
+    char tmp[PATH_MAX];
+    snprintf(tmp, sizeof(tmp), "%s", path);
+    for (char *p = tmp + 1; *p != '\0'; p++) {
+        if (*p == '/') { *p = '\0'; mkdir(tmp, 0700); *p = '/'; }
+    }
     assert(mkdir(path, 0700) == 0);
 }
 
@@ -100,9 +107,9 @@ static void test_dotclean_finds_expected_entries_and_skips_large_trees(void) {
     assert(snprintf(leaf_dir, sizeof(leaf_dir), "%s/.system/leaf", root) > 0);
     assert(snprintf(platforms_dir, sizeof(platforms_dir), "%s/.system/leaf/platforms", root) > 0);
     assert(snprintf(platform_dir, sizeof(platform_dir), "%s/.system/leaf/platforms/mlp1", root) > 0);
-    assert(snprintf(userdata_dir, sizeof(userdata_dir), "%s/.system/leaf/platforms/mlp1/userdata", root) > 0);
-    assert(snprintf(app_dir, sizeof(app_dir), "%s/.system/leaf/platforms/mlp1/userdata/CentralScrutinizer", root) > 0);
-    assert(snprintf(app_ds_store, sizeof(app_ds_store), "%s/.system/leaf/platforms/mlp1/userdata/CentralScrutinizer/.DS_Store", root) > 0);
+    assert(snprintf(userdata_dir, sizeof(userdata_dir), "%s/.userdata/mlp1", root) > 0);
+    assert(snprintf(app_dir, sizeof(app_dir), "%s/.userdata/mlp1/CentralScrutinizer", root) > 0);
+    assert(snprintf(app_ds_store, sizeof(app_ds_store), "%s/.userdata/mlp1/CentralScrutinizer/.DS_Store", root) > 0);
     assert(snprintf(bios_dir, sizeof(bios_dir), "%s/BIOS", root) > 0);
     assert(snprintf(bios_apple_double, sizeof(bios_apple_double), "%s/BIOS/._gba_bios.bin", root) > 0);
     assert(snprintf(deep_root, sizeof(deep_root), "%s/Roms/deep", root) > 0);
@@ -153,7 +160,7 @@ static void test_dotclean_finds_expected_entries_and_skips_large_trees(void) {
     assert(has_path(entries, count, "Roms/__MACOSX") == 1);
     assert(has_path(entries, count, "Roms/Pokemon Emerald.gba") == 0);
     assert(has_path(entries, count, "Roms/.fseventsd") == 0);
-    assert(has_path(entries, count, ".system/leaf/platforms/mlp1/userdata/CentralScrutinizer/.DS_Store") == 0);
+    assert(has_path(entries, count, ".userdata/mlp1/CentralScrutinizer/.DS_Store") == 0);
     assert(has_path(entries, count, "BIOS/._gba_bios.bin") == 0);
     assert(has_path(entries, count, "Roms/deep/level00/level01/level02/level03/level04/level05/level06/level07/level08/level09/level10/level11/level12/level13/level14/level15/level16/level17/level18/level19/level20/level21/level22/level23/level24/level25/level26/level27/level28/level29/level30/level31/level32/level33/.DS_Store")
            == 0);

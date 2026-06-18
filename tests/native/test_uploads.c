@@ -372,7 +372,7 @@ static void test_reserved_temp_paths_are_unique(void) {
     assert(mkdtemp(sandbox_template) != NULL);
     assert(snprintf(paths.shared_state_root,
                     sizeof(paths.shared_state_root),
-                    "%s/.system/leaf/platforms/mlp1/userdata/CentralScrutinizer",
+                    "%s/.userdata/mlp1/CentralScrutinizer",
                     sandbox_template)
            > 0);
     assert(snprintf(paths.sdcard_root, sizeof(paths.sdcard_root), "%s", sandbox_template) > 0);
@@ -394,15 +394,9 @@ static void test_reserved_temp_paths_are_unique(void) {
     assert(snprintf(path_buffer, sizeof(path_buffer), "%s/uploads", paths.shared_state_root) > 0);
     assert(rmdir(path_buffer) == 0);
     assert(rmdir(paths.shared_state_root) == 0);
-    assert(snprintf(path_buffer, sizeof(path_buffer), "%s/.system/leaf/platforms/mlp1/userdata", sandbox_template) > 0);
+    assert(snprintf(path_buffer, sizeof(path_buffer), "%s/.userdata/mlp1", sandbox_template) > 0);
     assert(rmdir(path_buffer) == 0);
-    assert(snprintf(path_buffer, sizeof(path_buffer), "%s/.system/leaf/platforms/mlp1", sandbox_template) > 0);
-    assert(rmdir(path_buffer) == 0);
-    assert(snprintf(path_buffer, sizeof(path_buffer), "%s/.system/leaf/platforms", sandbox_template) > 0);
-    assert(rmdir(path_buffer) == 0);
-    assert(snprintf(path_buffer, sizeof(path_buffer), "%s/.system/leaf", sandbox_template) > 0);
-    assert(rmdir(path_buffer) == 0);
-    assert(snprintf(path_buffer, sizeof(path_buffer), "%s/.system", sandbox_template) > 0);
+    assert(snprintf(path_buffer, sizeof(path_buffer), "%s/.userdata", sandbox_template) > 0);
     assert(rmdir(path_buffer) == 0);
     assert(rmdir(sandbox_template) == 0);
 }
@@ -484,13 +478,8 @@ static void test_temp_upload_root_can_live_on_secondary_source(void) {
     assert(mkdir(second_root, 0775) == 0);
     assert(realpath(first_root, first_resolved) != NULL);
     assert(realpath(second_root, second_resolved) != NULL);
-    path_join(userdata_root, sizeof(userdata_root), second_resolved, ".system/leaf/platforms/mlp1/userdata");
-    path_join(system_root, sizeof(system_root), second_resolved, ".system");
-    path_join(leaf_root, sizeof(leaf_root), system_root, "leaf");
-    path_join(platforms_root, sizeof(platforms_root), leaf_root, "platforms");
-    path_join(platform_root, sizeof(platform_root), platforms_root, "mlp1");
-    path_join(platform_userdata_root, sizeof(platform_userdata_root), platform_root, "userdata");
-    path_join(app_root, sizeof(app_root), platform_userdata_root, "CentralScrutinizer");
+    path_join(userdata_root, sizeof(userdata_root), second_resolved, ".userdata/mlp1");
+    path_join(app_root, sizeof(app_root), userdata_root, "CentralScrutinizer");
     path_join(uploads_root, sizeof(uploads_root), app_root, "uploads");
     path_join(tmp_root, sizeof(tmp_root), uploads_root, "tmp");
     assert(snprintf(source_list, sizeof(source_list), "%s:%s", first_resolved, second_resolved) > 0);
@@ -510,11 +499,9 @@ static void test_temp_upload_root_can_live_on_secondary_source(void) {
     assert(rmdir(tmp_root) == 0);
     assert(rmdir(uploads_root) == 0);
     assert(rmdir(app_root) == 0);
-    assert(rmdir(platform_userdata_root) == 0);
-    assert(rmdir(platform_root) == 0);
-    assert(rmdir(platforms_root) == 0);
-    assert(rmdir(leaf_root) == 0);
-    assert(rmdir(system_root) == 0);
+    assert(rmdir(userdata_root) == 0);
+    path_join(app_root, sizeof(app_root), second_resolved, ".userdata");
+    assert(rmdir(app_root) == 0);
     assert(rmdir(first_root) == 0);
     assert(rmdir(second_root) == 0);
     assert(rmdir(sandbox_template) == 0);
@@ -561,18 +548,18 @@ int main(void) {
     assert(cs_upload_plan_make(&paths,
                                paths.sdcard_root,
                                paths.sdcard_root,
-                               ".system/leaf/platforms/mlp1/userdata/CentralScrutinizer/imports",
+                               ".userdata/mlp1/CentralScrutinizer/imports",
                                "notes.txt",
                                CS_PATH_FLAG_ALLOW_HIDDEN,
                                &plan)
            == 0);
     assert(strstr(plan.final_path,
-                  ".system/leaf/platforms/mlp1/userdata/CentralScrutinizer/imports/notes.txt")
+                  ".userdata/mlp1/CentralScrutinizer/imports/notes.txt")
            != NULL);
     assert(cs_upload_plan_make(&paths,
                                paths.sdcard_root,
                                paths.sdcard_root,
-                               ".system/leaf/platforms/mlp1/userdata/CentralScrutinizer/imports",
+                               ".userdata/mlp1/CentralScrutinizer/imports",
                                "notes.txt",
                                0,
                                &plan)

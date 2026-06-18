@@ -11,6 +11,11 @@
 #include "cs_states.h"
 
 static void make_dir(const char *path) {
+    char tmp[PATH_MAX];
+    snprintf(tmp, sizeof(tmp), "%s", path);
+    for (char *p = tmp + 1; *p != '\0'; p++) {
+        if (*p == '/') { *p = '\0'; mkdir(tmp, 0700); *p = '/'; }
+    }
     assert(mkdir(path, 0700) == 0);
 }
 

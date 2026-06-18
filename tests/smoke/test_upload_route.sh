@@ -28,19 +28,19 @@ MALFORMED_DIRECTORY_NAME="malformed-dir-$RANDOM-$$"
 UPLOADED_ROM="$SDCARD_ROOT/Roms/Game Boy Advance (GBA)/$ROM_UPLOAD_NAME"
 UPLOADED_SAVE="$SDCARD_ROOT/Saves/GBA/$SAVE_UPLOAD_NAME"
 UPLOADED_BIOS="$SDCARD_ROOT/BIOS/GBA/$BIOS_UPLOAD_NAME"
-UPLOADED_NOTE="$SDCARD_ROOT/.system/leaf/platforms/mlp1/userdata/CentralScrutinizer/imports/Favorites/GBA/$NOTE_UPLOAD_NAME"
-UPLOADED_EMPTY_DIR="$SDCARD_ROOT/.system/leaf/platforms/mlp1/userdata/CentralScrutinizer/imports/$EMPTY_DIR_NAME"
+UPLOADED_NOTE="$SDCARD_ROOT/.userdata/mlp1/CentralScrutinizer/imports/Favorites/GBA/$NOTE_UPLOAD_NAME"
+UPLOADED_EMPTY_DIR="$SDCARD_ROOT/.userdata/mlp1/CentralScrutinizer/imports/$EMPTY_DIR_NAME"
 UPLOADED_EMPTY_NESTED_DIR="$UPLOADED_EMPTY_DIR/Nested"
-UPLOADED_MIXED_EMPTY_DIR="$SDCARD_ROOT/.system/leaf/platforms/mlp1/userdata/CentralScrutinizer/imports/$MIXED_DIR_NAME/Empty"
-UPLOADED_MIXED_NOTE="$SDCARD_ROOT/.system/leaf/platforms/mlp1/userdata/CentralScrutinizer/imports/$MIXED_DIR_NAME/$NOTE_UPLOAD_NAME"
-NORMALIZED_PARENT_UPLOADED_NOTE="$SDCARD_ROOT/.system/leaf/platforms/mlp1/userdata/CentralScrutinizer/imports/$NORMALIZED_PARENT_NOTE_UPLOAD_NAME"
-NORMALIZED_DOT_SEGMENT_UPLOADED_NOTE="$SDCARD_ROOT/.system/leaf/platforms/mlp1/userdata/CentralScrutinizer/imports/$NORMALIZED_DOT_SEGMENT_NOTE_UPLOAD_NAME"
-NORMALIZED_DOUBLE_SEPARATOR_UPLOADED_NOTE="$SDCARD_ROOT/.system/leaf/platforms/mlp1/userdata/CentralScrutinizer/imports/Favorites/$NORMALIZED_DOUBLE_SEPARATOR_NOTE_UPLOAD_NAME"
-EMPTY_FILENAME_NOTE="$SDCARD_ROOT/.system/leaf/platforms/mlp1/userdata/CentralScrutinizer/imports/empty-filename-should-not-exist.txt"
-NOTE_UPLOAD_FINAL_PATH=".system/leaf/platforms/mlp1/userdata/CentralScrutinizer/imports/$NOTE_UPLOAD_RELATIVE_PATH"
+UPLOADED_MIXED_EMPTY_DIR="$SDCARD_ROOT/.userdata/mlp1/CentralScrutinizer/imports/$MIXED_DIR_NAME/Empty"
+UPLOADED_MIXED_NOTE="$SDCARD_ROOT/.userdata/mlp1/CentralScrutinizer/imports/$MIXED_DIR_NAME/$NOTE_UPLOAD_NAME"
+NORMALIZED_PARENT_UPLOADED_NOTE="$SDCARD_ROOT/.userdata/mlp1/CentralScrutinizer/imports/$NORMALIZED_PARENT_NOTE_UPLOAD_NAME"
+NORMALIZED_DOT_SEGMENT_UPLOADED_NOTE="$SDCARD_ROOT/.userdata/mlp1/CentralScrutinizer/imports/$NORMALIZED_DOT_SEGMENT_NOTE_UPLOAD_NAME"
+NORMALIZED_DOUBLE_SEPARATOR_UPLOADED_NOTE="$SDCARD_ROOT/.userdata/mlp1/CentralScrutinizer/imports/Favorites/$NORMALIZED_DOUBLE_SEPARATOR_NOTE_UPLOAD_NAME"
+EMPTY_FILENAME_NOTE="$SDCARD_ROOT/.userdata/mlp1/CentralScrutinizer/imports/empty-filename-should-not-exist.txt"
+NOTE_UPLOAD_FINAL_PATH=".userdata/mlp1/CentralScrutinizer/imports/$NOTE_UPLOAD_RELATIVE_PATH"
 PARALLEL_CLIENT_NAME="parallel-$RANDOM-$$.txt"
-PARALLEL_PATH_A=".system/leaf/platforms/mlp1/userdata/CentralScrutinizer/imports/parallel-a"
-PARALLEL_PATH_B=".system/leaf/platforms/mlp1/userdata/CentralScrutinizer/imports/parallel-b"
+PARALLEL_PATH_A=".userdata/mlp1/CentralScrutinizer/imports/parallel-a"
+PARALLEL_PATH_B=".userdata/mlp1/CentralScrutinizer/imports/parallel-b"
 PARALLEL_UPLOAD_A="$SDCARD_ROOT/$PARALLEL_PATH_A/$PARALLEL_CLIENT_NAME"
 PARALLEL_UPLOAD_B="$SDCARD_ROOT/$PARALLEL_PATH_B/$PARALLEL_CLIENT_NAME"
 CSRF_TOKEN=""
@@ -86,7 +86,7 @@ assert_upload_stored() {
         -b "$COOKIE_JAR" \
         -H "X-CS-CSRF: $CSRF_TOKEN" \
         -F "scope=files" \
-        -F "path=.system/leaf/platforms/mlp1/userdata/CentralScrutinizer/imports" \
+        -F "path=.userdata/mlp1/CentralScrutinizer/imports" \
         -F "file=@$SOURCE_NOTE;filename=$client_name" \
         -w '\n%{http_code}' \
         http://127.0.0.1:8877/api/upload)"
@@ -121,7 +121,7 @@ assert_directory_rejected() {
 prepare_mock_sdcard "$SDCARD_ROOT"
 # Simulate a fresh SD card with no pre-existing shared-state dir so
 # cs_upload_prepare_temp_root has to create the full chain itself.
-rm -rf "$SDCARD_ROOT/.system/leaf/platforms/mlp1/userdata/CentralScrutinizer"
+rm -rf "$SDCARD_ROOT/.userdata/mlp1/CentralScrutinizer"
 printf 'Central Scrutinizer file-browser upload\n' > "$SOURCE_NOTE"
 python3 - <<PY
 from pathlib import Path
@@ -219,7 +219,7 @@ UPLOAD_RESPONSE="$(curl -sS -X POST \
     -b "$COOKIE_JAR" \
     -H "X-CS-CSRF: $CSRF_TOKEN" \
     -F "scope=files" \
-    -F "path=.system/leaf/platforms/mlp1/userdata/CentralScrutinizer/imports" \
+    -F "path=.userdata/mlp1/CentralScrutinizer/imports" \
     -F "file=@$SOURCE_NOTE;filename=$NOTE_UPLOAD_RELATIVE_PATH" \
     -w '\n%{http_code}' \
     http://127.0.0.1:8877/api/upload)"
@@ -233,7 +233,7 @@ UPLOAD_RESPONSE="$(curl -sS -X POST \
     -b "$COOKIE_JAR" \
     -H "X-CS-CSRF: $CSRF_TOKEN" \
     -F "scope=files" \
-    -F "path=.system/leaf/platforms/mlp1/userdata/CentralScrutinizer/imports" \
+    -F "path=.userdata/mlp1/CentralScrutinizer/imports" \
     -F "directory=$EMPTY_DIR_NAME" \
     -F "directory=$EMPTY_DIR_NAME/Nested" \
     -w '\n%{http_code}' \
@@ -248,7 +248,7 @@ UPLOAD_RESPONSE="$(curl -sS -X POST \
     -b "$COOKIE_JAR" \
     -H "X-CS-CSRF: $CSRF_TOKEN" \
     -F "scope=files" \
-    -F "path=.system/leaf/platforms/mlp1/userdata/CentralScrutinizer/imports" \
+    -F "path=.userdata/mlp1/CentralScrutinizer/imports" \
     -F "directory=$EMPTY_DIR_NAME" \
     -w '\n%{http_code}' \
     http://127.0.0.1:8877/api/upload)"
@@ -260,7 +260,7 @@ UPLOAD_RESPONSE="$(curl -sS -X POST \
     -b "$COOKIE_JAR" \
     -H "X-CS-CSRF: $CSRF_TOKEN" \
     -F "scope=files" \
-    -F "path=.system/leaf/platforms/mlp1/userdata/CentralScrutinizer/imports" \
+    -F "path=.userdata/mlp1/CentralScrutinizer/imports" \
     -F "directory=$MIXED_DIR_NAME/Empty" \
     -F "file=@$SOURCE_NOTE;filename=$MIXED_DIR_NAME/$NOTE_UPLOAD_NAME" \
     -w '\n%{http_code}' \
@@ -276,7 +276,7 @@ UPLOAD_RESPONSE="$(curl -sS -X POST \
     -b "$COOKIE_JAR" \
     -H "X-CS-CSRF: $CSRF_TOKEN" \
     -F "scope=files" \
-    -F "path=.system/leaf/platforms/mlp1/userdata/CentralScrutinizer/imports" \
+    -F "path=.userdata/mlp1/CentralScrutinizer/imports" \
     -F "file=@$SOURCE_NOTE_B;filename=$NOTE_UPLOAD_RELATIVE_PATH" \
     -w '\n%{http_code}' \
     http://127.0.0.1:8877/api/upload)"
@@ -290,7 +290,7 @@ PREVIEW_RESPONSE="$(curl -sS -X POST \
     -b "$COOKIE_JAR" \
     -H "X-CS-CSRF: $CSRF_TOKEN" \
     -F "scope=files" \
-    -F "path=.system/leaf/platforms/mlp1/userdata/CentralScrutinizer/imports" \
+    -F "path=.userdata/mlp1/CentralScrutinizer/imports" \
     -F "file_path=$NOTE_UPLOAD_RELATIVE_PATH" \
     -w '\n%{http_code}' \
     http://127.0.0.1:8877/api/upload/preview)"
@@ -304,7 +304,7 @@ UPLOAD_RESPONSE="$(curl -sS -X POST \
     -b "$COOKIE_JAR" \
     -H "X-CS-CSRF: $CSRF_TOKEN" \
     -F "scope=files" \
-    -F "path=.system/leaf/platforms/mlp1/userdata/CentralScrutinizer/imports" \
+    -F "path=.userdata/mlp1/CentralScrutinizer/imports" \
     -F "overwrite=1" \
     -F "file=@$SOURCE_NOTE_B;filename=$NOTE_UPLOAD_RELATIVE_PATH" \
     -w '\n%{http_code}' \
@@ -318,7 +318,7 @@ PREVIEW_RESPONSE="$(curl -sS -X POST \
     -b "$COOKIE_JAR" \
     -H "X-CS-CSRF: $CSRF_TOKEN" \
     -F "scope=files" \
-    -F "path=.system/leaf/platforms/mlp1/userdata/CentralScrutinizer/imports" \
+    -F "path=.userdata/mlp1/CentralScrutinizer/imports" \
     -F "directory=$NOTE_UPLOAD_RELATIVE_PATH" \
     -w '\n%{http_code}' \
     http://127.0.0.1:8877/api/upload/preview)"
@@ -334,16 +334,16 @@ echo "$PREVIEW_RESPONSE" | tail -n 1 | grep -q '^200$'
 assert_upload_stored "../$NORMALIZED_PARENT_NOTE_UPLOAD_NAME" "$NORMALIZED_PARENT_UPLOADED_NOTE"
 assert_upload_stored "Favorites//$NORMALIZED_DOUBLE_SEPARATOR_NOTE_UPLOAD_NAME" "$NORMALIZED_DOUBLE_SEPARATOR_UPLOADED_NOTE"
 
-assert_upload_rejected "files" ".system/leaf/platforms/mlp1/userdata/CentralScrutinizer/imports" "Favorites/../$NORMALIZED_DOT_SEGMENT_NOTE_UPLOAD_NAME" \
+assert_upload_rejected "files" ".userdata/mlp1/CentralScrutinizer/imports" "Favorites/../$NORMALIZED_DOT_SEGMENT_NOTE_UPLOAD_NAME" \
     "$NORMALIZED_DOT_SEGMENT_UPLOADED_NOTE"
-assert_upload_rejected "files" ".system/leaf/platforms/mlp1/userdata/CentralScrutinizer/imports" "/abs/$NOTE_UPLOAD_NAME" \
-    "$SDCARD_ROOT/.system/leaf/platforms/mlp1/userdata/CentralScrutinizer/imports/abs/$NOTE_UPLOAD_NAME"
-assert_upload_rejected "files" ".system/leaf/platforms/mlp1/userdata/CentralScrutinizer/imports" "$MALFORMED_DIRECTORY_NAME/" \
-    "$SDCARD_ROOT/.system/leaf/platforms/mlp1/userdata/CentralScrutinizer/imports/$MALFORMED_DIRECTORY_NAME"
+assert_upload_rejected "files" ".userdata/mlp1/CentralScrutinizer/imports" "/abs/$NOTE_UPLOAD_NAME" \
+    "$SDCARD_ROOT/.userdata/mlp1/CentralScrutinizer/imports/abs/$NOTE_UPLOAD_NAME"
+assert_upload_rejected "files" ".userdata/mlp1/CentralScrutinizer/imports" "$MALFORMED_DIRECTORY_NAME/" \
+    "$SDCARD_ROOT/.userdata/mlp1/CentralScrutinizer/imports/$MALFORMED_DIRECTORY_NAME"
 assert_upload_rejected "roms" "" ".hidden/$NOTE_UPLOAD_NAME" \
     "$SDCARD_ROOT/Roms/Game Boy Advance (GBA)/.hidden/$NOTE_UPLOAD_NAME"
-assert_directory_rejected "files" ".system/leaf/platforms/mlp1/userdata/CentralScrutinizer/imports" "../dir-escape" \
-    "$SDCARD_ROOT/.system/leaf/platforms/mlp1/userdata/CentralScrutinizer/dir-escape"
+assert_directory_rejected "files" ".userdata/mlp1/CentralScrutinizer/imports" "../dir-escape" \
+    "$SDCARD_ROOT/.userdata/mlp1/CentralScrutinizer/dir-escape"
 assert_directory_rejected "roms" "" ".hidden" \
     "$SDCARD_ROOT/Roms/Game Boy Advance (GBA)/.hidden"
 
@@ -351,7 +351,7 @@ UPLOAD_RESPONSE="$(curl -sS -X POST \
     -b "$COOKIE_JAR" \
     -H "X-CS-CSRF: $CSRF_TOKEN" \
     -F "scope=files" \
-    -F "path=.system/leaf/platforms/mlp1/userdata/CentralScrutinizer/imports" \
+    -F "path=.userdata/mlp1/CentralScrutinizer/imports" \
     -F "file=@$SOURCE_NOTE;filename=" \
     -w '\n%{http_code}' \
     http://127.0.0.1:8877/api/upload)"

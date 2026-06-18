@@ -11,9 +11,9 @@
 static void assert_default_paths(const cs_paths *paths) {
     assert(strcmp(paths->sdcard_root, "/mnt/sdcard") == 0);
     assert(strcmp(paths->system_root, "/mnt/sdcard/.system/leaf/platforms/mlp1") == 0);
-    assert(strcmp(paths->shared_userdata_root, "/mnt/sdcard/.system/leaf/shared/userdata") == 0);
-    assert(strcmp(paths->shared_state_root, "/mnt/sdcard/.system/leaf/platforms/mlp1/userdata/CentralScrutinizer") == 0);
-    assert(strcmp(paths->logs_root, "/mnt/sdcard/.system/leaf/platforms/mlp1/userdata/logs") == 0);
+    assert(strcmp(paths->shared_userdata_root, "/mnt/sdcard/.userdata/shared") == 0);
+    assert(strcmp(paths->shared_state_root, "/mnt/sdcard/.userdata/mlp1/CentralScrutinizer") == 0);
+    assert(strcmp(paths->logs_root, "/mnt/sdcard/.userdata/mlp1/logs") == 0);
     assert(strcmp(paths->web_root, "web/out") == 0);
     assert(strcmp(paths->roms_root, "/mnt/sdcard/Roms") == 0);
     assert(strcmp(paths->images_root, "/mnt/sdcard/Images") == 0);
@@ -21,15 +21,15 @@ static void assert_default_paths(const cs_paths *paths) {
     assert(strcmp(paths->states_root, "/mnt/sdcard/States") == 0);
     assert(strcmp(paths->bios_root, "/mnt/sdcard/BIOS") == 0);
     assert(paths->overlays_root[0] == '\0');
-    assert(strcmp(paths->temp_upload_root, "/mnt/sdcard/.system/leaf/platforms/mlp1/userdata/CentralScrutinizer/uploads/tmp") == 0);
+    assert(strcmp(paths->temp_upload_root, "/mnt/sdcard/.userdata/mlp1/CentralScrutinizer/uploads/tmp") == 0);
     assert(paths->source_count == 1);
 }
 
 static void assert_fixture_paths(const cs_paths *paths) {
     assert(strcmp(paths->sdcard_root, "fixtures/mock_sdcard") == 0);
     assert(strcmp(paths->system_root, "fixtures/mock_sdcard/.system/leaf/platforms/mlp1") == 0);
-    assert(strcmp(paths->shared_userdata_root, "fixtures/mock_sdcard/.system/leaf/shared/userdata") == 0);
-    assert(strcmp(paths->shared_state_root, "fixtures/mock_sdcard/.system/leaf/platforms/mlp1/userdata/CentralScrutinizer") == 0);
+    assert(strcmp(paths->shared_userdata_root, "fixtures/mock_sdcard/.userdata/shared") == 0);
+    assert(strcmp(paths->shared_state_root, "fixtures/mock_sdcard/.userdata/mlp1/CentralScrutinizer") == 0);
     assert(strcmp(paths->web_root, "custom/web/root") == 0);
     assert(strcmp(paths->roms_root, "fixtures/mock_sdcard/Roms") == 0);
     assert(strcmp(paths->images_root, "fixtures/mock_sdcard/Images") == 0);
@@ -37,7 +37,7 @@ static void assert_fixture_paths(const cs_paths *paths) {
     assert(strcmp(paths->states_root, "fixtures/mock_sdcard/States") == 0);
     assert(strcmp(paths->bios_root, "fixtures/mock_sdcard/BIOS") == 0);
     assert(paths->overlays_root[0] == '\0');
-    assert(strcmp(paths->temp_upload_root, "fixtures/mock_sdcard/.system/leaf/platforms/mlp1/userdata/CentralScrutinizer/uploads/tmp") == 0);
+    assert(strcmp(paths->temp_upload_root, "fixtures/mock_sdcard/.userdata/mlp1/CentralScrutinizer/uploads/tmp") == 0);
     assert(paths->source_count == 1);
 }
 
@@ -54,6 +54,11 @@ static void assert_fixture_file(const char *path) {
 }
 
 static void make_dir(const char *path) {
+    char tmp[PATH_MAX];
+    snprintf(tmp, sizeof(tmp), "%s", path);
+    for (char *p = tmp + 1; *p != '\0'; p++) {
+        if (*p == '/') { *p = '\0'; mkdir(tmp, 0700); *p = '/'; }
+    }
     assert(mkdir(path, 0700) == 0);
 }
 
@@ -116,8 +121,8 @@ int main(void) {
     fill_sentinel(&paths);
     assert(cs_paths_init(&paths) == 0);
     assert(strcmp(paths.sdcard_root, "/mnt/sdcard") == 0);
-    assert(strcmp(paths.shared_userdata_root, "/mnt/sdcard/.system/leaf/shared/userdata") == 0);
-    assert(strcmp(paths.shared_state_root, "/mnt/sdcard/.system/leaf/platforms/mlp1/userdata/CentralScrutinizer") == 0);
+    assert(strcmp(paths.shared_userdata_root, "/mnt/sdcard/.userdata/shared") == 0);
+    assert(strcmp(paths.shared_state_root, "/mnt/sdcard/.userdata/mlp1/CentralScrutinizer") == 0);
 
     setenv("SDCARD_PATH", "/definitely/missing/sdcard", 1);
     unsetenv("CS_WEB_ROOT");
@@ -140,7 +145,7 @@ int main(void) {
     assert_fixture_file("fixtures/mock_sdcard/Images/GBA/Pokemon Emerald Renamed.png");
     assert_fixture_file("fixtures/mock_sdcard/Roms/PlayStation (PS)/Castlevania - Symphony of the Night.chd");
     assert_fixture_file("fixtures/mock_sdcard/BIOS/PS/scph1001.bin");
-    assert_fixture_file("fixtures/mock_sdcard/.system/leaf/platforms/mlp1/userdata/CentralScrutinizer/.keep");
+    assert_fixture_file("fixtures/mock_sdcard/.userdata/mlp1/CentralScrutinizer/.keep");
 
     setenv("SDCARD_PATH", "fixtures/mock_sdcard", 1);
     setenv("CS_WEB_ROOT", "custom/web/root", 1);

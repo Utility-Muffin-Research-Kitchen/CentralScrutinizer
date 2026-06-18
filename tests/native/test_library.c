@@ -14,6 +14,11 @@
 #include "cs_platforms.h"
 
 static void make_dir(const char *path) {
+    char tmp[PATH_MAX];
+    snprintf(tmp, sizeof(tmp), "%s", path);
+    for (char *p = tmp + 1; *p != '\0'; p++) {
+        if (*p == '/') { *p = '\0'; mkdir(tmp, 0700); *p = '/'; }
+    }
     assert(mkdir(path, 0700) == 0);
 }
 
@@ -153,18 +158,15 @@ static void test_fixture_browser_scopes_and_rejection(void) {
     assert(cs_browser_list(&paths,
                            CS_SCOPE_FILES,
                            NULL,
-                           ".system/leaf/platforms/mlp1/userdata/CentralScrutinizer",
+                           ".userdata/mlp1/CentralScrutinizer",
                            0,
                            NULL,
                            &result)
            == CS_BROWSER_LIST_OK);
-    assert(result.breadcrumb_count == 6);
-    assert(strcmp(result.breadcrumbs[0].label, ".system") == 0);
-    assert(strcmp(result.breadcrumbs[1].label, "leaf") == 0);
-    assert(strcmp(result.breadcrumbs[2].label, "platforms") == 0);
-    assert(strcmp(result.breadcrumbs[3].label, "mlp1") == 0);
-    assert(strcmp(result.breadcrumbs[4].label, "userdata") == 0);
-    assert(strcmp(result.breadcrumbs[5].label, "CentralScrutinizer") == 0);
+    assert(result.breadcrumb_count == 3);
+    assert(strcmp(result.breadcrumbs[0].label, ".userdata") == 0);
+    assert(strcmp(result.breadcrumbs[1].label, "mlp1") == 0);
+    assert(strcmp(result.breadcrumbs[2].label, "CentralScrutinizer") == 0);
     assert(find_entry(&result, ".keep") != NULL);
 
     assert(cs_browser_list(&paths, CS_SCOPE_ROMS, NULL, "", 0, NULL, &result) == CS_BROWSER_LIST_INTERNAL);
@@ -266,8 +268,8 @@ static void test_library_db_populates_root_rom_listing(void) {
     assert(snprintf(system_state_root, sizeof(system_state_root), "%s/.system", root) > 0);
     assert(snprintf(leaf_dir, sizeof(leaf_dir), "%s/.system/leaf", root) > 0);
     assert(snprintf(platforms_dir, sizeof(platforms_dir), "%s/.system/leaf/platforms", root) > 0);
-    assert(snprintf(mlp1_dir, sizeof(mlp1_dir), "%s/.system/leaf/platforms/mlp1", root) > 0);
-    assert(snprintf(state_dir, sizeof(state_dir), "%s/.system/leaf/platforms/mlp1/state", root) > 0);
+    assert(snprintf(mlp1_dir, sizeof(mlp1_dir), "%s/.umrk", root) > 0);
+    assert(snprintf(state_dir, sizeof(state_dir), "%s/.umrk/mlp1", root) > 0);
     assert(snprintf(db_path, sizeof(db_path), "%s/library.db", state_dir) > 0);
     assert(snprintf(zelda_rom, sizeof(zelda_rom), "%s/Zelda Minish Cap.gba", system_dir) > 0);
     assert(snprintf(metroid_rom, sizeof(metroid_rom), "%s/Metroid Fusion.gba", system_dir) > 0);
@@ -373,9 +375,6 @@ static void test_library_db_populates_root_rom_listing(void) {
     assert(unlink(zelda_rom) == 0);
     assert(rmdir(state_dir) == 0);
     assert(rmdir(mlp1_dir) == 0);
-    assert(rmdir(platforms_dir) == 0);
-    assert(rmdir(leaf_dir) == 0);
-    assert(rmdir(system_state_root) == 0);
     assert(rmdir(image_system_dir) == 0);
     assert(rmdir(images_dir) == 0);
     assert(rmdir(system_dir) == 0);

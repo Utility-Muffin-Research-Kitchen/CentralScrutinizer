@@ -1,5 +1,6 @@
 #include <assert.h>
 #include <arpa/inet.h>
+#include <limits.h>
 #include <netinet/in.h>
 #include <stdatomic.h>
 #include <stdint.h>
@@ -17,6 +18,11 @@
 #include "cs_server.h"
 
 static void make_dir(const char *path) {
+    char tmp[PATH_MAX];
+    snprintf(tmp, sizeof(tmp), "%s", path);
+    for (char *p = tmp + 1; *p != '\0'; p++) {
+        if (*p == '/') { *p = '\0'; mkdir(tmp, 0700); *p = '/'; }
+    }
     assert(mkdir(path, 0700) == 0);
 }
 
@@ -225,7 +231,7 @@ int main(void) {
     assert(snprintf(roms_dir, sizeof(roms_dir), "%s/Roms", root) > 0);
     assert(snprintf(system_dir, sizeof(system_dir), "%s/Roms/GBA", root) > 0);
     assert(snprintf(rom_path, sizeof(rom_path), "%s/Pokemon Emerald.gba", system_dir) > 0);
-    assert(snprintf(state_dir, sizeof(state_dir), "%s/.system/leaf/platforms/mlp1/state", root) > 0);
+    assert(snprintf(state_dir, sizeof(state_dir), "%s/.umrk/mlp1", root) > 0);
     assert(snprintf(db_path, sizeof(db_path), "%s/library.db", state_dir) > 0);
 
     make_dir(web_root);

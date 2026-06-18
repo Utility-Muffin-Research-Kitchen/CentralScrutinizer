@@ -10,7 +10,7 @@ static void fill_paths(cs_paths *paths, const char *root) {
     memset(paths, 0, sizeof(*paths));
     snprintf(paths->shared_state_root,
              sizeof(paths->shared_state_root),
-             "%s/.system/leaf/platforms/mlp1/userdata/CentralScrutinizer",
+             "%s/.userdata/mlp1/CentralScrutinizer",
              root);
 }
 

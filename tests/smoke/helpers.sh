@@ -5,7 +5,7 @@ CS_SMOKE_REPO_ROOT="$(cd "$CS_SMOKE_HELPERS_DIR/../.." && pwd)"
 
 prepare_mock_sdcard() {
     local sdcard_root="${1:?sdcard root is required}"
-    local trust_store_path="$sdcard_root/.system/leaf/platforms/mlp1/userdata/CentralScrutinizer/trusted-clients.json"
+    local trust_store_path="$sdcard_root/.userdata/mlp1/CentralScrutinizer/trusted-clients.json"
 
     mkdir -p "$sdcard_root"
     cp -R "$CS_SMOKE_REPO_ROOT/fixtures/mock_sdcard/." "$sdcard_root/"

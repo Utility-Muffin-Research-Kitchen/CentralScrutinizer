@@ -72,6 +72,7 @@ int main(void) {
     char hidden_leaf_root[1024];
     char hidden_platforms[1024];
     char hidden_platform[1024];
+    char hidden_userdata_root[1024];
     char hidden_userdata[1024];
     char nested_dir[1024];
     char deeper_dir[1024];
@@ -94,7 +95,7 @@ int main(void) {
     assert(cs_validate_relative_path("Game Boy Advance (GBA)/.hidden/Golden Sun.png") != 0);
     assert(cs_validate_path_component_with_flags("foo..bar.zip", 0) == 0);
     assert(cs_validate_path_component_with_flags(".keep", CS_PATH_FLAG_ALLOW_HIDDEN) == 0);
-    assert(cs_validate_relative_path_with_flags(".system/leaf/platforms/mlp1/userdata/CentralScrutinizer", CS_PATH_FLAG_ALLOW_HIDDEN) == 0);
+    assert(cs_validate_relative_path_with_flags(".userdata/mlp1/CentralScrutinizer", CS_PATH_FLAG_ALLOW_HIDDEN) == 0);
     assert(cs_validate_relative_path("../etc/passwd") != 0);
     assert(cs_validate_relative_path("/absolute/path") != 0);
     assert(cs_validate_relative_path("Game Boy Advance (GBA)\\Golden Sun.gba") != 0);
@@ -104,7 +105,7 @@ int main(void) {
     assert(cs_validate_relative_path("Game Boy Advance (GBA)/trailingspace ") != 0);
     assert(cs_validate_relative_path("Game Boy Advance (GBA)/") != 0);
     assert(cs_validate_relative_path("") != 0);
-    assert(cs_validate_relative_path(".system/leaf/platforms/mlp1/userdata/CentralScrutinizer") != 0);
+    assert(cs_validate_relative_path(".userdata/mlp1/CentralScrutinizer") != 0);
 
     assert(mkdtemp(sandbox_template) != NULL);
     assert(snprintf(root_path, sizeof(root_path), "%s/root", sandbox_template) > 0);
@@ -218,19 +219,21 @@ int main(void) {
 
     assert(snprintf(hidden_leaf,
                     sizeof(hidden_leaf),
-                    "%s/.system/leaf/platforms/mlp1/userdata/CentralScrutinizer/imports",
+                    "%s/.userdata/mlp1/CentralScrutinizer/imports",
                     root_path)
            > 0);
     assert(snprintf(hidden_parent,
                     sizeof(hidden_parent),
-                    "%s/.system/leaf/platforms/mlp1/userdata/CentralScrutinizer",
+                    "%s/.userdata/mlp1/CentralScrutinizer",
                     root_path)
            > 0);
     assert(snprintf(hidden_system, sizeof(hidden_system), "%s/.system", root_path) > 0);
     assert(snprintf(hidden_leaf_root, sizeof(hidden_leaf_root), "%s/.system/leaf", root_path) > 0);
     assert(snprintf(hidden_platforms, sizeof(hidden_platforms), "%s/.system/leaf/platforms", root_path) > 0);
     assert(snprintf(hidden_platform, sizeof(hidden_platform), "%s/.system/leaf/platforms/mlp1", root_path) > 0);
-    assert(snprintf(hidden_userdata, sizeof(hidden_userdata), "%s/.system/leaf/platforms/mlp1/userdata", root_path) > 0);
+    assert(snprintf(hidden_userdata, sizeof(hidden_userdata), "%s/.userdata/mlp1", root_path) > 0);
+    assert(snprintf(hidden_userdata_root, sizeof(hidden_userdata_root), "%s/.userdata", root_path) > 0);
+    assert(mkdir(hidden_userdata_root, 0775) == 0);
     assert(mkdir(hidden_system, 0775) == 0);
     assert(mkdir(hidden_leaf_root, 0775) == 0);
     assert(mkdir(hidden_platforms, 0775) == 0);
@@ -238,12 +241,12 @@ int main(void) {
     assert(mkdir(hidden_userdata, 0775) == 0);
     assert(mkdir(hidden_parent, 0775) == 0);
     assert(cs_safe_create_directory_under_root_with_flags(root_path,
-                                                          ".system/leaf/platforms/mlp1/userdata/CentralScrutinizer/imports",
+                                                          ".userdata/mlp1/CentralScrutinizer/imports",
                                                           CS_PATH_FLAG_ALLOW_HIDDEN)
            == 0);
     assert(access(hidden_leaf, F_OK) == 0);
     assert(cs_safe_delete_under_root_with_flags(root_path,
-                                                ".system/leaf/platforms/mlp1/userdata/CentralScrutinizer/imports",
+                                                ".userdata/mlp1/CentralScrutinizer/imports",
                                                 CS_PATH_FLAG_ALLOW_HIDDEN)
            == 0);
     assert(access(hidden_leaf, F_OK) != 0);
@@ -335,6 +338,7 @@ int main(void) {
     assert(unlink(symlinked_dir) == 0);
     assert(rmdir(hidden_parent) == 0);
     assert(rmdir(hidden_userdata) == 0);
+    assert(rmdir(hidden_userdata_root) == 0);
     assert(rmdir(hidden_platform) == 0);
     assert(rmdir(hidden_platforms) == 0);
     assert(rmdir(hidden_leaf_root) == 0);

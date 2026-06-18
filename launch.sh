@@ -86,12 +86,12 @@ if [ -z "${SYSTEM_PATH:-}" ] && [ -n "${UMRK_PLATFORM_PATH:-}" ]; then
     export SYSTEM_PATH="$UMRK_PLATFORM_PATH"
 fi
 
-if [ -z "${USERDATA_PATH:-}" ] && [ -n "${UMRK_PLATFORM_PATH:-}" ]; then
-    export USERDATA_PATH="$UMRK_PLATFORM_PATH/userdata"
+if [ -z "${USERDATA_PATH:-}" ]; then
+    export USERDATA_PATH="$SDCARD_PATH/.userdata/$PLATFORM"
 fi
 
 if [ -z "${SHARED_USERDATA_PATH:-}" ]; then
-    export SHARED_USERDATA_PATH="$SDCARD_PATH/.system/leaf/shared/userdata"
+    export SHARED_USERDATA_PATH="$SDCARD_PATH/.userdata/shared"
 fi
 
 export ROMS_PATH="${ROMS_PATH:-$SDCARD_PATH/Roms}"

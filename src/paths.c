@@ -370,14 +370,21 @@ int cs_paths_init(cs_paths *paths) {
         != 0) {
         return -1;
     }
-    if (write_joined_component(default_userdata_root, sizeof(default_userdata_root), temp.system_root, "userdata") != 0) {
-        return -1;
+    {
+        /* Durable app data lives at the SD root's .userdata/<platform>, separate
+           from the release-managed .system payload. Env (USERDATA_PATH) wins on a
+           normal launch; this is the native/test fallback. */
+        int written = snprintf(default_userdata_root, sizeof(default_userdata_root),
+                               "%s/.userdata/%s", temp.sdcard_root, platform);
+        if (written < 0 || (size_t) written >= sizeof(default_userdata_root)) {
+            return -1;
+        }
     }
     shared_userdata = getenv("SHARED_USERDATA_PATH");
     if (write_joined(temp.shared_userdata_root,
                      sizeof(temp.shared_userdata_root),
                      shared_userdata && shared_userdata[0] != '\0' ? shared_userdata : temp.sdcard_root,
-                     shared_userdata && shared_userdata[0] != '\0' ? "" : "/.system/leaf/shared/userdata")
+                     shared_userdata && shared_userdata[0] != '\0' ? "" : "/.userdata/shared")
         != 0) {
         return -1;
     }

@@ -11,7 +11,7 @@ COOKIE_JAR="$WORK_DIR/cookies.txt"
 ORIGINAL_ROM=""
 RENAMED_ROM="renamed-$RANDOM-$$.gba"
 DOWNLOAD_PATH="$WORK_DIR/downloaded-rom.gba"
-FILES_FOLDER=".system/leaf/platforms/mlp1/userdata/CentralScrutinizer/manual"
+FILES_FOLDER=".userdata/mlp1/CentralScrutinizer/manual"
 CSRF_TOKEN=""
 
 prepare_mock_sdcard "$SDCARD_ROOT"

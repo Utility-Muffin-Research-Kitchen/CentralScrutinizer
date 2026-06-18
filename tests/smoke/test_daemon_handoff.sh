@@ -42,13 +42,12 @@ port = int(os.environ["PORT"])
 
 log = open(log_file, "ab", buffering=0)
 
+# Durable app state lives at the SD root's .userdata/<platform>, matching the
+# daemon's default in src/paths.c (NOT the release-managed .system tree).
 app_state_dir = os.path.join(
     sdcard_root,
-    ".system",
-    "leaf",
-    "platforms",
+    ".userdata",
     "mlp1",
-    "userdata",
     "CentralScrutinizer",
 )
 settings_path = os.path.join(app_state_dir, "settings.json")

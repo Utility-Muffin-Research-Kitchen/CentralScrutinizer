@@ -58,7 +58,8 @@ Apps/mlp1/CentralScrutinizer.pak/
 - `SDCARD_PATH=/mnt/sdcard`
 - `UMRK_PLATFORM_PATH=$SDCARD_PATH/.system/leaf/platforms/mlp1`
 - `SYSTEM_PATH=$UMRK_PLATFORM_PATH` compatibility alias
-- `USERDATA_PATH=$UMRK_PLATFORM_PATH/userdata`
+- `USERDATA_PATH=$SDCARD_PATH/.userdata/mlp1` (durable user/app data at the SD root, not under the release-managed `.system` tree)
+- `SHARED_USERDATA_PATH=$SDCARD_PATH/.userdata/shared`
 - `CORES_PATH=$UMRK_PLATFORM_PATH/cores`
 - `INFO_PATH=$UMRK_PLATFORM_PATH/info`
 - `LOGS_PATH=$USERDATA_PATH/logs`

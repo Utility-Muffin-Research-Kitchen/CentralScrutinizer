@@ -84,8 +84,8 @@ The Leaf fork uses these SD card locations:
 - `Cheats/`
 - `.system/leaf/platforms/mlp1/cores/`
 - `.system/leaf/platforms/mlp1/info/`
-- `.system/leaf/platforms/mlp1/userdata/CentralScrutinizer/`
-- `.system/leaf/platforms/mlp1/userdata/logs/`
+- `.userdata/mlp1/CentralScrutinizer/`
+- `.userdata/mlp1/logs/`
 
 ## Tests
 

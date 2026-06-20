@@ -636,6 +636,40 @@ describe("Page", () => {
     expect(screen.getByRole("button", { name: /Ports/i })).toBeTruthy();
   });
 
+  it("hides empty installed consoles in the default dashboard state", async () => {
+    mockApi.getSession.mockResolvedValue(pairedSession());
+    mockApi.getPlatforms.mockResolvedValue({
+      groups: [
+        {
+          name: "Nintendo",
+          platforms: [
+            platformGroups().groups[0].platforms[0],
+            {
+              tag: "GB",
+              name: "Game Boy",
+              group: "Nintendo",
+              icon: "GB",
+              isCustom: false,
+              ...emulatorState(),
+              romPath: "Roms/Game Boy (GB)",
+              savePath: "Saves/GB",
+              biosPath: "BIOS/GB",
+              supportedResources: supportedResources(),
+              counts: { roms: 0, saves: 0, states: 0, bios: 0, overlays: 0, cheats: 0 },
+            },
+          ],
+        },
+      ],
+    });
+
+    render(<Page />);
+
+    // Default dashboard: Installed emus + Show empty consoles unchecked.
+    expect(await screen.findByRole("button", { name: /Game Boy Advance/i })).toBeTruthy();
+    expect(screen.queryByRole("button", { name: /Game Boy(?! Advance)/i })).toBeNull();
+    expect(screen.getByText("1 visible systems")).toBeTruthy();
+  });
+
   it("navigates into the dedicated save-states view", async () => {
     mockApi.getSession.mockResolvedValue(pairedSession());
     mockApi.getPlatforms.mockResolvedValue(platformGroups());

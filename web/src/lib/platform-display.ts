@@ -88,7 +88,7 @@ export function filterPlatformGroups(
         if (!platformMatchesEmulatorFilter(platform, emuFilter)) {
           return false;
         }
-        if (emuFilter !== "installed" && !showEmptyPlatforms && !platformHasVisibleContent(platform)) {
+        if (!showEmptyPlatforms && !platformHasVisibleContent(platform)) {
           return false;
         }
         if (!query) {

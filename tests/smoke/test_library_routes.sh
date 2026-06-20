@@ -70,15 +70,25 @@ CSRF_TOKEN="$(printf '%s' "$SESSION_RESPONSE" | sed -n 's/.*"csrf":"\([^"]*\)".*
 # instead of piping curl into grep — grep would short-circuit on first match and break the pipe.
 PLATFORMS_RESPONSE="$(curl -sf -b "$COOKIE_JAR" -H "X-CS-CSRF: $CSRF_TOKEN" http://127.0.0.1:8877/api/platforms)"
 printf '%s' "$PLATFORMS_RESPONSE" | grep -Fq '"tag":"GBA"'
-printf '%s' "$PLATFORMS_RESPONSE" | grep -Fq '"name":"Game Boy Advance"'
+printf '%s' "$PLATFORMS_RESPONSE" | grep -Fq '"name":"GBA"'
 printf '%s' "$PLATFORMS_RESPONSE" | grep -Fq '"group":"Nintendo"'
 printf '%s' "$PLATFORMS_RESPONSE" | grep -Fq '"counts":{"roms":1,"saves":1,"states":1,"bios":1,"overlays":0,"cheats":0}'
 printf '%s' "$PLATFORMS_RESPONSE" | grep -Fq '"type":"platform"'
 printf '%s' "$PLATFORMS_RESPONSE" | grep -Fq '{"type":"done"}'
 printf '%s' "$PLATFORMS_RESPONSE" | grep -Fq '"tag":"PORTS"'
-printf '%s' "$PLATFORMS_RESPONSE" | grep -Fq '"requiresEmulator":true'
-printf '%s' "$PLATFORMS_RESPONSE" | grep -Fq '"emulatorInstalled":true'
-printf '%s' "$PLATFORMS_RESPONSE" | grep -Fq '"tag":"PORTS","name":"Ports","group":"PortMaster","icon":"PORTMASTER","isCustom":false,"requiresEmulator":false'
+printf '%s' "$PLATFORMS_RESPONSE" | grep -Fq '"tag":"PORTS","name":"Ports","group":"PortMaster","icon":"PORTMASTER","isCustom":false'
+if printf '%s' "$PLATFORMS_RESPONSE" | grep -Fq '"requiresEmulator"'; then
+    echo "platform response unexpectedly includes requiresEmulator" >&2
+    exit 1
+fi
+if printf '%s' "$PLATFORMS_RESPONSE" | grep -Fq '"emulatorInstalled"'; then
+    echo "platform response unexpectedly includes emulatorInstalled" >&2
+    exit 1
+fi
+if printf '%s' "$PLATFORMS_RESPONSE" | grep -Fq '"catalog_error"'; then
+    echo "platform response unexpectedly includes catalog_error" >&2
+    exit 1
+fi
 # User-added core: FOO_libretro.so is installed, so Roms/Awesome System (FOO) should surface as a custom platform.
 printf '%s' "$PLATFORMS_RESPONSE" | grep -Fq '"type":"platform","group":"Custom","platform":{"tag":"FOO"'
 printf '%s' "$PLATFORMS_RESPONSE" | grep -Fq '"tag":"FOO","name":"Awesome System","group":"Custom","icon":"FOO","isCustom":true'
@@ -87,6 +97,14 @@ if printf '%s' "$PLATFORMS_RESPONSE" | grep -Fq '"tag":"FLYCAST"'; then
     echo "custom platform unexpectedly exposed in library response" >&2
     exit 1
 fi
+
+SYSTEMS_CATALOG="$SDCARD_ROOT/.system/leaf/platforms/mlp1/defaults/systems.json"
+mv "$SYSTEMS_CATALOG" "$SYSTEMS_CATALOG.missing"
+CATALOG_ERROR_RESPONSE="$(curl -sf -b "$COOKIE_JAR" -H "X-CS-CSRF: $CSRF_TOKEN" http://127.0.0.1:8877/api/platforms)"
+mv "$SYSTEMS_CATALOG.missing" "$SYSTEMS_CATALOG"
+printf '%s' "$CATALOG_ERROR_RESPONSE" | grep -Fq '"type":"catalog_error"'
+printf '%s' "$CATALOG_ERROR_RESPONSE" | grep -Fq '"kind":"missing"'
+printf '%s' "$CATALOG_ERROR_RESPONSE" | grep -Fq '{"type":"done"}'
 
 curl -sf -b "$COOKIE_JAR" -H "X-CS-CSRF: $CSRF_TOKEN" 'http://127.0.0.1:8877/api/browser?scope=roms&tag=FOO' | grep -Fq '"name":"sample.rom"'
 curl -sf -b "$COOKIE_JAR" -H "X-CS-CSRF: $CSRF_TOKEN" 'http://127.0.0.1:8877/api/browser?scope=roms&tag=GBA' | grep -Fq "\"name\":\"$ROM_NAME\""

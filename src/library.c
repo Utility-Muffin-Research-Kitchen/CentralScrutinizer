@@ -1029,14 +1029,16 @@ static cs_browser_list_status cs_browser_list_source_virtual_root(const cs_paths
 int cs_library_db_count_roms_for_platform(const cs_paths *paths, const cs_platform_info *platform, int *count_out) {
     sqlite3 *db = NULL;
     sqlite3_stmt *stmt = NULL;
+    const cs_platform_info *fallback;
     cs_library_db_status open_status;
     static const char *sql =
-        "SELECT COUNT(*) FROM games WHERE system = ? OR system = ?;";
+        "SELECT COUNT(*) FROM games WHERE system IN (?, ?, ?, ?, ?);";
 
     if (!paths || !platform || !count_out) {
         return -1;
     }
     *count_out = 0;
+    fallback = cs_platform_find(platform->tag);
 
     open_status = cs_library_db_open_readonly(paths, &db);
     if (open_status != CS_LIBRARY_DB_OK) {
@@ -1049,6 +1051,9 @@ int cs_library_db_count_roms_for_platform(const cs_paths *paths, const cs_platfo
     }
     sqlite3_bind_text(stmt, 1, platform->primary_code, -1, SQLITE_TRANSIENT);
     sqlite3_bind_text(stmt, 2, platform->tag, -1, SQLITE_TRANSIENT);
+    sqlite3_bind_text(stmt, 3, platform->rom_directory, -1, SQLITE_TRANSIENT);
+    sqlite3_bind_text(stmt, 4, fallback ? fallback->primary_code : "", -1, SQLITE_TRANSIENT);
+    sqlite3_bind_text(stmt, 5, fallback ? fallback->rom_directory : "", -1, SQLITE_TRANSIENT);
 
     if (sqlite3_step(stmt) == SQLITE_ROW) {
         *count_out = sqlite3_column_int(stmt, 0);

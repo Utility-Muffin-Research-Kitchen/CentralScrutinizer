@@ -17,7 +17,7 @@ else
 	MAC_UI_CFLAGS :=
 	MAC_UI_LDFLAGS :=
 endif
-SRC_COMMON := src/build_info.c src/paths.c src/auth.c src/session.c src/platforms.c src/states.c src/dotclean.c src/library.c src/uploads.c src/file_ops.c src/settings.c src/keep_awake.c src/ui.c
+SRC_COMMON := src/build_info.c src/paths.c src/auth.c src/session.c src/catalog.c src/platforms.c src/states.c src/dotclean.c src/library.c src/uploads.c src/file_ops.c src/settings.c src/keep_awake.c src/ui.c
 SRC_SERVER := src/daemon.c src/terminal.c src/app.c src/server.c src/routes_status.c src/routes_auth.c src/routes_helpers.c src/routes_library.c src/routes_states.c src/routes_logs.c src/routes_upload.c src/routes_file_ops.c src/routes_tools.c src/routes_jawaka.c src/jawaka_ipc.c third_party/civetweb/src/civetweb.c
 SRC_VENDOR := third_party/qrcodegen.c $(CATASTROPHE_DIR)/include/cjson/cJSON.c
 SRC_APP := src/main.c $(SRC_COMMON) $(SRC_SERVER) $(SRC_VENDOR)
@@ -50,7 +50,7 @@ test-native:
 	@mkdir -p $(BUILD_DIR)/tests
 	cc -std=gnu11 -O0 -g -DPLATFORM_MAC -DNO_SSL $(if $(TEST_SERVER),-DCS_TESTING,) $(COMMON_INCLUDES) \
 		-o $(BUILD_DIR)/tests/$(notdir $(TEST:.c=)) \
-		$(TEST) $(SRC_COMMON) $(if $(TEST_SERVER),$(SRC_SERVER) $(SRC_VENDOR),) $(SQLITE_LDFLAGS) -lm -lpthread
+		$(TEST) $(SRC_COMMON) $(SRC_VENDOR) $(if $(TEST_SERVER),$(SRC_SERVER),) $(SQLITE_LDFLAGS) -lm -lpthread
 	@./$(BUILD_DIR)/tests/$(notdir $(TEST:.c=))
 	@echo "PASS $(TEST)"
 

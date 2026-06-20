@@ -444,6 +444,28 @@ describe("streamPlatforms", () => {
     expect(doneCalls).toBe(1);
   });
 
+  it("dispatches catalog error events", async () => {
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      body: makeNdjsonStream([
+        '{"type":"catalog_error","kind":"missing","path":"/tmp/defaults/systems.json"}\n',
+        '{"type":"done"}\n',
+      ]),
+    });
+
+    vi.stubGlobal("fetch", fetchMock);
+
+    const errors: Array<{ kind: string; path: string }> = [];
+
+    await streamPlatforms("csrf-token", {
+      onCatalogError: (kind, path) => {
+        errors.push({ kind, path });
+      },
+    });
+
+    expect(errors).toEqual([{ kind: "missing", path: "/tmp/defaults/systems.json" }]);
+  });
+
   it("rejects when the NDJSON stream ends before the done event", async () => {
     const fetchMock = vi.fn().mockResolvedValue({
       ok: true,

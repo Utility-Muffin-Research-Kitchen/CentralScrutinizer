@@ -28,9 +28,6 @@ describe("navigation", () => {
     expect(writeViewState({ view: "dashboard", destination: "library" }, { showEmptyPlatforms: true })).toBe(
       "?view=dashboard&showEmpty=1",
     );
-    expect(writeViewState({ view: "dashboard", destination: "library" }, { libraryEmuFilter: "all" })).toBe(
-      "?view=dashboard&emu=all",
-    );
     expect(writeViewState({ view: "tools", destination: "tools" })).toBe("?view=tools");
     expect(writeViewState({ view: "states", destination: "library", tag: "GBA" })).toBe("?view=states&tag=GBA");
     expect(writeViewState({ view: "tools", destination: "tools", tool: "file-browser", path: "Roms" })).toBe(
@@ -65,9 +62,9 @@ describe("navigation", () => {
     expect(readShowEmptyPlatforms("?view=dashboard")).toBe(false);
   });
 
-  it("reads the emulator filter from the url", () => {
+  it("ignores the deprecated emulator filter url param", () => {
     expect(readLibraryEmuFilter("?view=dashboard&emu=installed")).toBe("installed");
     expect(readLibraryEmuFilter("?view=dashboard")).toBe("installed");
-    expect(readLibraryEmuFilter("?view=dashboard&emu=all")).toBe("all");
+    expect(readLibraryEmuFilter("?view=dashboard&emu=all")).toBe("installed");
   });
 });

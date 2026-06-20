@@ -31,9 +31,7 @@ export function readShowEmptyPlatforms(search: string): boolean {
 }
 
 export function readLibraryEmuFilter(search: string): LibraryEmuFilter {
-  const params = new URLSearchParams(search);
-
-  return params.get("emu") === "all" ? "all" : "installed";
+  return "installed";
 }
 
 export function readViewState(search: string): AppViewState {
@@ -76,7 +74,7 @@ export function readViewState(search: string): AppViewState {
 
 export function writeViewState(
   state: AppViewState,
-  options?: { showEmptyPlatforms?: boolean; libraryEmuFilter?: LibraryEmuFilter },
+  options?: { showEmptyPlatforms?: boolean },
 ): string {
   const params = new URLSearchParams();
 
@@ -102,9 +100,6 @@ export function writeViewState(
   }
   if (state.view !== "pair" && state.destination === "library" && options?.showEmptyPlatforms) {
     params.set("showEmpty", "1");
-  }
-  if (state.view !== "pair" && state.destination === "library" && options?.libraryEmuFilter === "all") {
-    params.set("emu", "all");
   }
 
   return `?${params.toString()}`;

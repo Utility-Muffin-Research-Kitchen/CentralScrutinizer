@@ -329,6 +329,8 @@ int cs_paths_init(cs_paths *paths) {
     char default_userdata_root[CS_PATH_MAX];
     char default_cores_root[CS_PATH_MAX];
     char default_info_root[CS_PATH_MAX];
+    char default_systems_catalog_path[CS_PATH_MAX];
+    char default_cores_catalog_path[CS_PATH_MAX];
     cs_paths temp = {0};
 
     if (!paths) {
@@ -421,13 +423,37 @@ int cs_paths_init(cs_paths *paths) {
         return -1;
     }
     if (write_joined_component(default_cores_root, sizeof(default_cores_root), temp.system_root, "cores") != 0
-        || write_joined_component(default_info_root, sizeof(default_info_root), temp.system_root, "info") != 0) {
+        || write_joined_component(default_info_root, sizeof(default_info_root), temp.system_root, "info") != 0
+        || write_joined_component(default_systems_catalog_path,
+                                  sizeof(default_systems_catalog_path),
+                                  temp.system_root,
+                                  "defaults/systems.json")
+               != 0
+        || write_joined_component(default_cores_catalog_path,
+                                  sizeof(default_cores_catalog_path),
+                                  temp.system_root,
+                                  "defaults/cores.json")
+               != 0) {
         return -1;
     }
     if (write_value(temp.cores_root, sizeof(temp.cores_root), getenv("CORES_PATH"), default_cores_root) != 0) {
         return -1;
     }
     if (write_value(temp.info_root, sizeof(temp.info_root), getenv("INFO_PATH"), default_info_root) != 0) {
+        return -1;
+    }
+    if (write_value(temp.systems_catalog_path,
+                    sizeof(temp.systems_catalog_path),
+                    getenv("SYSTEMS_CATALOG_PATH"),
+                    default_systems_catalog_path)
+        != 0) {
+        return -1;
+    }
+    if (write_value(temp.cores_catalog_path,
+                    sizeof(temp.cores_catalog_path),
+                    getenv("CORES_CATALOG_PATH"),
+                    default_cores_catalog_path)
+        != 0) {
         return -1;
     }
     if (write_env_or_joined(temp.logs_root, sizeof(temp.logs_root), "LOGS_PATH", default_userdata_root, "/logs") != 0) {

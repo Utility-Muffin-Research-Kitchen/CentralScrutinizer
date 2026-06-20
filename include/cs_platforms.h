@@ -3,6 +3,7 @@
 
 #include <stddef.h>
 
+#include "cs_catalog.h"
 #include "cs_paths.h"
 
 #define CS_PLATFORM_CODE_MAX 32
@@ -26,6 +27,11 @@ int cs_platform_discover(const cs_paths *paths,
                          cs_platform_info *platforms,
                          size_t capacity,
                          size_t *count_out);
+int cs_platform_discover_with_error(const cs_paths *paths,
+                                    cs_platform_info *platforms,
+                                    size_t capacity,
+                                    size_t *count_out,
+                                    cs_catalog_error *error_out);
 int cs_platform_parse_rom_directory(const char *dir_name,
                                     char *system_name,
                                     size_t system_name_size,

@@ -123,17 +123,6 @@ function supportedResources(overrides: Partial<Record<"roms" | "saves" | "states
   };
 }
 
-function emulatorState(
-  overrides: Partial<{ requiresEmulator: boolean; emulatorInstalled: boolean; emulatorWarning: string | null }> = {},
-) {
-  return {
-    requiresEmulator: true,
-    emulatorInstalled: true,
-    emulatorWarning: null,
-    ...overrides,
-  };
-}
-
 function platformGroups() {
   return {
     groups: [
@@ -146,7 +135,6 @@ function platformGroups() {
             group: "Nintendo",
             icon: "GBA",
             isCustom: false,
-            ...emulatorState(),
             romPath: "Roms/Game Boy Advance (GBA)",
             savePath: "Saves/GBA",
             biosPath: "BIOS/GBA",
@@ -171,7 +159,6 @@ function duplicatePlatformGroups() {
             group: "Nintendo",
             icon: "GBA",
             isCustom: false,
-            ...emulatorState(),
             romPath: "Roms/Game Boy Advance (GBA)",
             savePath: "Saves/GBA",
             biosPath: "BIOS/GBA",
@@ -184,7 +171,6 @@ function duplicatePlatformGroups() {
             group: "Nintendo",
             icon: "MGBA",
             isCustom: false,
-            ...emulatorState(),
             romPath: "Roms/Game Boy Advance (MGBA)",
             savePath: "Saves/MGBA",
             biosPath: "BIOS/MGBA",
@@ -209,7 +195,6 @@ function portsPlatformGroups() {
             group: "PortMaster",
             icon: "PORTMASTER",
             isCustom: false,
-            ...emulatorState({ requiresEmulator: false }),
             romPath: "Roms/Ports (PORTS)",
             savePath: "Saves/PORTS",
             biosPath: "BIOS/PORTS",
@@ -231,44 +216,6 @@ function portsPlatformGroups() {
 function platformGroupsWithPorts() {
   return {
     groups: [...platformGroups().groups, ...portsPlatformGroups().groups],
-  };
-}
-
-function multipleMissingPlatformGroups() {
-  return {
-    groups: [
-      {
-        name: "Nintendo",
-        platforms: [
-          {
-            tag: "GBA",
-            name: "Game Boy Advance",
-            group: "Nintendo",
-            icon: "GBA",
-            isCustom: false,
-            ...emulatorState({ emulatorInstalled: false, emulatorWarning: "Missing GBA emulator." }),
-            romPath: "Roms/Game Boy Advance (GBA)",
-            savePath: "Saves/GBA",
-            biosPath: "BIOS/GBA",
-            supportedResources: supportedResources(),
-            counts: { roms: 2, saves: 1, states: 0, bios: 0, overlays: 0, cheats: 0 },
-          },
-          {
-            tag: "MGBA",
-            name: "Game Boy Advance",
-            group: "Nintendo",
-            icon: "MGBA",
-            isCustom: false,
-            ...emulatorState({ emulatorInstalled: false, emulatorWarning: "Missing MGBA emulator." }),
-            romPath: "Roms/Game Boy Advance (MGBA)",
-            savePath: "Saves/MGBA",
-            biosPath: "BIOS/MGBA",
-            supportedResources: supportedResources(),
-            counts: { roms: 1, saves: 0, states: 0, bios: 0, overlays: 0, cheats: 0 },
-          },
-        ],
-      },
-    ],
   };
 }
 
@@ -439,6 +386,7 @@ function emitPlatformStream(
   response: { groups?: Array<{ name: string; platforms: unknown[] }> },
   handlers: {
     onPlatform?: (group: string, platform: unknown) => void;
+    onCatalogError?: (kind: string, path: string) => void;
     onDone?: () => void;
   },
 ) {
@@ -459,6 +407,7 @@ describe("Page", () => {
         csrf: string,
         handlers: {
           onPlatform?: (group: string, platform: unknown) => void;
+          onCatalogError?: (kind: string, path: string) => void;
           onDone?: () => void;
         },
       ) => {
@@ -562,7 +511,7 @@ describe("Page", () => {
     expect(screen.queryByRole("checkbox")).toBeNull();
   });
 
-  it("warns when a visible console is missing its emulator", async () => {
+  it("does not render missing-emulator UI for visible consoles", async () => {
     window.history.replaceState(null, "", "/?view=dashboard&emu=all");
     mockApi.getSession.mockResolvedValue(pairedSession());
     mockApi.getPlatforms.mockResolvedValue({
@@ -572,7 +521,6 @@ describe("Page", () => {
           platforms: [
             {
               ...platformGroups().groups[0].platforms[0],
-              ...emulatorState({ emulatorInstalled: false, emulatorWarning: "No emulator is installed for Game Boy Advance (GBA)." }),
             },
           ],
         },
@@ -582,31 +530,26 @@ describe("Page", () => {
     render(<Page />);
 
     expect(await screen.findByText("Game Boy Advance")).toBeTruthy();
-    expect(screen.getByText("Missing emulator")).toBeTruthy();
-    expect(screen.getByRole("combobox", { name: "Console filter" })).toHaveProperty("value", "all");
+    expect(screen.queryByText("Missing emulator")).toBeNull();
+    expect(screen.queryByRole("combobox", { name: "Console filter" })).toBeNull();
   });
 
-  it("shows a missing-emulator banner in all mode and clears it after switching filters", async () => {
-    window.history.replaceState(null, "", "/?view=dashboard&emu=all");
+  it("shows a catalog error banner from the platform stream", async () => {
     mockApi.getSession.mockResolvedValue(pairedSession());
-    mockApi.getPlatforms.mockResolvedValue(multipleMissingPlatformGroups());
+    mockApi.streamPlatforms.mockImplementationOnce(
+      async (_csrf: string, handlers: Parameters<typeof mockApi.streamPlatforms>[1]) => {
+        handlers.onCatalogError?.("missing", "/tmp/defaults/systems.json");
+        handlers.onDone?.();
+      },
+    );
 
     render(<Page />);
 
-    expect(await screen.findByText("Game Boy Advance (GBA)")).toBeTruthy();
-    expect(
-      screen.getByText(
-        /2 consoles have no installed emulator: Game Boy Advance \(GBA\), Game Boy Advance \(MGBA\)\./i,
-      ),
-    ).toBeTruthy();
-
-    fireEvent.click(screen.getByRole("button", { name: "Show installed only" }));
-
-    expect(window.location.search).toBe("?view=dashboard");
-    expect(screen.queryByText(/2 consoles have no installed emulator/i)).toBeNull();
+    expect(await screen.findByText(/Platform catalog unavailable: missing/i)).toBeTruthy();
+    expect(screen.queryByRole("button", { name: /Game Boy Advance/i })).toBeNull();
   });
 
-  it("filters the dashboard to installed emulators and keeps Ports visible", async () => {
+  it("ignores the deprecated emulator filter url param", async () => {
     window.history.replaceState(null, "", "/?view=dashboard&emu=all");
     mockApi.getSession.mockResolvedValue(pairedSession());
     mockApi.getPlatforms.mockResolvedValue({
@@ -616,7 +559,6 @@ describe("Page", () => {
           platforms: [
             {
               ...platformGroups().groups[0].platforms[0],
-              ...emulatorState({ emulatorInstalled: false, emulatorWarning: "Missing GBA emulator." }),
             },
           ],
         },
@@ -627,12 +569,8 @@ describe("Page", () => {
     render(<Page />);
 
     expect(await screen.findByText("Game Boy Advance")).toBeTruthy();
-    fireEvent.change(screen.getByRole("combobox", { name: "Console filter" }), {
-      target: { value: "installed" },
-    });
-
-    expect(window.location.search).toBe("?view=dashboard");
-    expect(screen.queryByRole("button", { name: /Game Boy Advance/i })).toBeNull();
+    expect(screen.queryByRole("combobox", { name: "Console filter" })).toBeNull();
+    expect(screen.getByRole("button", { name: /Game Boy Advance/i })).toBeTruthy();
     expect(screen.getByRole("button", { name: /Ports/i })).toBeTruthy();
   });
 
@@ -650,7 +588,6 @@ describe("Page", () => {
               group: "Nintendo",
               icon: "GB",
               isCustom: false,
-              ...emulatorState(),
               romPath: "Roms/Game Boy (GB)",
               savePath: "Saves/GB",
               biosPath: "BIOS/GB",
@@ -664,7 +601,7 @@ describe("Page", () => {
 
     render(<Page />);
 
-    // Default dashboard: Installed emus + Show empty consoles unchecked.
+    // Default dashboard: Show empty consoles unchecked.
     expect(await screen.findByRole("button", { name: /Game Boy Advance/i })).toBeTruthy();
     expect(screen.queryByRole("button", { name: /Game Boy(?! Advance)/i })).toBeNull();
     expect(screen.getByText("1 visible systems")).toBeTruthy();

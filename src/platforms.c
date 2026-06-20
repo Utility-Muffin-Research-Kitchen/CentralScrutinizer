@@ -1,5 +1,5 @@
 #include "cs_platforms.h"
-#include "cs_build_info.h"
+#include "cs_catalog.h"
 
 #include <dirent.h>
 #include <stdio.h>
@@ -9,348 +9,15 @@
 #include <sys/stat.h>
 
 #define CS_DISCOVERED_PLATFORM_MAX 128
+#define CS_MODELED_PLATFORM_MAX 160
+#define CS_MODELED_PATTERN_MAX 96
+#define CS_MODELED_CORE_MAX 32
+#define CS_MODELED_ROM_DIR_MAX 24
+#define CS_CATALOG_ID_MAX 64
 #define CS_SHORTCUT_MARKER ".shortcut"
 #define CS_SHORTCUT_PREFIX "\xEF\xBB\xBF"
 /* Keep prefix-only detection for legacy shortcuts that predate the .shortcut marker file. */
 #define CS_LEGACY_SHORTCUT_PREFIX "\xE2\x98\x85 "
-
-/* rom_directory values are the canonical Jawaka folder names: the system id
-   from the mlp1 systems.json where one exists, otherwise the tag itself.
-   Jawaka matches folders by exact casefolded compare against its pattern
-   lists — it does not parse the legacy NextUI "Name (CODE)" form, so never
-   suggest or create folders in that shape. */
-static const cs_platform_info g_platforms[] = {
-    {.tag = "PUAE",
-     .name = "Amiga",
-     .group = "Computer",
-     .icon = "AMIGA",
-     .primary_code = "PUAE",
-     .rom_directory = "PUAE"},
-    {.tag = "CPC",
-     .name = "Amstrad CPC",
-     .group = "Computer",
-     .icon = "CPC",
-     .primary_code = "CPC",
-     .rom_directory = "CPC"},
-    {.tag = "C128",
-     .name = "Commodore 128",
-     .group = "Computer",
-     .icon = "C128",
-     .primary_code = "C128",
-     .rom_directory = "C128"},
-    {.tag = "C64",
-     .name = "Commodore 64",
-     .group = "Computer",
-     .icon = "C64",
-     .primary_code = "C64",
-     .rom_directory = "C64"},
-    {.tag = "PET",
-     .name = "Commodore PET",
-     .group = "Computer",
-     .icon = "PET",
-     .primary_code = "PET",
-     .rom_directory = "PET"},
-    {.tag = "PLUS4",
-     .name = "Commodore Plus4",
-     .group = "Computer",
-     .icon = "PLUS4",
-     .primary_code = "PLUS4",
-     .rom_directory = "PLUS4"},
-    {.tag = "VIC",
-     .name = "Commodore VIC20",
-     .group = "Computer",
-     .icon = "VIC20",
-     .primary_code = "VIC",
-     .rom_directory = "VIC"},
-    {.tag = "MSX",
-     .name = "Microsoft MSX",
-     .group = "Computer",
-     .icon = "MSX",
-     .primary_code = "MSX",
-     .rom_directory = "MSX"},
-    {.tag = "DOS",
-     .name = "MS-DOS",
-     .group = "Computer",
-     .icon = "DOS",
-     .primary_code = "DOS",
-     .rom_directory = "DOS"},
-    {.tag = "EASYRPG",
-     .name = "EasyRPG",
-     .group = "Computer",
-     .icon = "RPGM",
-     .primary_code = "EASYRPG",
-     .rom_directory = "EASYRPG"},
-    {.tag = "PRBOOM",
-     .name = "Doom",
-     .group = "Computer",
-     .icon = "DOOM",
-     .primary_code = "PRBOOM",
-     .rom_directory = "PRBOOM"},
-    {.tag = "P8",
-     .name = "Pico-8",
-     .group = "Computer",
-     .icon = "PICO8",
-     .primary_code = "P8",
-     .rom_directory = "PICO8"},
-    {.tag = "PORTS",
-     .name = "Ports",
-     .group = "PortMaster",
-     .icon = "PORTMASTER",
-     .primary_code = "PORTS",
-     .rom_directory = "PORTS"},
-    {.tag = "FBN",
-     .name = "Arcade",
-     .group = "Arcade",
-     .icon = "FBN",
-     .primary_code = "FBN",
-     .rom_directory = "ARCADE"},
-    {.tag = "MAME",
-     .name = "Arcade (MAME)",
-     .group = "Arcade",
-     .icon = "MAME",
-     .primary_code = "MAME",
-     .rom_directory = "MAME"},
-    {.tag = "MAME2003",
-     .name = "Arcade (MAME 2003)",
-     .group = "Arcade",
-     .icon = "MAME",
-     .primary_code = "MAME2003",
-     .rom_directory = "MAME2003"},
-    {.tag = "MAME2010",
-     .name = "Arcade (MAME 2010)",
-     .group = "Arcade",
-     .icon = "MAME",
-     .primary_code = "MAME2010",
-     .rom_directory = "MAME2010"},
-    {.tag = "A2600",
-     .name = "Atari 2600",
-     .group = "Atari",
-     .icon = "ATARI2600",
-     .primary_code = "A2600",
-     .rom_directory = "ATARI2600"},
-    {.tag = "A5200",
-     .name = "Atari 5200",
-     .group = "Atari",
-     .icon = "ATARI5200",
-     .primary_code = "A5200",
-     .rom_directory = "A5200"},
-    {.tag = "A7800",
-     .name = "Atari 7800",
-     .group = "Atari",
-     .icon = "ATARI7800",
-     .primary_code = "A7800",
-     .rom_directory = "SEVENTYEIGHTHUNDRED"},
-    {.tag = "LYNX",
-     .name = "Atari Lynx",
-     .group = "Atari",
-     .icon = "LYNX",
-     .primary_code = "LYNX",
-     .rom_directory = "LYNX"},
-    {.tag = "FDS",
-     .name = "Famicom Disk System",
-     .group = "Nintendo",
-     .icon = "FDS",
-     .primary_code = "FDS",
-     .rom_directory = "FDS"},
-    {.tag = "GB",
-     .name = "Game Boy",
-     .group = "Nintendo",
-     .icon = "GB",
-     .primary_code = "GB",
-     .rom_directory = "GB"},
-    {.tag = "GBA",
-     .name = "Game Boy Advance",
-     .group = "Nintendo",
-     .icon = "GBA",
-     .primary_code = "GBA",
-     .rom_directory = "GBA"},
-    {.tag = "MGBA",
-     .name = "Game Boy Advance",
-     .group = "Nintendo",
-     .icon = "GBA",
-     .primary_code = "MGBA",
-     .rom_directory = "MGBA"},
-    {.tag = "GBC",
-     .name = "Game Boy Color",
-     .group = "Nintendo",
-     .icon = "GBC",
-     .primary_code = "GBC",
-     .rom_directory = "GBC"},
-    {.tag = "GW",
-     .name = "Game & Watch",
-     .group = "Nintendo",
-     .icon = "GW",
-     .primary_code = "GW",
-     .rom_directory = "GW"},
-    {.tag = "FC",
-     .name = "NES/Famicom",
-     .group = "Nintendo",
-     .icon = "NES",
-     .primary_code = "FC",
-     .rom_directory = "FC"},
-    {.tag = "NDS",
-     .name = "Nintendo DS",
-     .group = "Nintendo",
-     .icon = "NDS",
-     .primary_code = "NDS",
-     .rom_directory = "NDS"},
-    {.tag = "PKM",
-     .name = "Pokemon mini",
-     .group = "Nintendo",
-     .icon = "POKEMINI",
-     .primary_code = "PKM",
-     .rom_directory = "PKM"},
-    {.tag = "SFC",
-     .name = "SNES",
-     .group = "Nintendo",
-     .icon = "SNES",
-     .primary_code = "SFC",
-     .rom_directory = "SFC"},
-    {.tag = "SUPA",
-     .name = "SNES",
-     .group = "Nintendo",
-     .icon = "SNES",
-     .primary_code = "SUPA",
-     .rom_directory = "SUPA"},
-    {.tag = "SFC_JP",
-     .name = "Super Famicom",
-     .group = "Nintendo",
-     .icon = "SNES",
-     .primary_code = "SFC_JP",
-     .rom_directory = "SFC_JP"},
-    {.tag = "N64",
-     .name = "Nintendo 64",
-     .group = "Nintendo",
-     .icon = "N64",
-     .primary_code = "N64",
-     .rom_directory = "N64"},
-    {.tag = "SGB",
-     .name = "Super Game Boy",
-     .group = "Nintendo",
-     .icon = "GB",
-     .primary_code = "SGB",
-     .rom_directory = "SGB"},
-    {.tag = "VB",
-     .name = "Virtual Boy",
-     .group = "Nintendo",
-     .icon = "VIRTUALBOY",
-     .primary_code = "VB",
-     .rom_directory = "VB"},
-    {.tag = "32X",
-     .name = "Sega 32X",
-     .group = "Sega",
-     .icon = "32X",
-     .primary_code = "32X",
-     .rom_directory = "32X"},
-    {.tag = "SEGACD",
-     .name = "Sega CD",
-     .group = "Sega",
-     .icon = "SEGACD",
-     .primary_code = "SEGACD",
-     .rom_directory = "SEGACD"},
-    {.tag = "GG",
-     .name = "Sega Game Gear",
-     .group = "Sega",
-     .icon = "GG",
-     .primary_code = "GG",
-     .rom_directory = "GG"},
-    {.tag = "MD",
-     .name = "Sega Genesis",
-     .group = "Sega",
-     .icon = "MD",
-     .primary_code = "MD",
-     .rom_directory = "MD"},
-    {.tag = "SMS",
-     .name = "Sega Master System",
-     .group = "Sega",
-     .icon = "SMS",
-     .primary_code = "SMS",
-     .rom_directory = "MS"},
-    {.tag = "SG1000",
-     .name = "Sega SG-1000",
-     .group = "Sega",
-     .icon = "SG1000",
-     .primary_code = "SG1000",
-     .rom_directory = "SG1000"},
-    {.tag = "SATURN",
-     .name = "Sega Saturn",
-     .group = "Sega",
-     .icon = "SATURN",
-     .primary_code = "SATURN",
-     .rom_directory = "SATURN"},
-    {.tag = "DC",
-     .name = "Dreamcast",
-     .group = "Sega",
-     .icon = "DC",
-     .primary_code = "DC",
-     .rom_directory = "DC"},
-    {.tag = "PS",
-     .name = "Sony PlayStation",
-     .group = "Sony",
-     .icon = "PS",
-     .primary_code = "PS",
-     .rom_directory = "PS"},
-    {.tag = "PSP",
-     .name = "PlayStation Portable",
-     .group = "Sony",
-     .icon = "PSP",
-     .primary_code = "PSP",
-     .rom_directory = "PSP"},
-    {.tag = "NEOGEO",
-     .name = "Neo Geo",
-     .group = "SNK",
-     .icon = "NEOGEO",
-     .primary_code = "NEOGEO",
-     .rom_directory = "NEOGEO"},
-    {.tag = "NGP",
-     .name = "Neo Geo Pocket",
-     .group = "SNK",
-     .icon = "NGP",
-     .primary_code = "NGP",
-     .rom_directory = "NGP"},
-    {.tag = "NGPC",
-     .name = "Neo Geo Pocket Color",
-     .group = "SNK",
-     .icon = "NGPC",
-     .primary_code = "NGPC",
-     .rom_directory = "NGPC"},
-    {.tag = "PCE",
-     .name = "PC Engine",
-     .group = "NEC",
-     .icon = "PCE",
-     .primary_code = "PCE",
-     .rom_directory = "PCE"},
-    {.tag = "PCECD",
-     .name = "PC Engine CD",
-     .group = "NEC",
-     .icon = "PCE",
-     .primary_code = "PCECD",
-     .rom_directory = "PCECD"},
-    {.tag = "WS",
-     .name = "WonderSwan",
-     .group = "Bandai",
-     .icon = "WS",
-     .primary_code = "WS",
-     .rom_directory = "WS"},
-    {.tag = "WSC",
-     .name = "WonderSwan Color",
-     .group = "Bandai",
-     .icon = "WSC",
-     .primary_code = "WSC",
-     .rom_directory = "WSC"},
-    {.tag = "COLECO",
-     .name = "Colecovision",
-     .group = "Other",
-     .icon = "COLECOVISION",
-     .primary_code = "COLECO",
-     .rom_directory = "COLECO"},
-    {.tag = "VECTREX",
-     .name = "Vectrex",
-     .group = "Other",
-     .icon = "VECTREX",
-     .primary_code = "VECTREX",
-     .rom_directory = "VECTREX"},
-};
 
 typedef struct cs_discovered_rom_dir {
     char system_name[128];
@@ -358,78 +25,165 @@ typedef struct cs_discovered_rom_dir {
     char dir_name[256];
 } cs_discovered_rom_dir;
 
-typedef struct cs_leaf_core_platforms {
-    const char *core_code;
-    const char *platform_codes[8];
-} cs_leaf_core_platforms;
+typedef struct cs_platform_identity {
+    const char *catalog_id;
+    const char *tag;
+    const char *primary_code;
+    const char *group;
+    const char *icon;
+    const char *fallback_name;
+} cs_platform_identity;
 
-/* Covers every RetroArch core in the mlp1 cores.json catalog, shipped or
-   not, so installed-emulator detection stays correct as cores come and go.
-   Path cores (drastic, ppsspp, ports) never show up in the cores/info scan
-   and are handled by cs_platform_launches_via_path_core instead. */
-static const cs_leaf_core_platforms g_leaf_core_platforms[] = {
-    {.core_code = "BLUEMSX", .platform_codes = {"COLECO", "MSX", NULL}},
-    {.core_code = "CHIMERASNES", .platform_codes = {"SFC", "SUPA", NULL}},
-    {.core_code = "DOSBOX_PURE", .platform_codes = {"DOS", NULL}},
-    {.core_code = "EASYRPG", .platform_codes = {"EASYRPG", NULL}},
-    {.core_code = "FAKE08", .platform_codes = {"P8", NULL}},
-    {.core_code = "FBALPHA2012", .platform_codes = {"FBN", "NEOGEO", NULL}},
-    {.core_code = "FBALPHA2012_CPS1", .platform_codes = {"FBN", NULL}},
-    {.core_code = "FBALPHA2012_CPS2", .platform_codes = {"FBN", NULL}},
-    {.core_code = "FBALPHA2012_CPS3", .platform_codes = {"FBN", NULL}},
-    {.core_code = "FBNEO", .platform_codes = {"FBN", "NEOGEO", NULL}},
-    {.core_code = "FCEUMM", .platform_codes = {"FC", "FDS", NULL}},
-    {.core_code = "FLYCAST", .platform_codes = {"DC", NULL}},
-    {.core_code = "GAMBATTE", .platform_codes = {"GB", "GBC", NULL}},
-    {.core_code = "GEARBOY", .platform_codes = {"GB", "GBC", NULL}},
-    {.core_code = "GEARSYSTEM", .platform_codes = {"SMS", "GG", "SG1000", "COLECO", NULL}},
-    {.core_code = "GENESIS_PLUS_GX", .platform_codes = {"MD", "SMS", "GG", "SG1000", "SEGACD", "32X", NULL}},
-    {.core_code = "GPSP", .platform_codes = {"GBA", "MGBA", NULL}},
-    {.core_code = "GW", .platform_codes = {"GW", NULL}},
-    {.core_code = "HANDY", .platform_codes = {"LYNX", NULL}},
-    {.core_code = "KM_DUCKSWANSTATION_XTREME_AMPED", .platform_codes = {"PS", NULL}},
-    {.core_code = "KM_FLYCAST_XTREME", .platform_codes = {"DC", NULL}},
-    {.core_code = "KM_LUDICROUSN64_2K22_XTREME_AMPED", .platform_codes = {"N64", NULL}},
-    {.core_code = "KM_MAME2003_XTREME", .platform_codes = {"FBN", "MAME2003", NULL}},
-    {.core_code = "KM_PARALLEL_N64_XTREME_AMPED_TURBO", .platform_codes = {"N64", NULL}},
-    {.core_code = "MAME", .platform_codes = {"FBN", NULL}},
-    {.core_code = "MAME2000", .platform_codes = {"FBN", NULL}},
-    {.core_code = "MAME2003", .platform_codes = {"FBN", "MAME2003", NULL}},
-    {.core_code = "MAME2003_MIDWAY", .platform_codes = {"FBN", NULL}},
-    {.core_code = "MAME2003_PLUS", .platform_codes = {"FBN", "MAME", "MAME2003", NULL}},
-    {.core_code = "MAME2010", .platform_codes = {"FBN", NULL}},
-    {.core_code = "MBA_MINI", .platform_codes = {"FBN", NULL}},
-    {.core_code = "MEDNAFEN_LYNX", .platform_codes = {"LYNX", NULL}},
-    {.core_code = "MEDNAFEN_NGP", .platform_codes = {"NGP", "NGPC", NULL}},
-    {.core_code = "MEDNAFEN_PCE_FAST", .platform_codes = {"PCE", "PCECD", NULL}},
-    {.core_code = "MEDNAFEN_SUPAFAUST", .platform_codes = {"SFC", "SUPA", NULL}},
-    {.core_code = "MEDNAFEN_VB", .platform_codes = {"VB", NULL}},
-    {.core_code = "MEDNAFEN_WSWAN", .platform_codes = {"WS", "WSC", NULL}},
-    {.core_code = "MGBA", .platform_codes = {"GBA", "MGBA", "GB", "GBC", "SGB", NULL}},
-    {.core_code = "MUPEN64PLUS", .platform_codes = {"N64", NULL}},
-    {.core_code = "MUPEN64PLUS_NEXT", .platform_codes = {"N64", NULL}},
-    {.core_code = "NESTOPIA", .platform_codes = {"FC", "FDS", NULL}},
-    {.core_code = "PARALLEL_N64", .platform_codes = {"N64", NULL}},
-    {.core_code = "PCSX_REARMED", .platform_codes = {"PS", NULL}},
-    {.core_code = "PICODRIVE", .platform_codes = {"MD", "32X", "SEGACD", "SMS", NULL}},
-    {.core_code = "PROSYSTEM", .platform_codes = {"A7800", NULL}},
-    {.core_code = "QUICKNES", .platform_codes = {"FC", NULL}},
-    {.core_code = "RACE", .platform_codes = {"NGP", "NGPC", NULL}},
-    {.core_code = "SNES9X", .platform_codes = {"SFC", "SUPA", "SFC_JP", "SGB", NULL}},
-    {.core_code = "SNES9X2002", .platform_codes = {"SFC", "SUPA", NULL}},
-    {.core_code = "SNES9X2005", .platform_codes = {"SFC", "SUPA", NULL}},
-    {.core_code = "SNES9X2005_PLUS", .platform_codes = {"SFC", "SUPA", NULL}},
-    {.core_code = "SNES9X2010", .platform_codes = {"SFC", "SUPA", NULL}},
-    {.core_code = "STELLA2014", .platform_codes = {"A2600", NULL}},
-    {.core_code = "SWANSTATION", .platform_codes = {"PS", NULL}},
-    {.core_code = "TGBDUAL", .platform_codes = {"GB", "GBC", NULL}},
-    {.core_code = "VBA_NEXT", .platform_codes = {"GBA", "MGBA", NULL}},
-    {.core_code = "VBAM", .platform_codes = {"GBA", "MGBA", "GB", "GBC", NULL}},
-    {.core_code = "VECX", .platform_codes = {"VECTREX", NULL}},
-    {.core_code = "YABASANSHIRO", .platform_codes = {"SATURN", NULL}},
-    {.core_code = "YABASANSHIRO_A133P", .platform_codes = {"SATURN", NULL}},
-    {.core_code = "YABASANSHIRO_SMARTPROS", .platform_codes = {"SATURN", NULL}},
+typedef struct cs_platform_alias {
+    const char *alias;
+    const char *tag;
+} cs_platform_alias;
+
+typedef struct cs_canonical_alias {
+    const char *alias_id;
+    const char *canonical_id;
+} cs_canonical_alias;
+
+typedef struct cs_variant_system {
+    const char *id;
+    const char *tag;
+    const char *primary_code;
+    const char *name;
+    const char *group;
+    const char *icon;
+    const char *rom_root;
+    const char *patterns[8];
+    const char *candidate_cores[12];
+} cs_variant_system;
+
+typedef struct cs_modeled_platform {
+    cs_platform_info info;
+    char catalog_id[CS_CATALOG_ID_MAX];
+    char patterns[CS_MODELED_PATTERN_MAX][256];
+    size_t pattern_count;
+    char candidate_cores[CS_MODELED_CORE_MAX][CS_CATALOG_ID_MAX];
+    size_t candidate_core_count;
+    char rom_directories[CS_MODELED_ROM_DIR_MAX][256];
+    size_t rom_directory_count;
+} cs_modeled_platform;
+
+static const cs_platform_identity g_platform_identities[] = {
+    {.catalog_id = "32X", .tag = "32X", .primary_code = "32X", .group = "Sega", .icon = "32X", .fallback_name = "Sega 32X"},
+    {.catalog_id = "ARCADE", .tag = "FBN", .primary_code = "FBN", .group = "Arcade", .icon = "FBN", .fallback_name = "Arcade"},
+    {.catalog_id = "ATARI2600", .tag = "A2600", .primary_code = "A2600", .group = "Atari", .icon = "ATARI2600", .fallback_name = "Atari 2600"},
+    {.catalog_id = "COLECO", .tag = "COLECO", .primary_code = "COLECO", .group = "Other", .icon = "COLECOVISION", .fallback_name = "Colecovision"},
+    {.catalog_id = "DC", .tag = "DC", .primary_code = "DC", .group = "Sega", .icon = "DC", .fallback_name = "Dreamcast"},
+    {.catalog_id = "DOS", .tag = "DOS", .primary_code = "DOS", .group = "Computer", .icon = "DOS", .fallback_name = "MS-DOS"},
+    {.catalog_id = "EASYRPG", .tag = "EASYRPG", .primary_code = "EASYRPG", .group = "Computer", .icon = "RPGM", .fallback_name = "EasyRPG"},
+    {.catalog_id = "FC", .tag = "FC", .primary_code = "FC", .group = "Nintendo", .icon = "NES", .fallback_name = "NES/Famicom"},
+    {.catalog_id = "FDS", .tag = "FDS", .primary_code = "FDS", .group = "Nintendo", .icon = "FDS", .fallback_name = "Famicom Disk System"},
+    {.catalog_id = "GB", .tag = "GB", .primary_code = "GB", .group = "Nintendo", .icon = "GB", .fallback_name = "Game Boy"},
+    {.catalog_id = "GBA", .tag = "GBA", .primary_code = "GBA", .group = "Nintendo", .icon = "GBA", .fallback_name = "Game Boy Advance"},
+    {.catalog_id = "GBC", .tag = "GBC", .primary_code = "GBC", .group = "Nintendo", .icon = "GBC", .fallback_name = "Game Boy Color"},
+    {.catalog_id = "GG", .tag = "GG", .primary_code = "GG", .group = "Sega", .icon = "GG", .fallback_name = "Sega Game Gear"},
+    {.catalog_id = "GW", .tag = "GW", .primary_code = "GW", .group = "Nintendo", .icon = "GW", .fallback_name = "Game & Watch"},
+    {.catalog_id = "LYNX", .tag = "LYNX", .primary_code = "LYNX", .group = "Atari", .icon = "LYNX", .fallback_name = "Atari Lynx"},
+    {.catalog_id = "MAME", .tag = "MAME", .primary_code = "MAME", .group = "Arcade", .icon = "MAME", .fallback_name = "Arcade (MAME)"},
+    {.catalog_id = "MAME2003", .tag = "MAME2003", .primary_code = "MAME2003", .group = "Arcade", .icon = "MAME", .fallback_name = "Arcade (MAME 2003)"},
+    {.catalog_id = "MAME2010", .tag = "MAME2010", .primary_code = "MAME2010", .group = "Arcade", .icon = "MAME", .fallback_name = "Arcade (MAME 2010)"},
+    {.catalog_id = "MD", .tag = "MD", .primary_code = "MD", .group = "Sega", .icon = "MD", .fallback_name = "Sega Genesis"},
+    {.catalog_id = "MD32X", .tag = "MD32X", .primary_code = "MD32X", .group = "Sega", .icon = "32X", .fallback_name = "Sega 32X"},
+    {.catalog_id = "MS", .tag = "SMS", .primary_code = "SMS", .group = "Sega", .icon = "SMS", .fallback_name = "Sega Master System"},
+    {.catalog_id = "N64", .tag = "N64", .primary_code = "N64", .group = "Nintendo", .icon = "N64", .fallback_name = "Nintendo 64"},
+    {.catalog_id = "NDS", .tag = "NDS", .primary_code = "NDS", .group = "Nintendo", .icon = "NDS", .fallback_name = "Nintendo DS"},
+    {.catalog_id = "NEOGEO", .tag = "NEOGEO", .primary_code = "NEOGEO", .group = "SNK", .icon = "NEOGEO", .fallback_name = "Neo Geo"},
+    {.catalog_id = "NGP", .tag = "NGP", .primary_code = "NGP", .group = "SNK", .icon = "NGP", .fallback_name = "Neo Geo Pocket"},
+    {.catalog_id = "NGPC", .tag = "NGPC", .primary_code = "NGPC", .group = "SNK", .icon = "NGPC", .fallback_name = "Neo Geo Pocket Color"},
+    {.catalog_id = "PCE", .tag = "PCE", .primary_code = "PCE", .group = "NEC", .icon = "PCE", .fallback_name = "PC Engine"},
+    {.catalog_id = "PCECD", .tag = "PCECD", .primary_code = "PCECD", .group = "NEC", .icon = "PCE", .fallback_name = "PC Engine CD"},
+    {.catalog_id = "PICO8", .tag = "P8", .primary_code = "P8", .group = "Computer", .icon = "PICO8", .fallback_name = "Pico-8"},
+    {.catalog_id = "PORTS", .tag = "PORTS", .primary_code = "PORTS", .group = "PortMaster", .icon = "PORTMASTER", .fallback_name = "Ports"},
+    {.catalog_id = "PS", .tag = "PS", .primary_code = "PS", .group = "Sony", .icon = "PS", .fallback_name = "Sony PlayStation"},
+    {.catalog_id = "PSP", .tag = "PSP", .primary_code = "PSP", .group = "Sony", .icon = "PSP", .fallback_name = "PlayStation Portable"},
+    {.catalog_id = "SATURN", .tag = "SATURN", .primary_code = "SATURN", .group = "Sega", .icon = "SATURN", .fallback_name = "Sega Saturn"},
+    {.catalog_id = "SEGACD", .tag = "SEGACD", .primary_code = "SEGACD", .group = "Sega", .icon = "SEGACD", .fallback_name = "Sega CD"},
+    {.catalog_id = "SEVENTYEIGHTHUNDRED", .tag = "A7800", .primary_code = "A7800", .group = "Atari", .icon = "ATARI7800", .fallback_name = "Atari 7800"},
+    {.catalog_id = "SFC", .tag = "SFC", .primary_code = "SFC", .group = "Nintendo", .icon = "SNES", .fallback_name = "SNES"},
+    {.catalog_id = "SFC_JP", .tag = "SFC_JP", .primary_code = "SFC_JP", .group = "Nintendo", .icon = "SNES", .fallback_name = "Super Famicom"},
+    {.catalog_id = "VB", .tag = "VB", .primary_code = "VB", .group = "Nintendo", .icon = "VIRTUALBOY", .fallback_name = "Virtual Boy"},
+    {.catalog_id = "VECTREX", .tag = "VECTREX", .primary_code = "VECTREX", .group = "Other", .icon = "VECTREX", .fallback_name = "Vectrex"},
+    {.catalog_id = "WS", .tag = "WS", .primary_code = "WS", .group = "Bandai", .icon = "WS", .fallback_name = "WonderSwan"},
+    {.catalog_id = "WSC", .tag = "WSC", .primary_code = "WSC", .group = "Bandai", .icon = "WSC", .fallback_name = "WonderSwan Color"},
+    {.catalog_id = "MGBA", .tag = "MGBA", .primary_code = "MGBA", .group = "Nintendo", .icon = "GBA", .fallback_name = "Game Boy Advance"},
+    {.catalog_id = "SUPA", .tag = "SUPA", .primary_code = "SUPA", .group = "Nintendo", .icon = "SNES", .fallback_name = "SNES"},
+    {.catalog_id = "SGB", .tag = "SGB", .primary_code = "SGB", .group = "Nintendo", .icon = "GB", .fallback_name = "Super Game Boy"},
 };
+
+static const cs_platform_alias g_static_aliases[] = {
+    {.alias = "ARCADE", .tag = "FBN"},
+    {.alias = "ATARI2600", .tag = "A2600"},
+    {.alias = "2600", .tag = "A2600"},
+    {.alias = "A2600", .tag = "A2600"},
+    {.alias = "COLECOVISION", .tag = "COLECO"},
+    {.alias = "GEN", .tag = "MD"},
+    {.alias = "GENESIS", .tag = "MD"},
+    {.alias = "NES", .tag = "FC"},
+    {.alias = "PICO8", .tag = "P8"},
+    {.alias = "MS", .tag = "SMS"},
+    {.alias = "PSX", .tag = "PS"},
+    {.alias = "SNES", .tag = "SFC"},
+    {.alias = "TG16", .tag = "PCE"},
+    {.alias = "PROSYSTEM", .tag = "A7800"},
+    {.alias = "SEVENTYEIGHTHUNDRED", .tag = "A7800"},
+    {.alias = "ATARI7800", .tag = "A7800"},
+};
+
+static const cs_canonical_alias g_canonical_aliases[] = {
+    {.alias_id = "NES", .canonical_id = "FC"},
+    {.alias_id = "GEN", .canonical_id = "MD"},
+    {.alias_id = "GENESIS", .canonical_id = "MD"},
+    {.alias_id = "PSX", .canonical_id = "PS"},
+    {.alias_id = "SNES", .canonical_id = "SFC"},
+    {.alias_id = "TG16", .canonical_id = "PCE"},
+    {.alias_id = "PROSYSTEM", .canonical_id = "SEVENTYEIGHTHUNDRED"},
+};
+
+/* TEMPORARY: remove when producer variant rows land in systems.json. */
+static const cs_variant_system g_variant_systems[] = {
+    {.id = "MGBA",
+     .tag = "MGBA",
+     .primary_code = "MGBA",
+     .name = "Game Boy Advance",
+     .group = "Nintendo",
+     .icon = "GBA",
+     .rom_root = "Roms/MGBA",
+     .patterns = {"MGBA", "GBA_ALT", NULL},
+     .candidate_cores = {"mgba", NULL}},
+    {.id = "SUPA",
+     .tag = "SUPA",
+     .primary_code = "SUPA",
+     .name = "SNES",
+     .group = "Nintendo",
+     .icon = "SNES",
+     .rom_root = "Roms/SUPA",
+     .patterns = {"SUPA", NULL},
+     .candidate_cores = {"snes9x", "mednafen_supafaust", "snes9x2010", "snes9x2005", "snes9x2005_plus", "snes9x2002", "chimerasnes", NULL}},
+    {.id = "SGB",
+     .tag = "SGB",
+     .primary_code = "SGB",
+     .name = "Super Game Boy",
+     .group = "Nintendo",
+     .icon = "GB",
+     .rom_root = "Roms/SGB",
+     .patterns = {"SGB", NULL},
+     .candidate_cores = {"snes9x", "mgba", NULL}},
+};
+
+static cs_platform_info g_fallback_platforms[sizeof(g_platform_identities) / sizeof(g_platform_identities[0])];
+static int g_fallback_platforms_initialized = 0;
+
+int cs_platform_is_shortcut_directory(const char *name, const char *absolute_path);
+int cs_platform_parse_rom_directory(const char *dir_name,
+                                    char *system_name,
+                                    size_t system_name_size,
+                                    char *system_code,
+                                    size_t system_code_size);
+static int cs_platform_view_matches_value(const cs_modeled_platform *view, const char *value);
 
 static int cs_write_string(char *dst, size_t size, const char *value) {
     int written;
@@ -465,126 +219,6 @@ static int cs_platform_component_is_safe(const char *value) {
     }
 
     return 1;
-}
-
-/* Alternate spellings accepted as platform codes, mirroring the Jawaka
-   systems.json ids and pattern lists so every folder name the launcher
-   recognizes resolves to the same platform here. Matching is
-   case-insensitive, so only one case variant per spelling is listed. */
-typedef struct cs_platform_alias {
-    const char *alias;
-    const char *tag;
-} cs_platform_alias;
-
-static const cs_platform_alias g_platform_aliases[] = {
-    {.alias = "2600", .tag = "A2600"},
-    {.alias = "AGB", .tag = "GBA"},
-    {.alias = "ARCADE", .tag = "FBN"},
-    {.alias = "ARCADE_NEO", .tag = "NEOGEO"},
-    {.alias = "ATARI", .tag = "A2600"},
-    {.alias = "ATARI2600", .tag = "A2600"},
-    {.alias = "ATARI7800", .tag = "A7800"},
-    {.alias = "ATARILYNX", .tag = "LYNX"},
-    {.alias = "CGB", .tag = "GBC"},
-    {.alias = "COLECOVISION", .tag = "COLECO"},
-    {.alias = "DMG", .tag = "GB"},
-    {.alias = "DOSBOX", .tag = "DOS"},
-    {.alias = "DREAMCAST", .tag = "DC"},
-    {.alias = "FAKE08", .tag = "P8"},
-    {.alias = "FAMICOM", .tag = "FC"},
-    {.alias = "FAMICOMDISK", .tag = "FDS"},
-    {.alias = "GAMEANDWATCH", .tag = "GW"},
-    {.alias = "GAMEBOY", .tag = "GB"},
-    {.alias = "GAMEBOYADVANCE", .tag = "GBA"},
-    {.alias = "GAMEBOYCOLOR", .tag = "GBC"},
-    {.alias = "GAMEGEAR", .tag = "GG"},
-    {.alias = "GBA_ALT", .tag = "MGBA"},
-    {.alias = "GEN", .tag = "MD"},
-    {.alias = "GENESIS", .tag = "MD"},
-    {.alias = "MAME2003PLUS", .tag = "MAME"},
-    {.alias = "MASTERSYSTEM", .tag = "SMS"},
-    {.alias = "MD32X", .tag = "32X"},
-    {.alias = "MEGACD", .tag = "SEGACD"},
-    {.alias = "MEGADRIVE", .tag = "MD"},
-    {.alias = "MS", .tag = "SMS"},
-    {.alias = "MSDOS", .tag = "DOS"},
-    {.alias = "NEO_GEO", .tag = "NEOGEO"},
-    {.alias = "NEOGEOPOCKET", .tag = "NGP"},
-    {.alias = "NEOGEOPOCKETCOLOR", .tag = "NGPC"},
-    {.alias = "NES", .tag = "FC"},
-    {.alias = "NGC", .tag = "NGP"},
-    {.alias = "NINTENDO64", .tag = "N64"},
-    {.alias = "NINTENDODS", .tag = "NDS"},
-    {.alias = "PCENGINE", .tag = "PCE"},
-    {.alias = "PCENGINECD", .tag = "PCECD"},
-    {.alias = "PICO", .tag = "P8"},
-    {.alias = "PICO8", .tag = "P8"},
-    {.alias = "PLAYSTATION", .tag = "PS"},
-    {.alias = "PLAYSTATIONPORTABLE", .tag = "PSP"},
-    {.alias = "PROSYSTEM", .tag = "A7800"},
-    {.alias = "PS1", .tag = "PS"},
-    {.alias = "PSONE", .tag = "PS"},
-    {.alias = "PSX", .tag = "PS"},
-    {.alias = "RPGMAKER", .tag = "EASYRPG"},
-    {.alias = "SCD", .tag = "SEGACD"},
-    {.alias = "SEGA DREAMCAST", .tag = "DC"},
-    {.alias = "SEGA32X", .tag = "32X"},
-    {.alias = "SEGASATURN", .tag = "SATURN"},
-    {.alias = "SEVENTYEIGHTHUNDRED", .tag = "A7800"},
-    {.alias = "SNES", .tag = "SFC"},
-    {.alias = "SS", .tag = "SATURN"},
-    {.alias = "SUPERFAMICOM", .tag = "SFC"},
-    {.alias = "SUPERFAMICOM_JP", .tag = "SFC_JP"},
-    {.alias = "SUPERNES", .tag = "SFC"},
-    {.alias = "TG16", .tag = "PCE"},
-    {.alias = "TGB_DUAL", .tag = "GB"},
-    {.alias = "THIRTYTWOX", .tag = "32X"},
-    {.alias = "TURBOGRAFX", .tag = "PCE"},
-    {.alias = "TURBOGRAFX16", .tag = "PCE"},
-    {.alias = "TURBOGRAFXCD", .tag = "PCECD"},
-    {.alias = "TWENTYSIXHUNDRED", .tag = "A2600"},
-    {.alias = "VIRTUALBOY", .tag = "VB"},
-    {.alias = "WONDERSWAN", .tag = "WS"},
-    {.alias = "WONDERSWANC", .tag = "WSC"},
-    {.alias = "WONDERSWANCOLOR", .tag = "WSC"},
-};
-
-static int cs_platform_known_index(const char *tag) {
-    size_t i;
-
-    if (!tag || tag[0] == '\0') {
-        return -1;
-    }
-
-    for (i = 0; i < sizeof(g_platforms) / sizeof(g_platforms[0]); ++i) {
-        if (strcasecmp(g_platforms[i].tag, tag) == 0) {
-            return (int) i;
-        }
-    }
-
-    for (i = 0; i < sizeof(g_platform_aliases) / sizeof(g_platform_aliases[0]); ++i) {
-        if (strcasecmp(g_platform_aliases[i].alias, tag) == 0) {
-            return cs_platform_known_index(g_platform_aliases[i].tag);
-        }
-    }
-
-    return -1;
-}
-
-static int cs_platform_codes_equal(const char *left, const char *right) {
-    int left_index;
-    int right_index;
-
-    if (!left || !right) {
-        return 0;
-    }
-    if (strcmp(left, right) == 0) {
-        return 1;
-    }
-
-    left_index = cs_platform_known_index(left);
-    right_index = cs_platform_known_index(right);
-    return left_index >= 0 && right_index >= 0 && left_index == right_index;
 }
 
 static int cs_platform_is_directory(const char *path) {
@@ -624,8 +258,498 @@ static int cs_platform_name_has_prefix(const char *name, const char *prefix) {
     return prefix_len > 0 && strncmp(name, prefix, prefix_len) == 0;
 }
 
+static const char *cs_platform_canonical_id(const char *id) {
+    size_t i;
+
+    if (!id) {
+        return "";
+    }
+    for (i = 0; i < sizeof(g_canonical_aliases) / sizeof(g_canonical_aliases[0]); ++i) {
+        if (strcasecmp(g_canonical_aliases[i].alias_id, id) == 0) {
+            return g_canonical_aliases[i].canonical_id;
+        }
+    }
+    return id;
+}
+
+static const cs_platform_identity *cs_platform_identity_for_catalog_id(const char *catalog_id) {
+    size_t i;
+
+    if (!catalog_id) {
+        return NULL;
+    }
+    for (i = 0; i < sizeof(g_platform_identities) / sizeof(g_platform_identities[0]); ++i) {
+        if (strcasecmp(g_platform_identities[i].catalog_id, catalog_id) == 0) {
+            return &g_platform_identities[i];
+        }
+    }
+    return NULL;
+}
+
+static int cs_platform_strip_roms_prefix(const char *rom_root, char *dst, size_t dst_size) {
+    const char *source = rom_root ? rom_root : "";
+
+    if (strncasecmp(source, "Roms/", 5) == 0) {
+        source += 5;
+    }
+    return cs_write_string(dst, dst_size, source);
+}
+
+static int cs_platform_add_unique_string(char items[][256], size_t *count, size_t capacity, const char *value) {
+    size_t i;
+
+    if (!items || !count || !value || value[0] == '\0') {
+        return 0;
+    }
+    for (i = 0; i < *count; ++i) {
+        if (strcasecmp(items[i], value) == 0) {
+            return 0;
+        }
+    }
+    if (*count >= capacity) {
+        return -1;
+    }
+    if (cs_write_string(items[*count], 256, value) != 0) {
+        return -1;
+    }
+    *count += 1;
+    return 0;
+}
+
+static int cs_platform_add_unique_core(cs_modeled_platform *view, const char *value) {
+    size_t i;
+
+    if (!view || !value || value[0] == '\0') {
+        return 0;
+    }
+    for (i = 0; i < view->candidate_core_count; ++i) {
+        if (strcasecmp(view->candidate_cores[i], value) == 0) {
+            return 0;
+        }
+    }
+    if (view->candidate_core_count >= CS_MODELED_CORE_MAX) {
+        return -1;
+    }
+    if (cs_write_string(view->candidate_cores[view->candidate_core_count],
+                        sizeof(view->candidate_cores[view->candidate_core_count]),
+                        value)
+        != 0) {
+        return -1;
+    }
+    view->candidate_core_count += 1;
+    return 0;
+}
+
+static int cs_platform_add_pattern(cs_modeled_platform *view, const char *value) {
+    return cs_platform_add_unique_string(view->patterns,
+                                         &view->pattern_count,
+                                         sizeof(view->patterns) / sizeof(view->patterns[0]),
+                                         value);
+}
+
+static int cs_platform_add_rom_directory(cs_modeled_platform *view, const char *value) {
+    return cs_platform_add_unique_string(view->rom_directories,
+                                         &view->rom_directory_count,
+                                         sizeof(view->rom_directories) / sizeof(view->rom_directories[0]),
+                                         value);
+}
+
+static int cs_platform_init_view_from_catalog(cs_modeled_platform *view,
+                                              const char *canonical_id,
+                                              const cs_catalog_system *system) {
+    const cs_platform_identity *identity = cs_platform_identity_for_catalog_id(canonical_id);
+    char rom_directory[256];
+
+    if (!view || !canonical_id || !system) {
+        return -1;
+    }
+    memset(view, 0, sizeof(*view));
+    if (cs_platform_strip_roms_prefix(system->rom_root, rom_directory, sizeof(rom_directory)) != 0) {
+        return -1;
+    }
+
+    if (cs_write_string(view->catalog_id, sizeof(view->catalog_id), canonical_id) != 0
+        || cs_write_string(view->info.tag,
+                           sizeof(view->info.tag),
+                           identity ? identity->tag : canonical_id)
+               != 0
+        || cs_write_string(view->info.name,
+                           sizeof(view->info.name),
+                           system->name && system->name[0] ? system->name : (identity ? identity->fallback_name : canonical_id))
+               != 0
+        || cs_write_string(view->info.group,
+                           sizeof(view->info.group),
+                           identity ? identity->group : "Other")
+               != 0
+        || cs_write_string(view->info.icon,
+                           sizeof(view->info.icon),
+                           identity ? identity->icon : "UNKNOWN")
+               != 0
+        || cs_write_string(view->info.primary_code,
+                           sizeof(view->info.primary_code),
+                           identity ? identity->primary_code : canonical_id)
+               != 0
+        || cs_write_string(view->info.rom_directory, sizeof(view->info.rom_directory), rom_directory) != 0) {
+        return -1;
+    }
+    return 0;
+}
+
+static int cs_platform_init_view_from_variant(cs_modeled_platform *view, const cs_variant_system *variant) {
+    char rom_directory[256];
+    size_t i;
+
+    if (!view || !variant) {
+        return -1;
+    }
+    memset(view, 0, sizeof(*view));
+    if (cs_platform_strip_roms_prefix(variant->rom_root, rom_directory, sizeof(rom_directory)) != 0) {
+        return -1;
+    }
+
+    if (cs_write_string(view->catalog_id, sizeof(view->catalog_id), variant->id) != 0
+        || cs_write_string(view->info.tag, sizeof(view->info.tag), variant->tag) != 0
+        || cs_write_string(view->info.name, sizeof(view->info.name), variant->name) != 0
+        || cs_write_string(view->info.group, sizeof(view->info.group), variant->group) != 0
+        || cs_write_string(view->info.icon, sizeof(view->info.icon), variant->icon) != 0
+        || cs_write_string(view->info.primary_code, sizeof(view->info.primary_code), variant->primary_code) != 0
+        || cs_write_string(view->info.rom_directory, sizeof(view->info.rom_directory), rom_directory) != 0
+        || cs_platform_add_rom_directory(view, rom_directory) != 0
+        || cs_platform_add_pattern(view, variant->id) != 0
+        || cs_platform_add_pattern(view, variant->tag) != 0) {
+        return -1;
+    }
+    for (i = 0; variant->patterns[i] != NULL; ++i) {
+        if (cs_platform_add_pattern(view, variant->patterns[i]) != 0) {
+            return -1;
+        }
+    }
+    for (i = 0; variant->candidate_cores[i] != NULL; ++i) {
+        if (cs_platform_add_unique_core(view, variant->candidate_cores[i]) != 0) {
+            return -1;
+        }
+    }
+    return 0;
+}
+
+static int cs_platform_find_view_by_catalog_id(cs_modeled_platform *views, size_t count, const char *catalog_id) {
+    size_t i;
+
+    if (!views || !catalog_id) {
+        return -1;
+    }
+    for (i = 0; i < count; ++i) {
+        if (strcasecmp(views[i].catalog_id, catalog_id) == 0) {
+            return (int) i;
+        }
+    }
+    return -1;
+}
+
+static int cs_platform_fold_system_into_view(cs_modeled_platform *view, const cs_catalog_system *system) {
+    char rom_directory[256];
+    size_t i;
+
+    if (!view || !system) {
+        return -1;
+    }
+    if (cs_platform_strip_roms_prefix(system->rom_root, rom_directory, sizeof(rom_directory)) != 0) {
+        return -1;
+    }
+    if (cs_platform_add_pattern(view, system->id) != 0
+        || cs_platform_add_rom_directory(view, rom_directory) != 0
+        || cs_platform_add_pattern(view, rom_directory) != 0
+        || cs_platform_add_unique_core(view, system->default_core) != 0) {
+        return -1;
+    }
+    for (i = 0; i < system->patterns.count; ++i) {
+        if (cs_platform_add_pattern(view, system->patterns.items[i]) != 0) {
+            return -1;
+        }
+    }
+    for (i = 0; i < system->alternate_cores.count; ++i) {
+        if (cs_platform_add_unique_core(view, system->alternate_cores.items[i]) != 0) {
+            return -1;
+        }
+    }
+    return 0;
+}
+
+static int cs_platform_build_modeled_views(const cs_catalog *catalog,
+                                           cs_modeled_platform *views,
+                                           size_t capacity,
+                                           size_t *count_out) {
+    size_t count = 0;
+    size_t i;
+
+    if (count_out) {
+        *count_out = 0;
+    }
+    if (!catalog || !views || capacity == 0) {
+        return -1;
+    }
+
+    for (i = 0; i < catalog->system_count; ++i) {
+        const cs_catalog_system *system = &catalog->systems[i];
+        const char *canonical_id = cs_platform_canonical_id(system->id);
+
+        if (strcasecmp(canonical_id, system->id) != 0) {
+            continue;
+        }
+        if (cs_platform_find_view_by_catalog_id(views, count, canonical_id) >= 0) {
+            continue;
+        }
+        if (count >= capacity || cs_platform_init_view_from_catalog(&views[count], canonical_id, system) != 0) {
+            return -1;
+        }
+        count += 1;
+    }
+
+    for (i = 0; i < catalog->system_count; ++i) {
+        const cs_catalog_system *system = &catalog->systems[i];
+        const char *canonical_id = cs_platform_canonical_id(system->id);
+        int view_index = cs_platform_find_view_by_catalog_id(views, count, canonical_id);
+
+        if (view_index < 0) {
+            if (count >= capacity || cs_platform_init_view_from_catalog(&views[count], canonical_id, system) != 0) {
+                return -1;
+            }
+            view_index = (int) count;
+            count += 1;
+        }
+        if (cs_platform_fold_system_into_view(&views[view_index], system) != 0) {
+            return -1;
+        }
+    }
+
+    for (i = 0; i < sizeof(g_variant_systems) / sizeof(g_variant_systems[0]); ++i) {
+        if (cs_catalog_find_system(catalog, g_variant_systems[i].id)
+            || cs_platform_find_view_by_catalog_id(views, count, g_variant_systems[i].id) >= 0) {
+            continue;
+        }
+        if (count >= capacity || cs_platform_init_view_from_variant(&views[count], &g_variant_systems[i]) != 0) {
+            return -1;
+        }
+        count += 1;
+    }
+
+    if (count_out) {
+        *count_out = count;
+    }
+    return 0;
+}
+
+static int cs_platform_join_path(char *dst, size_t dst_size, const char *left, const char *right) {
+    int written;
+
+    if (!dst || dst_size == 0 || !left || !right) {
+        return -1;
+    }
+    written = snprintf(dst, dst_size, "%s/%s", left, right);
+    return (written < 0 || (size_t) written >= dst_size) ? -1 : 0;
+}
+
+static int cs_platform_modeled_rom_directory_exists(const cs_paths *paths, const cs_modeled_platform *view) {
+    size_t source_index;
+    size_t dir_index;
+
+    if (!paths || !view) {
+        return 0;
+    }
+    for (source_index = 0; source_index < paths->source_count; ++source_index) {
+        for (dir_index = 0; dir_index < view->rom_directory_count; ++dir_index) {
+            char path[CS_PATH_MAX];
+
+            if (cs_platform_join_path(path,
+                                      sizeof(path),
+                                      paths->sources[source_index].roms_root,
+                                      view->rom_directories[dir_index])
+                    == 0
+                && cs_platform_is_directory(path)) {
+                return 1;
+            }
+        }
+        {
+            DIR *dir = opendir(paths->sources[source_index].roms_root);
+            struct dirent *entry;
+
+            if (!dir) {
+                continue;
+            }
+            while ((entry = readdir(dir)) != NULL) {
+                char absolute_path[CS_PATH_MAX];
+                char system_name[128];
+                char system_code[CS_PLATFORM_CODE_MAX];
+
+                if (entry->d_name[0] == '.') {
+                    continue;
+                }
+                if (cs_platform_join_path(absolute_path,
+                                          sizeof(absolute_path),
+                                          paths->sources[source_index].roms_root,
+                                          entry->d_name)
+                        != 0
+                    || !cs_platform_is_directory(absolute_path)
+                    || cs_platform_is_shortcut_directory(entry->d_name, absolute_path)) {
+                    continue;
+                }
+                if (cs_platform_view_matches_value(view, entry->d_name)) {
+                    closedir(dir);
+                    return 1;
+                }
+                if (cs_platform_parse_rom_directory(entry->d_name,
+                                                    system_name,
+                                                    sizeof(system_name),
+                                                    system_code,
+                                                    sizeof(system_code))
+                        == 0
+                    && cs_platform_view_matches_value(view, system_code)) {
+                    closedir(dir);
+                    return 1;
+                }
+            }
+            closedir(dir);
+        }
+    }
+    return 0;
+}
+
+static int cs_platform_core_present(const cs_paths *paths,
+                                    const cs_catalog *catalog,
+                                    const cs_modeled_platform *view,
+                                    const char *core_id) {
+    const cs_catalog_core *core;
+    char path[CS_PATH_MAX];
+
+    if (!paths || !catalog || !core_id || core_id[0] == '\0') {
+        return 0;
+    }
+    core = cs_catalog_find_core(catalog, core_id);
+    if (!core) {
+        return 0;
+    }
+    if (strcasecmp(core->type, "path") == 0) {
+        if (strcasecmp(core->id, "ports") == 0) {
+            return cs_platform_modeled_rom_directory_exists(paths, view);
+        }
+        if (!core->path || core->path[0] == '\0') {
+            return 0;
+        }
+        if (core->path[0] == '/') {
+            return cs_platform_is_regular_file_not_symlink(core->path);
+        }
+        if (cs_platform_join_path(path, sizeof(path), paths->system_root, core->path) != 0) {
+            return 0;
+        }
+        return cs_platform_is_regular_file_not_symlink(path);
+    }
+    if (!core->file_name || core->file_name[0] == '\0') {
+        return 0;
+    }
+    if (cs_platform_join_path(path, sizeof(path), paths->cores_root, core->file_name) != 0) {
+        return 0;
+    }
+    return cs_platform_is_regular_file_not_symlink(path);
+}
+
+static int cs_platform_view_visible(const cs_paths *paths, const cs_catalog *catalog, const cs_modeled_platform *view) {
+    size_t i;
+
+    if (!paths || !catalog || !view) {
+        return 0;
+    }
+    for (i = 0; i < view->candidate_core_count; ++i) {
+        if (cs_platform_core_present(paths, catalog, view, view->candidate_cores[i])) {
+            return 1;
+        }
+    }
+    return 0;
+}
+
+static int cs_platform_view_matches_value(const cs_modeled_platform *view, const char *value) {
+    size_t i;
+
+    if (!view || !value || value[0] == '\0') {
+        return 0;
+    }
+    if (strcasecmp(view->catalog_id, value) == 0
+        || strcasecmp(view->info.tag, value) == 0
+        || strcasecmp(view->info.primary_code, value) == 0) {
+        return 1;
+    }
+    for (i = 0; i < view->pattern_count; ++i) {
+        if (strcasecmp(view->patterns[i], value) == 0) {
+            return 1;
+        }
+    }
+    for (i = 0; i < view->rom_directory_count; ++i) {
+        if (strcasecmp(view->rom_directories[i], value) == 0) {
+            return 1;
+        }
+    }
+    return 0;
+}
+
+static int cs_platform_find_view_for_discovered_dir(const cs_modeled_platform *views,
+                                                    size_t view_count,
+                                                    const cs_discovered_rom_dir *dir) {
+    size_t i;
+
+    if (!views || !dir) {
+        return -1;
+    }
+    for (i = 0; i < view_count; ++i) {
+        if (cs_platform_view_matches_value(&views[i], dir->system_code)
+            || cs_platform_view_matches_value(&views[i], dir->dir_name)) {
+            return (int) i;
+        }
+    }
+    return -1;
+}
+
+static int cs_platform_build_visible_views(const cs_paths *paths,
+                                           const cs_catalog *catalog,
+                                           cs_modeled_platform *visible,
+                                           size_t capacity,
+                                           size_t *count_out) {
+    cs_modeled_platform *modeled;
+    size_t modeled_count = 0;
+    size_t count = 0;
+    size_t i;
+
+    if (count_out) {
+        *count_out = 0;
+    }
+    if (!paths || !catalog || !visible || capacity == 0) {
+        return -1;
+    }
+    modeled = (cs_modeled_platform *) calloc(CS_MODELED_PLATFORM_MAX, sizeof(modeled[0]));
+    if (!modeled) {
+        return -1;
+    }
+    if (cs_platform_build_modeled_views(catalog, modeled, CS_MODELED_PLATFORM_MAX, &modeled_count) != 0) {
+        free(modeled);
+        return -1;
+    }
+    for (i = 0; i < modeled_count && count < capacity; ++i) {
+        if (!cs_platform_view_visible(paths, catalog, &modeled[i])) {
+            continue;
+        }
+        visible[count++] = modeled[i];
+    }
+    free(modeled);
+    if (count_out) {
+        *count_out = count;
+    }
+    return 0;
+}
+
 static int cs_platform_is_ports(const cs_platform_info *platform) {
     return platform && strcmp(platform->tag, "PORTS") == 0;
+}
+
+static int cs_platform_build_is_leaf(void) {
+    return 1;
 }
 
 static int cs_platform_find_discovered_by_code(const cs_discovered_rom_dir *dirs,
@@ -638,227 +762,12 @@ static int cs_platform_find_discovered_by_code(const cs_discovered_rom_dir *dirs
     }
 
     for (i = 0; i < dir_count; ++i) {
-        if (cs_platform_codes_equal(dirs[i].system_code, system_code)) {
+        if (strcasecmp(dirs[i].system_code, system_code) == 0) {
             return (int) i;
         }
     }
 
     return -1;
-}
-
-static int cs_platform_build_is_leaf(void) {
-    return 1;
-}
-
-static int cs_platform_ports_directory_exists(const cs_paths *paths) {
-    char ports_dir[CS_PATH_MAX];
-    size_t i;
-
-    if (!paths) {
-        return 0;
-    }
-
-    for (i = 0; i < paths->source_count; ++i) {
-        int written = snprintf(ports_dir, sizeof(ports_dir), "%s/%s", paths->sources[i].roms_root, "PORTS");
-        if (written >= 0 && (size_t) written < sizeof(ports_dir) && cs_platform_is_directory(ports_dir)) {
-            return 1;
-        }
-        written = snprintf(ports_dir, sizeof(ports_dir), "%s/%s", paths->sources[i].roms_root, "Ports (PORTS)");
-        if (written >= 0 && (size_t) written < sizeof(ports_dir) && cs_platform_is_directory(ports_dir)) {
-            return 1;
-        }
-    }
-
-    return 0;
-}
-
-static int cs_platform_add_emulator_code(char codes[][CS_PLATFORM_CODE_MAX],
-                                         size_t *count,
-                                         size_t capacity,
-                                         const char *code) {
-    size_t i;
-
-    if (!codes || !count || !code || code[0] == '\0') {
-        return -1;
-    }
-
-    for (i = 0; i < *count; ++i) {
-        if (cs_platform_codes_equal(codes[i], code)) {
-            return 0;
-        }
-    }
-    if (*count >= capacity) {
-        return -1;
-    }
-
-    return cs_write_string(codes[(*count)++], CS_PLATFORM_CODE_MAX, code);
-}
-
-static int cs_platform_add_leaf_core_code(char codes[][CS_PLATFORM_CODE_MAX],
-                                          size_t *count,
-                                          size_t capacity,
-                                          const char *core_code) {
-    size_t i;
-
-    if (cs_platform_add_emulator_code(codes, count, capacity, core_code) != 0) {
-        return -1;
-    }
-
-    for (i = 0; i < sizeof(g_leaf_core_platforms) / sizeof(g_leaf_core_platforms[0]); ++i) {
-        size_t alias_index;
-
-        if (strcmp(g_leaf_core_platforms[i].core_code, core_code) != 0) {
-            continue;
-        }
-        for (alias_index = 0; g_leaf_core_platforms[i].platform_codes[alias_index] != NULL; ++alias_index) {
-            if (cs_platform_add_emulator_code(codes,
-                                              count,
-                                              capacity,
-                                              g_leaf_core_platforms[i].platform_codes[alias_index])
-                != 0) {
-                return -1;
-            }
-        }
-    }
-
-    return 0;
-}
-
-static int cs_platform_collect_leaf_codes_from_dir(const char *dir_path,
-                                                   char codes[][CS_PLATFORM_CODE_MAX],
-                                                   size_t *count,
-                                                   size_t capacity) {
-    DIR *dir;
-    struct dirent *entry;
-
-    if (!dir_path || !codes || !count) {
-        return -1;
-    }
-
-    dir = opendir(dir_path);
-    if (!dir) {
-        return 0;
-    }
-
-    while ((entry = readdir(dir)) != NULL) {
-        char code[CS_PLATFORM_CODE_MAX];
-        char absolute_path[CS_PATH_MAX];
-        const char *suffix = NULL;
-        size_t name_len;
-        size_t code_len;
-        size_t i;
-        struct stat st;
-
-        if (entry->d_name[0] == '.') {
-            continue;
-        }
-        name_len = strlen(entry->d_name);
-        if (name_len > strlen("_libretro.so")
-            && strcmp(entry->d_name + name_len - strlen("_libretro.so"), "_libretro.so") == 0) {
-            suffix = "_libretro.so";
-        } else if (name_len > strlen("_libretro.info")
-                   && strcmp(entry->d_name + name_len - strlen("_libretro.info"), "_libretro.info") == 0) {
-            suffix = "_libretro.info";
-        } else if (name_len > strlen(".info")
-                   && strcmp(entry->d_name + name_len - strlen(".info"), ".info") == 0) {
-            suffix = ".info";
-        }
-        if (!suffix) {
-            continue;
-        }
-        code_len = name_len - strlen(suffix);
-        if (code_len == 0 || code_len >= sizeof(code)) {
-            continue;
-        }
-        if (snprintf(absolute_path, sizeof(absolute_path), "%s/%s", dir_path, entry->d_name) < 0) {
-            continue;
-        }
-        if (lstat(absolute_path, &st) != 0 || !S_ISREG(st.st_mode)) {
-            continue;
-        }
-
-        for (i = 0; i < code_len; ++i) {
-            unsigned char ch = (unsigned char) entry->d_name[i];
-
-            if (ch >= 'a' && ch <= 'z') {
-                ch = (unsigned char) (ch - 'a' + 'A');
-            }
-            code[i] = (char) ch;
-        }
-        code[code_len] = '\0';
-        if (!cs_platform_component_is_safe(code)) {
-            continue;
-        }
-        if (cs_platform_add_leaf_core_code(codes, count, capacity, code) != 0) {
-            closedir(dir);
-            return -1;
-        }
-    }
-
-    closedir(dir);
-    return 0;
-}
-
-int cs_platform_supports_resource(const cs_platform_info *platform, const char *resource) {
-    if (!platform || !resource || resource[0] == '\0') {
-        return 0;
-    }
-
-    if (strcmp(resource, "roms") == 0) {
-        return 1;
-    }
-    if (cs_platform_is_ports(platform)) {
-        return 0;
-    }
-    if (cs_platform_build_is_leaf() && strcmp(resource, "overlays") == 0) {
-        return 0;
-    }
-
-    return strcmp(resource, "saves") == 0 || strcmp(resource, "states") == 0 || strcmp(resource, "bios") == 0
-           || strcmp(resource, "overlays") == 0 || strcmp(resource, "cheats") == 0;
-}
-
-static int cs_platform_launches_via_path_core(const cs_platform_info *platform) {
-    /* NDS and PSP launch through Jawaka path cores (DraStic, PPSSPP), which
-       never appear in the libretro cores/info scan, so don't warn about a
-       missing RetroArch emulator for them. */
-    return platform
-           && (strcmp(platform->tag, "NDS") == 0 || strcmp(platform->tag, "PSP") == 0);
-}
-
-int cs_platform_requires_emulator(const cs_platform_info *platform) {
-    return platform && !cs_platform_is_ports(platform)
-           && !cs_platform_launches_via_path_core(platform);
-}
-
-int cs_platform_allows_hidden_rom_entries(const cs_platform_info *platform) {
-    return cs_platform_is_ports(platform);
-}
-
-int cs_platform_is_shortcut_directory(const char *name, const char *absolute_path) {
-    char marker_path[CS_PATH_MAX];
-    const char *basename = name;
-    int written;
-
-    if ((!basename || basename[0] == '\0') && absolute_path) {
-        basename = strrchr(absolute_path, '/');
-        basename = basename ? basename + 1 : absolute_path;
-    }
-
-    if (basename && (cs_platform_name_has_prefix(basename, CS_SHORTCUT_PREFIX)
-                     || cs_platform_name_has_prefix(basename, CS_LEGACY_SHORTCUT_PREFIX))) {
-        return 1;
-    }
-    if (!absolute_path || absolute_path[0] == '\0') {
-        return 0;
-    }
-
-    written = snprintf(marker_path, sizeof(marker_path), "%s/%s", absolute_path, CS_SHORTCUT_MARKER);
-    if (written < 0 || (size_t) written >= sizeof(marker_path)) {
-        return 0;
-    }
-
-    return cs_platform_is_regular_file_not_symlink(marker_path);
 }
 
 static int cs_platform_scan_rom_dirs(const cs_paths *paths,
@@ -950,7 +859,7 @@ static int cs_platform_emulator_code_present(const char *code,
         return 0;
     }
     for (i = 0; i < code_count; ++i) {
-        if (cs_platform_codes_equal(code, codes[i])) {
+        if (strcasecmp(code, codes[i]) == 0) {
             return 1;
         }
     }
@@ -981,104 +890,151 @@ static int cs_platform_compare_by_name(const void *a, const void *b) {
     return strcmp(left->name, right->name);
 }
 
-size_t cs_platform_count(void) {
-    return sizeof(g_platforms) / sizeof(g_platforms[0]);
+static void cs_platform_init_fallbacks(void) {
+    size_t i;
+
+    if (g_fallback_platforms_initialized) {
+        return;
+    }
+    for (i = 0; i < sizeof(g_platform_identities) / sizeof(g_platform_identities[0]); ++i) {
+        const cs_platform_identity *identity = &g_platform_identities[i];
+
+        memset(&g_fallback_platforms[i], 0, sizeof(g_fallback_platforms[i]));
+        (void) cs_write_string(g_fallback_platforms[i].tag, sizeof(g_fallback_platforms[i].tag), identity->tag);
+        (void) cs_write_string(g_fallback_platforms[i].name, sizeof(g_fallback_platforms[i].name), identity->fallback_name);
+        (void) cs_write_string(g_fallback_platforms[i].group, sizeof(g_fallback_platforms[i].group), identity->group);
+        (void) cs_write_string(g_fallback_platforms[i].icon, sizeof(g_fallback_platforms[i].icon), identity->icon);
+        (void) cs_write_string(g_fallback_platforms[i].primary_code,
+                               sizeof(g_fallback_platforms[i].primary_code),
+                               identity->primary_code);
+        (void) cs_write_string(g_fallback_platforms[i].rom_directory,
+                               sizeof(g_fallback_platforms[i].rom_directory),
+                               identity->catalog_id);
+    }
+    g_fallback_platforms_initialized = 1;
 }
 
-const cs_platform_info *cs_platform_at(size_t index) {
-    if (index >= cs_platform_count()) {
+static const cs_platform_info *cs_platform_find_fallback_by_tag(const char *tag) {
+    size_t i;
+
+    if (!tag || tag[0] == '\0') {
         return NULL;
     }
-
-    return &g_platforms[index];
-}
-
-const cs_platform_info *cs_platform_find(const char *tag) {
-    int index = cs_platform_known_index(tag);
-
-    if (index < 0) {
-        return NULL;
-    }
-
-    return &g_platforms[index];
-}
-
-int cs_platform_copy(const cs_platform_info *source, cs_platform_info *target) {
-    if (!source || !target) {
-        return -1;
-    }
-
-    *target = *source;
-    return 0;
-}
-
-int cs_platform_resolve(const cs_paths *paths, const char *tag, cs_platform_info *target) {
-    const cs_platform_info *known;
-    cs_discovered_rom_dir dirs[CS_DISCOVERED_PLATFORM_MAX];
-    char emulator_codes[CS_DISCOVERED_PLATFORM_MAX][CS_PLATFORM_CODE_MAX];
-    size_t dir_count = 0;
-    size_t emulator_code_count = 0;
-    int discovered_index;
-
-    if (!tag || !target) {
-        return -1;
-    }
-
-    known = cs_platform_find(tag);
-    if (known && cs_platform_copy(known, target) != 0) {
-        return -1;
-    }
-
-    if (!paths) {
-        return known ? 0 : -1;
-    }
-    if (known && cs_platform_is_ports(target)) {
-        return cs_platform_ports_directory_exists(paths) ? 0 : -1;
-    }
-    if (cs_platform_scan_rom_dirs(paths, dirs, CS_DISCOVERED_PLATFORM_MAX, &dir_count) != 0) {
-        return -1;
-    }
-
-    if (known) {
-        discovered_index = cs_platform_find_discovered_by_code(dirs, dir_count, target->tag);
-        if (discovered_index >= 0
-            && cs_write_string(target->rom_directory,
-                               sizeof(target->rom_directory),
-                               dirs[discovered_index].dir_name)
-                   != 0) {
-            return -1;
+    cs_platform_init_fallbacks();
+    for (i = 0; i < sizeof(g_fallback_platforms) / sizeof(g_fallback_platforms[0]); ++i) {
+        if (strcasecmp(g_fallback_platforms[i].tag, tag) == 0
+            || strcasecmp(g_fallback_platforms[i].primary_code, tag) == 0
+            || strcasecmp(g_platform_identities[i].catalog_id, tag) == 0) {
+            return &g_fallback_platforms[i];
         }
+    }
+    for (i = 0; i < sizeof(g_static_aliases) / sizeof(g_static_aliases[0]); ++i) {
+        if (strcasecmp(g_static_aliases[i].alias, tag) == 0) {
+            return cs_platform_find_fallback_by_tag(g_static_aliases[i].tag);
+        }
+    }
+    return NULL;
+}
+
+static int cs_platform_collect_core_codes_from_dir(const char *dir_path,
+                                                   char codes[][CS_PLATFORM_CODE_MAX],
+                                                   size_t *count,
+                                                   size_t capacity) {
+    DIR *dir;
+    struct dirent *entry;
+
+    if (!dir_path || !codes || !count) {
+        return -1;
+    }
+
+    dir = opendir(dir_path);
+    if (!dir) {
         return 0;
     }
 
-    /* Custom platform: only resolve when a matching Leaf core/info file is installed. */
-    discovered_index = cs_platform_find_discovered_by_code(dirs, dir_count, tag);
-    if (discovered_index < 0) {
-        return -1;
-    }
-    if (cs_platform_collect_installed_emulators(paths,
-                                                emulator_codes,
-                                                CS_DISCOVERED_PLATFORM_MAX,
-                                                &emulator_code_count)
-        != 0) {
-        return -1;
-    }
-    if (!cs_platform_emulator_code_present(tag,
-                                           (const char (*)[CS_PLATFORM_CODE_MAX]) emulator_codes,
-                                           emulator_code_count)) {
-        return -1;
+    while ((entry = readdir(dir)) != NULL) {
+        char code[CS_PLATFORM_CODE_MAX];
+        char absolute_path[CS_PATH_MAX];
+        size_t suffix_len = strlen("_libretro.so");
+        size_t name_len;
+        size_t code_len;
+        size_t i;
+
+        if (entry->d_name[0] == '.') {
+            continue;
+        }
+        name_len = strlen(entry->d_name);
+        if (name_len <= suffix_len
+            || strcmp(entry->d_name + name_len - suffix_len, "_libretro.so") != 0) {
+            continue;
+        }
+        code_len = name_len - suffix_len;
+        if (code_len == 0 || code_len >= sizeof(code)) {
+            continue;
+        }
+        if (snprintf(absolute_path, sizeof(absolute_path), "%s/%s", dir_path, entry->d_name) < 0
+            || !cs_platform_is_regular_file_not_symlink(absolute_path)) {
+            continue;
+        }
+        for (i = 0; i < code_len; ++i) {
+            unsigned char ch = (unsigned char) entry->d_name[i];
+
+            if (ch >= 'a' && ch <= 'z') {
+                ch = (unsigned char) (ch - 'a' + 'A');
+            }
+            code[i] = (char) ch;
+        }
+        code[code_len] = '\0';
+        if (!cs_platform_component_is_safe(code)) {
+            continue;
+        }
+        if (cs_platform_emulator_code_present(code, (const char (*)[CS_PLATFORM_CODE_MAX]) codes, *count)) {
+            continue;
+        }
+        if (*count >= capacity || cs_write_string(codes[*count], CS_PLATFORM_CODE_MAX, code) != 0) {
+            closedir(dir);
+            return -1;
+        }
+        *count += 1;
     }
 
-    return cs_platform_build_custom(&dirs[discovered_index], target);
+    closedir(dir);
+    return 0;
 }
 
-int cs_platform_discover(const cs_paths *paths,
-                         cs_platform_info *platforms,
-                         size_t capacity,
-                         size_t *count_out) {
+static int cs_platform_runtime_views(const cs_paths *paths,
+                                     cs_modeled_platform *views,
+                                     size_t capacity,
+                                     size_t *count_out,
+                                     cs_catalog_error *error_out) {
+    cs_catalog catalog = {0};
+    int status;
+
+    if (count_out) {
+        *count_out = 0;
+    }
+    if (!paths || !views || capacity == 0) {
+        return -1;
+    }
+    status = cs_catalog_load(paths->systems_catalog_path, paths->cores_catalog_path, &catalog, error_out);
+    if (status != 0) {
+        return -1;
+    }
+    status = cs_platform_build_visible_views(paths, &catalog, views, capacity, count_out);
+    cs_catalog_free(&catalog);
+    return status;
+}
+
+static int cs_platform_discover_internal(const cs_paths *paths,
+                                         cs_platform_info *platforms,
+                                         size_t capacity,
+                                         size_t *count_out,
+                                         cs_catalog_error *error_out) {
     cs_discovered_rom_dir dirs[CS_DISCOVERED_PLATFORM_MAX];
+    cs_modeled_platform *views;
     char emulator_codes[CS_DISCOVERED_PLATFORM_MAX][CS_PLATFORM_CODE_MAX];
     size_t dir_count = 0;
+    size_t view_count = 0;
     size_t emulator_code_count = 0;
     size_t count = 0;
     size_t custom_start;
@@ -1090,37 +1046,45 @@ int cs_platform_discover(const cs_paths *paths,
     if (!paths || !platforms || capacity == 0) {
         return -1;
     }
+    views = (cs_modeled_platform *) calloc(CS_MODELED_PLATFORM_MAX, sizeof(views[0]));
+    if (!views) {
+        return -1;
+    }
+    if (cs_platform_runtime_views(paths, views, CS_MODELED_PLATFORM_MAX, &view_count, error_out) != 0) {
+        free(views);
+        return -1;
+    }
     if (cs_platform_scan_rom_dirs(paths, dirs, CS_DISCOVERED_PLATFORM_MAX, &dir_count) != 0) {
+        free(views);
         return -1;
     }
 
-    for (i = 0; i < cs_platform_count() && count < capacity; ++i) {
-        if (cs_platform_is_ports(&g_platforms[i]) && !cs_platform_ports_directory_exists(paths)) {
-            continue;
-        }
+    for (i = 0; i < view_count && count < capacity; ++i) {
+        int discovered_index = -1;
 
-        platforms[count] = g_platforms[i];
-
+        platforms[count] = views[i].info;
         {
-            int discovered_index =
-                cs_platform_find_discovered_by_code(dirs, dir_count, platforms[count].tag);
+            size_t dir_index;
 
-            if (discovered_index >= 0
-                && cs_write_string(platforms[count].rom_directory,
-                                   sizeof(platforms[count].rom_directory),
-                                   dirs[discovered_index].dir_name)
-                       != 0) {
-                return -1;
+            for (dir_index = 0; dir_index < dir_count; ++dir_index) {
+                if (cs_platform_view_matches_value(&views[i], dirs[dir_index].system_code)
+                    || cs_platform_view_matches_value(&views[i], dirs[dir_index].dir_name)) {
+                    discovered_index = (int) dir_index;
+                    break;
+                }
             }
         }
-
+        if (discovered_index >= 0
+            && cs_write_string(platforms[count].rom_directory,
+                               sizeof(platforms[count].rom_directory),
+                               dirs[discovered_index].dir_name)
+                   != 0) {
+            free(views);
+            return -1;
+        }
         count += 1;
     }
 
-    /* Surface user-added rom directories whose code matches an installed Leaf core/info file.
-       Gating on the installed emulator list avoids exposing incidental folders like
-       "Textures (GL)" while still picking up real systems the user added themselves
-       (e.g. a "QUICKNES" folder once a quicknes core/info file ships). */
     custom_start = count;
     if (cs_platform_collect_installed_emulators(paths,
                                                 emulator_codes,
@@ -1133,7 +1097,7 @@ int cs_platform_discover(const cs_paths *paths,
     for (i = 0; i < dir_count && count < capacity; ++i) {
         cs_platform_info entry;
 
-        if (cs_platform_known_index(dirs[i].system_code) >= 0) {
+        if (cs_platform_find_view_for_discovered_dir(views, view_count, &dirs[i]) >= 0) {
             continue;
         }
         if (!cs_platform_emulator_code_present(dirs[i].system_code,
@@ -1142,6 +1106,7 @@ int cs_platform_discover(const cs_paths *paths,
             continue;
         }
         if (cs_platform_build_custom(&dirs[i], &entry) != 0) {
+            free(views);
             return -1;
         }
         platforms[count++] = entry;
@@ -1157,7 +1122,88 @@ int cs_platform_discover(const cs_paths *paths,
     if (count_out) {
         *count_out = count;
     }
+    free(views);
     return 0;
+}
+
+size_t cs_platform_count(void) {
+    return sizeof(g_fallback_platforms) / sizeof(g_fallback_platforms[0]);
+}
+
+const cs_platform_info *cs_platform_at(size_t index) {
+    cs_platform_init_fallbacks();
+    if (index >= cs_platform_count()) {
+        return NULL;
+    }
+
+    return &g_fallback_platforms[index];
+}
+
+const cs_platform_info *cs_platform_find(const char *tag) {
+    return cs_platform_find_fallback_by_tag(tag);
+}
+
+int cs_platform_copy(const cs_platform_info *source, cs_platform_info *target) {
+    if (!source || !target) {
+        return -1;
+    }
+
+    *target = *source;
+    return 0;
+}
+
+int cs_platform_resolve(const cs_paths *paths, const char *tag, cs_platform_info *target) {
+    cs_platform_info platforms[CS_MODELED_PLATFORM_MAX];
+    const cs_platform_info *fallback = NULL;
+    const char *resolved_tag = tag;
+    size_t platform_count = 0;
+    size_t i;
+
+    if (!tag || !target) {
+        return -1;
+    }
+    if (!paths) {
+        fallback = cs_platform_find(tag);
+        return fallback ? cs_platform_copy(fallback, target) : -1;
+    }
+    fallback = cs_platform_find(tag);
+    if (fallback) {
+        resolved_tag = fallback->tag;
+    }
+
+    if (cs_platform_discover_internal(paths,
+                                      platforms,
+                                      sizeof(platforms) / sizeof(platforms[0]),
+                                      &platform_count,
+                                      NULL)
+        != 0) {
+        return -1;
+    }
+    for (i = 0; i < platform_count; ++i) {
+        if (strcasecmp(platforms[i].tag, resolved_tag) == 0
+            || strcasecmp(platforms[i].tag, tag) == 0
+            || strcasecmp(platforms[i].primary_code, tag) == 0
+            || strcasecmp(platforms[i].rom_directory, tag) == 0) {
+            *target = platforms[i];
+            return 0;
+        }
+    }
+    return -1;
+}
+
+int cs_platform_discover_with_error(const cs_paths *paths,
+                                    cs_platform_info *platforms,
+                                    size_t capacity,
+                                    size_t *count_out,
+                                    cs_catalog_error *error_out) {
+    return cs_platform_discover_internal(paths, platforms, capacity, count_out, error_out);
+}
+
+int cs_platform_discover(const cs_paths *paths,
+                         cs_platform_info *platforms,
+                         size_t capacity,
+                         size_t *count_out) {
+    return cs_platform_discover_internal(paths, platforms, capacity, count_out, NULL);
 }
 
 int cs_platform_parse_rom_directory(const char *dir_name,
@@ -1200,6 +1246,60 @@ int cs_platform_parse_rom_directory(const char *dir_name,
     return 0;
 }
 
+int cs_platform_supports_resource(const cs_platform_info *platform, const char *resource) {
+    if (!platform || !resource || resource[0] == '\0') {
+        return 0;
+    }
+
+    if (strcmp(resource, "roms") == 0) {
+        return 1;
+    }
+    if (cs_platform_is_ports(platform)) {
+        return 0;
+    }
+    if (cs_platform_build_is_leaf() && strcmp(resource, "overlays") == 0) {
+        return 0;
+    }
+
+    return strcmp(resource, "saves") == 0 || strcmp(resource, "states") == 0 || strcmp(resource, "bios") == 0
+           || strcmp(resource, "overlays") == 0 || strcmp(resource, "cheats") == 0;
+}
+
+int cs_platform_requires_emulator(const cs_platform_info *platform) {
+    (void) platform;
+    return 0;
+}
+
+int cs_platform_allows_hidden_rom_entries(const cs_platform_info *platform) {
+    return cs_platform_is_ports(platform);
+}
+
+int cs_platform_is_shortcut_directory(const char *name, const char *absolute_path) {
+    char marker_path[CS_PATH_MAX];
+    const char *basename = name;
+    int written;
+
+    if ((!basename || basename[0] == '\0') && absolute_path) {
+        basename = strrchr(absolute_path, '/');
+        basename = basename ? basename + 1 : absolute_path;
+    }
+
+    if (basename && (cs_platform_name_has_prefix(basename, CS_SHORTCUT_PREFIX)
+                     || cs_platform_name_has_prefix(basename, CS_LEGACY_SHORTCUT_PREFIX))) {
+        return 1;
+    }
+    if (!absolute_path || absolute_path[0] == '\0') {
+        return 0;
+    }
+
+    written = snprintf(marker_path, sizeof(marker_path), "%s/%s", absolute_path, CS_SHORTCUT_MARKER);
+    if (written < 0 || (size_t) written >= sizeof(marker_path)) {
+        return 0;
+    }
+
+    return cs_platform_is_regular_file_not_symlink(marker_path);
+}
+
 int cs_platform_collect_installed_emulators(const cs_paths *paths,
                                             char codes[][CS_PLATFORM_CODE_MAX],
                                             size_t capacity,
@@ -1213,19 +1313,8 @@ int cs_platform_collect_installed_emulators(const cs_paths *paths,
         return -1;
     }
 
-    if (cs_platform_is_directory(paths->cores_root) || cs_platform_is_directory(paths->info_root)) {
-        /* Leaf exposes RetroArch core IDs rather than per-system emulator paks.
-         * Keep raw core IDs for custom ROM folders and add known Leaf platform
-         * tags through the mapping table above.
-         */
-        if (cs_platform_collect_leaf_codes_from_dir(paths->cores_root, codes, &count, capacity) != 0
-            || cs_platform_collect_leaf_codes_from_dir(paths->info_root, codes, &count, capacity) != 0) {
-            return -1;
-        }
-        if (count_out) {
-            *count_out = count;
-        }
-        return 0;
+    if (cs_platform_collect_core_codes_from_dir(paths->cores_root, codes, &count, capacity) != 0) {
+        return -1;
     }
 
     if (count_out) {
@@ -1237,21 +1326,7 @@ int cs_platform_collect_installed_emulators(const cs_paths *paths,
 int cs_platform_has_installed_emulator(const cs_platform_info *platform,
                                        const char codes[][CS_PLATFORM_CODE_MAX],
                                        size_t code_count) {
-    size_t i;
-
-    if (!platform || !codes) {
-        return 0;
-    }
-    if (!cs_platform_requires_emulator(platform)) {
-        return 1;
-    }
-
-    /* Runtime support is tag-exact; aliases such as MGBA/SUPA/SGB report independently. */
-    for (i = 0; i < code_count; ++i) {
-        if (cs_platform_codes_equal(platform->tag, codes[i])) {
-            return 1;
-        }
-    }
-
-    return 0;
+    (void) codes;
+    (void) code_count;
+    return platform ? 1 : 0;
 }

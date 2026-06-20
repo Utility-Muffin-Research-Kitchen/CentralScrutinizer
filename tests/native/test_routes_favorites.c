@@ -209,6 +209,16 @@ static int favorite_count(const char *db_path) {
     return count;
 }
 
+static void seed_mock_core(const char *root, const char *file_name) {
+    char cores_dir[CS_PATH_MAX];
+    char core_path[CS_PATH_MAX];
+
+    assert(snprintf(cores_dir, sizeof(cores_dir), "%s/.system/leaf/platforms/mlp1/cores", root) > 0);
+    make_dir_p(cores_dir);
+    assert(snprintf(core_path, sizeof(core_path), "%s/%s", cores_dir, file_name) > 0);
+    write_file(core_path, "core");
+}
+
 int main(void) {
     char template[] = "/tmp/cs-routes-favorites-XXXXXX";
     char *root;
@@ -239,6 +249,7 @@ int main(void) {
     make_dir(system_dir);
     make_dir_p(state_dir);
     write_file(rom_path, "rom");
+    seed_mock_core(root, "mgba_libretro.so");
 
     assert(sqlite3_open(db_path, &db) == SQLITE_OK);
     assert(sqlite3_exec(db,
@@ -267,6 +278,14 @@ int main(void) {
     assert(sqlite3_close(db) == SQLITE_OK);
 
     assert(setenv("SDCARD_PATH", root, 1) == 0);
+    assert(setenv("SYSTEMS_CATALOG_PATH",
+                  "fixtures/mock_sdcard/.system/leaf/platforms/mlp1/defaults/systems.json",
+                  1)
+           == 0);
+    assert(setenv("CORES_CATALOG_PATH",
+                  "fixtures/mock_sdcard/.system/leaf/platforms/mlp1/defaults/cores.json",
+                  1)
+           == 0);
     assert(setenv("UMRK_INTERNAL_DATA_PATH", state_dir, 1) == 0);
     assert(setenv("CS_WEB_ROOT", web_root, 1) == 0);
     assert(setenv("CS_PAIRING_CODE", "7391", 1) == 0);
@@ -329,6 +348,8 @@ int main(void) {
     assert(unsetenv("CS_PAIRING_CODE") == 0);
     assert(unsetenv("CS_WEB_ROOT") == 0);
     assert(unsetenv("UMRK_INTERNAL_DATA_PATH") == 0);
+    assert(unsetenv("CORES_CATALOG_PATH") == 0);
+    assert(unsetenv("SYSTEMS_CATALOG_PATH") == 0);
     assert(unsetenv("SDCARD_PATH") == 0);
     return 0;
 }

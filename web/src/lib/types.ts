@@ -25,9 +25,6 @@ export type PlatformSummary = {
   group: string;
   icon: string;
   isCustom: boolean;
-  requiresEmulator: boolean;
-  emulatorInstalled: boolean;
-  emulatorWarning: string | null;
   romPath: string;
   savePath: string;
   biosPath: string;

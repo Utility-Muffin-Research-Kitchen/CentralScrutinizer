@@ -25,14 +25,6 @@ function supportedResources() {
   };
 }
 
-function emulatorState() {
-  return {
-    requiresEmulator: true,
-    emulatorInstalled: true,
-    emulatorWarning: null,
-  };
-}
-
 describe("SaveStatesView", () => {
   afterEach(() => {
     cleanup();
@@ -82,7 +74,6 @@ describe("SaveStatesView", () => {
           group: "Nintendo",
           icon: "GBA",
           isCustom: false,
-          ...emulatorState(),
           romPath: "Roms/Game Boy Advance (GBA)",
           savePath: "Saves/GBA",
           biosPath: "BIOS/GBA",
@@ -151,7 +142,6 @@ describe("SaveStatesView", () => {
           group: "Nintendo",
           icon: "GBA",
           isCustom: false,
-          ...emulatorState(),
           romPath: "Roms/Game Boy Advance (GBA)",
           savePath: "Saves/GBA",
           biosPath: "BIOS/GBA",
@@ -222,7 +212,6 @@ describe("SaveStatesView", () => {
           group: "Nintendo",
           icon: "GBA",
           isCustom: false,
-          ...emulatorState(),
           romPath: "Roms/Game Boy Advance (GBA)",
           savePath: "Saves/GBA",
           biosPath: "BIOS/GBA",
@@ -278,7 +267,6 @@ describe("SaveStatesView", () => {
           group: "Nintendo",
           icon: "GBA",
           isCustom: false,
-          ...emulatorState(),
           romPath: "Roms/Game Boy Advance (GBA)",
           savePath: "Saves/GBA",
           biosPath: "BIOS/GBA",

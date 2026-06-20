@@ -14,17 +14,6 @@ function supportedResources() {
   };
 }
 
-function emulatorState(
-  overrides: Partial<{ requiresEmulator: boolean; emulatorInstalled: boolean; emulatorWarning: string | null }> = {},
-) {
-  return {
-    requiresEmulator: true,
-    emulatorInstalled: true,
-    emulatorWarning: null,
-    ...overrides,
-  };
-}
-
 describe("PlatformGrid", () => {
   it("renders grouped platform cards", () => {
     render(
@@ -39,7 +28,6 @@ describe("PlatformGrid", () => {
                 group: "Nintendo",
                 icon: "GBA",
                 isCustom: false,
-                ...emulatorState(),
                 romPath: "Roms/Game Boy Advance (GBA)",
                 savePath: "Saves/GBA",
                 biosPath: "BIOS/GBA",
@@ -71,7 +59,6 @@ describe("PlatformGrid", () => {
                 group: "Nintendo",
                 icon: "GBA",
                 isCustom: false,
-                ...emulatorState({ emulatorInstalled: false, emulatorWarning: "Missing GBA emulator." }),
                 romPath: "Roms/Game Boy Advance (GBA)",
                 savePath: "Saves/GBA",
                 biosPath: "BIOS/GBA",
@@ -84,7 +71,6 @@ describe("PlatformGrid", () => {
                 group: "Nintendo",
                 icon: "MGBA",
                 isCustom: false,
-                ...emulatorState(),
                 romPath: "Roms/Game Boy Advance (MGBA)",
                 savePath: "Saves/MGBA",
                 biosPath: "BIOS/MGBA",
@@ -100,6 +86,6 @@ describe("PlatformGrid", () => {
 
     expect(screen.getByText("Game Boy Advance (GBA)")).toBeTruthy();
     expect(screen.getByText("Game Boy Advance (MGBA)")).toBeTruthy();
-    expect(screen.getByText("Missing emulator")).toBeTruthy();
+    expect(screen.queryByText("Missing emulator")).toBeNull();
   });
 });

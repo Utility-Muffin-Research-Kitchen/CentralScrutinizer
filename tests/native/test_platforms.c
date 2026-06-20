@@ -1,333 +1,28 @@
 #include <assert.h>
 #include <limits.h>
-#include <stddef.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <sys/stat.h>
 #include <unistd.h>
 
+#include "cs_catalog.h"
 #include "cs_paths.h"
 #include "cs_platforms.h"
 
 static void make_dir(const char *path) {
     char tmp[PATH_MAX];
+    char *p;
+
     snprintf(tmp, sizeof(tmp), "%s", path);
-    for (char *p = tmp + 1; *p != '\0'; p++) {
-        if (*p == '/') { *p = '\0'; mkdir(tmp, 0700); *p = '/'; }
-    }
-    assert(mkdir(path, 0700) == 0);
-}
-
-static void write_file(const char *path, const char *content);
-
-static void set_sdcard_root_realpath(const char *root) {
-    char resolved[PATH_MAX];
-
-    assert(realpath(root, resolved) != NULL);
-    assert(setenv("SDCARD_PATH", resolved, 1) == 0);
-    unsetenv("CS_WEB_ROOT");
-}
-
-static const cs_platform_info *find_platform_entry(const cs_platform_info *platforms,
-                                                   size_t count,
-                                                   const char *tag) {
-    size_t i;
-
-    assert(platforms != NULL);
-    assert(tag != NULL);
-
-    for (i = 0; i < count; ++i) {
-        if (strcmp(platforms[i].tag, tag) == 0) {
-            return &platforms[i];
+    for (p = tmp + 1; *p != '\0'; p++) {
+        if (*p == '/') {
+            *p = '\0';
+            mkdir(tmp, 0700);
+            *p = '/';
         }
     }
-
-    return NULL;
-}
-
-static int has_emulator_code(const char codes[][CS_PLATFORM_CODE_MAX], size_t count, const char *code) {
-    size_t i;
-
-    for (i = 0; i < count; ++i) {
-        if (strcmp(codes[i], code) == 0) {
-            return 1;
-        }
-    }
-    return 0;
-}
-
-static void assert_known_icon(const char *tag, const char *icon) {
-    const cs_platform_info *info = cs_platform_find(tag);
-
-    assert(info != NULL);
-    assert(strcmp(info->icon, icon) == 0);
-}
-
-static void test_static_platform_metadata(void) {
-    size_t count = cs_platform_count();
-    const cs_platform_info *info;
-    size_t i;
-
-    assert(count > 0);
-
-    info = cs_platform_at(0);
-    assert(info != NULL);
-    assert(info->tag[0] != '\0');
-    assert(info->name[0] != '\0');
-    assert(info->group[0] != '\0');
-    assert(info->icon[0] != '\0');
-    assert(info->primary_code[0] != '\0');
-    assert(info->rom_directory[0] != '\0');
-
-    assert(cs_platform_at(count) == NULL);
-    assert(cs_platform_at(count + 100) == NULL);
-
-    for (i = 0; i < count; ++i) {
-        const cs_platform_info *entry = cs_platform_at(i);
-        const cs_platform_info *round_trip;
-
-        assert(entry != NULL);
-        assert(entry->tag[0] != '\0');
-
-        round_trip = cs_platform_find(entry->tag);
-        assert(round_trip == entry);
-    }
-
-    assert(cs_platform_find(NULL) == NULL);
-    assert(cs_platform_find("") == NULL);
-    assert(cs_platform_find("DOES_NOT_EXIST") == NULL);
-
-    /* Codes resolve case-insensitively, mirroring Jawaka's folder matching. */
-    info = cs_platform_find("nes");
-    assert(info != NULL);
-    assert(strcmp(info->primary_code, "FC") == 0);
-
-    info = cs_platform_find("PS");
-    assert(info != NULL);
-    assert(strcmp(info->tag, "PS") == 0);
-    assert(strcmp(info->group, "Sony") == 0);
-    assert(strcmp(info->rom_directory, "PS") == 0);
-
-    info = cs_platform_find("SNES");
-    assert(info != NULL);
-    assert(strcmp(info->primary_code, "SFC") == 0);
-    assert(strcmp(info->rom_directory, "SFC") == 0);
-
-    info = cs_platform_find("NES");
-    assert(info != NULL);
-    assert(strcmp(info->primary_code, "FC") == 0);
-
-    info = cs_platform_find("N64");
-    assert(info != NULL);
-    assert(strcmp(info->name, "Nintendo 64") == 0);
-    assert(strcmp(info->group, "Nintendo") == 0);
-    assert(strcmp(info->rom_directory, "N64") == 0);
-
-    /* Jawaka system ids and folder patterns resolve to the same platforms. */
-    info = cs_platform_find("ARCADE");
-    assert(info != NULL);
-    assert(strcmp(info->tag, "FBN") == 0);
-    assert(strcmp(info->rom_directory, "ARCADE") == 0);
-
-    info = cs_platform_find("PSX");
-    assert(info != NULL);
-    assert(strcmp(info->tag, "PS") == 0);
-
-    info = cs_platform_find("PICO8");
-    assert(info != NULL);
-    assert(strcmp(info->tag, "P8") == 0);
-    assert(strcmp(info->rom_directory, "PICO8") == 0);
-
-    info = cs_platform_find("MS");
-    assert(info != NULL);
-    assert(strcmp(info->tag, "SMS") == 0);
-    assert(strcmp(info->rom_directory, "MS") == 0);
-
-    info = cs_platform_find("SEVENTYEIGHTHUNDRED");
-    assert(info != NULL);
-    assert(strcmp(info->tag, "A7800") == 0);
-    assert(strcmp(info->rom_directory, "SEVENTYEIGHTHUNDRED") == 0);
-
-    info = cs_platform_find("DC");
-    assert(info != NULL);
-    assert(strcmp(info->name, "Dreamcast") == 0);
-    assert(strcmp(info->group, "Sega") == 0);
-
-    info = cs_platform_find("SATURN");
-    assert(info != NULL);
-    assert(strcmp(info->name, "Sega Saturn") == 0);
-
-    info = cs_platform_find("NEOGEO");
-    assert(info != NULL);
-    assert(strcmp(info->group, "SNK") == 0);
-
-    info = cs_platform_find("WS");
-    assert(info != NULL);
-    assert(strcmp(info->group, "Bandai") == 0);
-
-    assert_known_icon("CPC", "CPC");
-    assert_known_icon("C128", "C128");
-    assert_known_icon("C64", "C64");
-    assert_known_icon("MSX", "MSX");
-    assert_known_icon("P8", "PICO8");
-    assert_known_icon("PCECD", "PCE");
-    assert_known_icon("VIC", "VIC20");
-}
-
-static void test_portmaster_platform_metadata(void) {
-    const cs_platform_info *info = cs_platform_find("PORTS");
-
-    assert(info != NULL);
-    assert(strcmp(info->name, "Ports") == 0);
-    assert(strcmp(info->group, "PortMaster") == 0);
-    assert(strcmp(info->icon, "PORTMASTER") == 0);
-    assert(strcmp(info->rom_directory, "PORTS") == 0);
-    assert(cs_platform_supports_resource(info, "roms") == 1);
-    assert(cs_platform_supports_resource(info, "saves") == 0);
-    assert(cs_platform_supports_resource(info, "states") == 0);
-    assert(cs_platform_supports_resource(info, "bios") == 0);
-    assert(cs_platform_supports_resource(info, "overlays") == 0);
-    assert(cs_platform_supports_resource(info, "cheats") == 0);
-    assert(cs_platform_requires_emulator(info) == 0);
-    assert(cs_platform_allows_hidden_rom_entries(info) == 1);
-}
-
-static void test_path_core_platforms_do_not_require_emulator(void) {
-    const cs_platform_info *nds = cs_platform_find("NDS");
-    const cs_platform_info *psp = cs_platform_find("PSP");
-    const cs_platform_info *gw = cs_platform_find("GW");
-
-    /* NDS and PSP launch via Jawaka path cores, so the missing-libretro-core
-       warning must not apply; saves and friends are still browsable. */
-    assert(nds != NULL);
-    assert(strcmp(nds->rom_directory, "NDS") == 0);
-    assert(cs_platform_requires_emulator(nds) == 0);
-    assert(cs_platform_supports_resource(nds, "roms") == 1);
-    assert(cs_platform_supports_resource(nds, "saves") == 1);
-    assert(cs_platform_allows_hidden_rom_entries(nds) == 0);
-
-    assert(psp != NULL);
-    assert(strcmp(psp->rom_directory, "PSP") == 0);
-    assert(cs_platform_requires_emulator(psp) == 0);
-
-    /* Game & Watch runs through a regular libretro core. */
-    assert(gw != NULL);
-    assert(cs_platform_requires_emulator(gw) == 1);
-}
-
-static void test_leaf_standard_platform_resources(void) {
-    const cs_platform_info *info = cs_platform_find("GBA");
-
-    assert(info != NULL);
-    assert(cs_platform_supports_resource(info, "roms") == 1);
-    assert(cs_platform_supports_resource(info, "saves") == 1);
-    assert(cs_platform_supports_resource(info, "states") == 1);
-    assert(cs_platform_supports_resource(info, "bios") == 1);
-    assert(cs_platform_supports_resource(info, "overlays") == 0);
-    assert(cs_platform_supports_resource(info, "cheats") == 1);
-}
-
-static void test_parse_rejects_unsafe_custom_platform_codes(void) {
-    char system_name[128];
-    char system_code[32];
-
-    assert(cs_platform_parse_rom_directory("Custom Platform (CUSTOM)", system_name, sizeof(system_name), system_code, sizeof(system_code))
-           == 0);
-    assert(strcmp(system_name, "Custom Platform") == 0);
-    assert(strcmp(system_code, "CUSTOM") == 0);
-
-    assert(cs_platform_parse_rom_directory("Unsafe (..)", system_name, sizeof(system_name), system_code, sizeof(system_code))
-           == -1);
-    assert(cs_platform_parse_rom_directory("Unsafe (.hidden)", system_name, sizeof(system_name), system_code, sizeof(system_code))
-           == -1);
-    assert(cs_platform_parse_rom_directory("Unsafe (BAD/CODE)", system_name, sizeof(system_name), system_code, sizeof(system_code))
-           == -1);
-}
-
-static void test_alias_rom_directories_are_resolved(void) {
-    char template[] = "/tmp/cs-platforms-XXXXXX";
-    char *root;
-    char roms_dir[PATH_MAX];
-    char nes_dir[PATH_MAX];
-    cs_paths paths = {0};
-    cs_platform_info resolved = {0};
-    cs_platform_info discovered[256];
-    size_t discovered_count = 0;
-    const cs_platform_info *fc;
-
-    root = mkdtemp(template);
-    assert(root != NULL);
-    assert(snprintf(roms_dir, sizeof(roms_dir), "%s/Roms", root) > 0);
-    assert(snprintf(nes_dir, sizeof(nes_dir), "%s/Roms/Nintendo Entertainment System (NES)", root) > 0);
-
-    make_dir(roms_dir);
-    make_dir(nes_dir);
-
-    set_sdcard_root_realpath(root);
-    assert(cs_paths_init(&paths) == 0);
-
-    assert(cs_platform_discover(&paths,
-                                discovered,
-                                sizeof(discovered) / sizeof(discovered[0]),
-                                &discovered_count)
-           == 0);
-    fc = find_platform_entry(discovered, discovered_count, "FC");
-    assert(fc != NULL);
-    assert(strcmp(fc->rom_directory, "Nintendo Entertainment System (NES)") == 0);
-
-    assert(cs_platform_resolve(&paths, "FC", &resolved) == 0);
-    assert(strcmp(resolved.rom_directory, "Nintendo Entertainment System (NES)") == 0);
-    assert(cs_platform_resolve(&paths, "NES", &resolved) == 0);
-    assert(strcmp(resolved.rom_directory, "Nintendo Entertainment System (NES)") == 0);
-
-    assert(rmdir(nes_dir) == 0);
-    assert(rmdir(roms_dir) == 0);
-    assert(rmdir(root) == 0);
-}
-
-static void test_shortcut_directories_are_excluded_from_discovery(void) {
-    char template[] = "/tmp/cs-platforms-shortcuts-XXXXXX";
-    char *root;
-    char roms_dir[PATH_MAX];
-    char shortcut_dir[PATH_MAX];
-    char shortcut_marker[PATH_MAX];
-    cs_paths paths = {0};
-    cs_platform_info discovered[256];
-    cs_platform_info resolved = {0};
-    size_t discovered_count = 0;
-    const cs_platform_info *md;
-
-    root = mkdtemp(template);
-    assert(root != NULL);
-    assert(snprintf(roms_dir, sizeof(roms_dir), "%s/Roms", root) > 0);
-    assert(snprintf(shortcut_dir, sizeof(shortcut_dir), "%s/Roms/0) Sonic - Spindash (MD)", root) > 0);
-    assert(snprintf(shortcut_marker, sizeof(shortcut_marker), "%s/.shortcut", shortcut_dir) > 0);
-
-    make_dir(roms_dir);
-    make_dir(shortcut_dir);
-    write_file(shortcut_marker, "Sonic - Spindash");
-
-    set_sdcard_root_realpath(root);
-    assert(cs_paths_init(&paths) == 0);
-    assert(cs_platform_discover(&paths,
-                                discovered,
-                                sizeof(discovered) / sizeof(discovered[0]),
-                                &discovered_count)
-           == 0);
-
-    md = find_platform_entry(discovered, discovered_count, "MD");
-    assert(md != NULL);
-    assert(strcmp(md->rom_directory, "MD") == 0);
-    assert(cs_platform_resolve(&paths, "MD", &resolved) == 0);
-    assert(strcmp(resolved.rom_directory, "MD") == 0);
-    assert(cs_platform_is_shortcut_directory("0) Sonic - Spindash (MD)", shortcut_dir) == 1);
-    assert(cs_platform_is_shortcut_directory("\xE2\x98\x85 Old Shortcut (MD)", "/tmp/legacy-shortcut") == 1);
-
-    assert(remove(shortcut_marker) == 0);
-    assert(rmdir(shortcut_dir) == 0);
-    assert(rmdir(roms_dir) == 0);
-    assert(rmdir(root) == 0);
+    assert(mkdir(path, 0700) == 0 || access(path, F_OK) == 0);
 }
 
 static void write_file(const char *path, const char *content) {
@@ -338,381 +33,422 @@ static void write_file(const char *path, const char *content) {
     assert(fclose(file) == 0);
 }
 
-static void test_custom_rom_directories_are_not_exposed_in_library(void) {
-    char template[] = "/tmp/cs-platforms-custom-XXXXXX";
-    char *root;
-    char roms_dir[PATH_MAX];
-    char textures_dir[PATH_MAX];
-    char dreamcast_dir[PATH_MAX];
-    char textures_file[PATH_MAX];
-    char dreamcast_file[PATH_MAX];
-    cs_paths paths = {0};
-    cs_platform_info discovered[256];
-    cs_platform_info resolved = {0};
-    size_t discovered_count = 0;
-
-    root = mkdtemp(template);
-    assert(root != NULL);
-    assert(snprintf(roms_dir, sizeof(roms_dir), "%s/Roms", root) > 0);
-    assert(snprintf(textures_dir, sizeof(textures_dir), "%s/Roms/Textures (GL)", root) > 0);
-    assert(snprintf(dreamcast_dir, sizeof(dreamcast_dir), "%s/Roms/Dreamcast (FLYCAST)", root) > 0);
-    assert(snprintf(textures_file, sizeof(textures_file), "%s/logo.png", textures_dir) > 0);
-    assert(snprintf(dreamcast_file, sizeof(dreamcast_file), "%s/sonic.cdi", dreamcast_dir) > 0);
-
-    make_dir(roms_dir);
-    make_dir(textures_dir);
-    make_dir(dreamcast_dir);
-    write_file(textures_file, "png");
-    write_file(dreamcast_file, "cdi");
-
-    set_sdcard_root_realpath(root);
-    assert(cs_paths_init(&paths) == 0);
-    assert(cs_platform_discover(&paths,
-                                discovered,
-                                sizeof(discovered) / sizeof(discovered[0]),
-                                &discovered_count)
-           == 0);
-
-    assert(find_platform_entry(discovered, discovered_count, "GL") == NULL);
-    assert(find_platform_entry(discovered, discovered_count, "FLYCAST") == NULL);
-    assert(cs_platform_resolve(&paths, "GL", &resolved) == -1);
-    assert(cs_platform_resolve(&paths, "FLYCAST", &resolved) == -1);
-
-    assert(remove(textures_file) == 0);
-    assert(remove(dreamcast_file) == 0);
-    assert(rmdir(textures_dir) == 0);
-    assert(rmdir(dreamcast_dir) == 0);
-    assert(rmdir(roms_dir) == 0);
-    assert(rmdir(root) == 0);
+static void path_join(char *dst, size_t dst_size, const char *left, const char *right) {
+    assert(snprintf(dst, dst_size, "%s/%s", left, right) > 0);
 }
 
-static void test_missing_known_rom_directory_uses_canonical_leaf_name(void) {
-    char template[] = "/tmp/cs-platforms-canonical-XXXXXX";
-    char *root;
-    char roms_dir[PATH_MAX];
-    cs_paths paths = {0};
-    cs_platform_info discovered[256];
-    cs_platform_info resolved = {0};
-    size_t discovered_count = 0;
-    const cs_platform_info *gba;
+static void set_sdcard_root_realpath(const char *root) {
+    char resolved[PATH_MAX];
 
-    root = mkdtemp(template);
-    assert(root != NULL);
-    assert(snprintf(roms_dir, sizeof(roms_dir), "%s/Roms", root) > 0);
-    make_dir(roms_dir);
-
-    set_sdcard_root_realpath(root);
-    assert(cs_paths_init(&paths) == 0);
-    assert(cs_platform_discover(&paths,
-                                discovered,
-                                sizeof(discovered) / sizeof(discovered[0]),
-                                &discovered_count)
-           == 0);
-
-    gba = find_platform_entry(discovered, discovered_count, "GBA");
-    assert(gba != NULL);
-    assert(strcmp(gba->rom_directory, "GBA") == 0);
-    assert(cs_platform_resolve(&paths, "GBA", &resolved) == 0);
-    assert(strcmp(resolved.rom_directory, "GBA") == 0);
-
-    assert(rmdir(roms_dir) == 0);
-    assert(rmdir(root) == 0);
+    assert(realpath(root, resolved) != NULL);
+    assert(setenv("SDCARD_PATH", resolved, 1) == 0);
+    unsetenv("SYSTEMS_CATALOG_PATH");
+    unsetenv("CORES_CATALOG_PATH");
+    unsetenv("CORES_PATH");
+    unsetenv("INFO_PATH");
+    unsetenv("CS_WEB_ROOT");
 }
 
-static void test_custom_rom_directories_are_exposed_when_emulator_installed(void) {
-    char template[] = "/tmp/cs-platforms-custom-emu-XXXXXX";
-    char *root;
-    char roms_dir[PATH_MAX];
-    char foo_dir[PATH_MAX];
-    char foo_file[PATH_MAX];
-    char system_dir[PATH_MAX];
-    char leaf_dir[PATH_MAX];
-    char platforms_dir[PATH_MAX];
-    char mlp1_dir[PATH_MAX];
-    char cores_dir[PATH_MAX];
-    char foo_core[PATH_MAX];
-    cs_paths paths = {0};
-    cs_platform_info discovered[256];
-    cs_platform_info resolved = {0};
-    size_t discovered_count = 0;
-    const cs_platform_info *foo;
+static const cs_platform_info *find_platform_entry(const cs_platform_info *platforms,
+                                                   size_t count,
+                                                   const char *tag) {
+    size_t i;
 
-    root = mkdtemp(template);
-    assert(root != NULL);
-    assert(snprintf(roms_dir, sizeof(roms_dir), "%s/Roms", root) > 0);
-    assert(snprintf(foo_dir, sizeof(foo_dir), "%s/Roms/Awesome System (FOO)", root) > 0);
-    assert(snprintf(foo_file, sizeof(foo_file), "%s/sample.rom", foo_dir) > 0);
-    assert(snprintf(system_dir, sizeof(system_dir), "%s/.system", root) > 0);
-    assert(snprintf(leaf_dir, sizeof(leaf_dir), "%s/.system/leaf", root) > 0);
-    assert(snprintf(platforms_dir, sizeof(platforms_dir), "%s/.system/leaf/platforms", root) > 0);
-    assert(snprintf(mlp1_dir, sizeof(mlp1_dir), "%s/.system/leaf/platforms/mlp1", root) > 0);
-    assert(snprintf(cores_dir, sizeof(cores_dir), "%s/.system/leaf/platforms/mlp1/cores", root) > 0);
-    assert(snprintf(foo_core, sizeof(foo_core), "%s/FOO_libretro.so", cores_dir) > 0);
-
-    make_dir(roms_dir);
-    make_dir(foo_dir);
-    write_file(foo_file, "rom");
-    make_dir(system_dir);
-    make_dir(leaf_dir);
-    make_dir(platforms_dir);
-    make_dir(mlp1_dir);
-    make_dir(cores_dir);
-    write_file(foo_core, "core");
-
-    set_sdcard_root_realpath(root);
-    assert(cs_paths_init(&paths) == 0);
-    assert(cs_platform_discover(&paths,
-                                discovered,
-                                sizeof(discovered) / sizeof(discovered[0]),
-                                &discovered_count)
-           == 0);
-
-    foo = find_platform_entry(discovered, discovered_count, "FOO");
-    assert(foo != NULL);
-    assert(foo->is_custom == 1);
-    assert(strcmp(foo->name, "Awesome System") == 0);
-    assert(strcmp(foo->group, "Custom") == 0);
-    assert(strcmp(foo->icon, "FOO") == 0);
-    assert(strcmp(foo->primary_code, "FOO") == 0);
-    assert(strcmp(foo->rom_directory, "Awesome System (FOO)") == 0);
-
-    assert(cs_platform_resolve(&paths, "FOO", &resolved) == 0);
-    assert(resolved.is_custom == 1);
-    assert(strcmp(resolved.tag, "FOO") == 0);
-    assert(strcmp(resolved.rom_directory, "Awesome System (FOO)") == 0);
-
-    /* Remove the matching Leaf core — the custom platform should disappear from discovery. */
-    assert(remove(foo_core) == 0);
-    assert(cs_platform_discover(&paths,
-                                discovered,
-                                sizeof(discovered) / sizeof(discovered[0]),
-                                &discovered_count)
-           == 0);
-    assert(find_platform_entry(discovered, discovered_count, "FOO") == NULL);
-    assert(cs_platform_resolve(&paths, "FOO", &resolved) == -1);
-
-    assert(rmdir(cores_dir) == 0);
-    assert(rmdir(mlp1_dir) == 0);
-    assert(rmdir(platforms_dir) == 0);
-    assert(rmdir(leaf_dir) == 0);
-    assert(rmdir(system_dir) == 0);
-    assert(remove(foo_file) == 0);
-    assert(rmdir(foo_dir) == 0);
-    assert(rmdir(roms_dir) == 0);
-    assert(rmdir(root) == 0);
+    for (i = 0; i < count; ++i) {
+        if (strcmp(platforms[i].tag, tag) == 0) {
+            return &platforms[i];
+        }
+    }
+    return NULL;
 }
 
-static void test_ports_are_only_discovered_when_installed(void) {
-    char template[] = "/tmp/cs-platforms-ports-XXXXXX";
-    char *root;
-    char roms_dir[PATH_MAX];
-    char ports_dir[PATH_MAX];
-    cs_paths paths = {0};
-    cs_platform_info discovered[256];
-    cs_platform_info resolved = {0};
-    size_t discovered_count = 0;
-
-    root = mkdtemp(template);
-    assert(root != NULL);
-    assert(snprintf(roms_dir, sizeof(roms_dir), "%s/Roms", root) > 0);
-    assert(snprintf(ports_dir, sizeof(ports_dir), "%s/Roms/Ports (PORTS)", root) > 0);
-    make_dir(roms_dir);
-
-    set_sdcard_root_realpath(root);
-    assert(cs_paths_init(&paths) == 0);
-    assert(cs_platform_discover(&paths,
-                                discovered,
-                                sizeof(discovered) / sizeof(discovered[0]),
-                                &discovered_count)
-           == 0);
-    assert(find_platform_entry(discovered, discovered_count, "PORTS") == NULL);
-    assert(cs_platform_resolve(&paths, "PORTS", &resolved) == -1);
-
-    make_dir(ports_dir);
-
-    assert(cs_platform_discover(&paths,
-                                discovered,
-                                sizeof(discovered) / sizeof(discovered[0]),
-                                &discovered_count)
-           == 0);
-    assert(find_platform_entry(discovered, discovered_count, "PORTS") != NULL);
-    assert(cs_platform_resolve(&paths, "PORTS", &resolved) == 0);
-
-    assert(rmdir(ports_dir) == 0);
-    assert(rmdir(roms_dir) == 0);
-    assert(rmdir(root) == 0);
-}
-
-static void test_emulator_scan_checks_leaf_cores_and_info(void) {
-    char template[] = "/tmp/cs-platforms-cores-XXXXXX";
-    char *root;
-    char roms_dir[PATH_MAX];
-    char system_root[PATH_MAX];
-    char leaf_root[PATH_MAX];
-    char platforms_root[PATH_MAX];
-    char mlp1_root[PATH_MAX];
+static void write_catalogs(const char *root) {
+    char defaults_dir[PATH_MAX];
+    char systems_path[PATH_MAX];
+    char cores_path[PATH_MAX];
     char cores_dir[PATH_MAX];
     char info_dir[PATH_MAX];
-    char gba_core[PATH_MAX];
-    char snes_core[PATH_MAX];
-    char sega_info[PATH_MAX];
-    char ps_core[PATH_MAX];
-    char n64_core[PATH_MAX];
-    char dc_core[PATH_MAX];
-    char neogeo_core[PATH_MAX];
-    char pce_info[PATH_MAX];
-    char ws_core[PATH_MAX];
-    char saturn_core[PATH_MAX];
-    char gw_core[PATH_MAX];
-    char dos_core[PATH_MAX];
-    char foo_info[PATH_MAX];
-    cs_paths paths = {0};
-    char codes[128][CS_PLATFORM_CODE_MAX];
-    size_t code_count = 0;
-    const cs_platform_info *thirty_two_x = cs_platform_find("32X");
-    const cs_platform_info *gba = cs_platform_find("GBA");
-    const cs_platform_info *fc = cs_platform_find("FC");
-    const cs_platform_info *sfc = cs_platform_find("SFC");
-    const cs_platform_info *sfc_jp = cs_platform_find("SFC_JP");
-    const cs_platform_info *md = cs_platform_find("MD");
-    const cs_platform_info *ps = cs_platform_find("PS");
-    const cs_platform_info *n64 = cs_platform_find("N64");
-    const cs_platform_info *dc = cs_platform_find("DC");
-    const cs_platform_info *neogeo = cs_platform_find("NEOGEO");
-    const cs_platform_info *pcecd = cs_platform_find("PCECD");
-    const cs_platform_info *ws = cs_platform_find("WS");
-    const cs_platform_info *wsc = cs_platform_find("WSC");
-    const cs_platform_info *saturn = cs_platform_find("SATURN");
-    const cs_platform_info *ports = cs_platform_find("PORTS");
-    const cs_platform_info *gw = cs_platform_find("GW");
-    const cs_platform_info *dos = cs_platform_find("DOS");
+    char roms_dir[PATH_MAX];
 
-    assert(gw != NULL);
-    assert(dos != NULL);
-    assert(thirty_two_x != NULL);
-    assert(gba != NULL);
-    assert(fc != NULL);
-    assert(sfc != NULL);
-    assert(sfc_jp != NULL);
-    assert(md != NULL);
-    assert(ps != NULL);
-    assert(n64 != NULL);
-    assert(dc != NULL);
-    assert(neogeo != NULL);
-    assert(pcecd != NULL);
-    assert(ws != NULL);
-    assert(wsc != NULL);
-    assert(saturn != NULL);
-    assert(ports != NULL);
-
-    root = mkdtemp(template);
-    assert(root != NULL);
-    assert(snprintf(roms_dir, sizeof(roms_dir), "%s/Roms", root) > 0);
-    assert(snprintf(system_root, sizeof(system_root), "%s/.system", root) > 0);
-    assert(snprintf(leaf_root, sizeof(leaf_root), "%s/.system/leaf", root) > 0);
-    assert(snprintf(platforms_root, sizeof(platforms_root), "%s/.system/leaf/platforms", root) > 0);
-    assert(snprintf(mlp1_root, sizeof(mlp1_root), "%s/.system/leaf/platforms/mlp1", root) > 0);
-    assert(snprintf(cores_dir, sizeof(cores_dir), "%s/.system/leaf/platforms/mlp1/cores", root) > 0);
-    assert(snprintf(info_dir, sizeof(info_dir), "%s/.system/leaf/platforms/mlp1/info", root) > 0);
-    assert(snprintf(gba_core, sizeof(gba_core), "%s/gba_libretro.so", cores_dir) > 0);
-    assert(snprintf(snes_core, sizeof(snes_core), "%s/snes9x_libretro.so", cores_dir) > 0);
-    assert(snprintf(sega_info, sizeof(sega_info), "%s/genesis_plus_gx_libretro.info", info_dir) > 0);
-    assert(snprintf(ps_core, sizeof(ps_core), "%s/pcsx_rearmed_libretro.so", cores_dir) > 0);
-    assert(snprintf(n64_core, sizeof(n64_core), "%s/mupen64plus_next_libretro.so", cores_dir) > 0);
-    assert(snprintf(dc_core, sizeof(dc_core), "%s/flycast_libretro.so", cores_dir) > 0);
-    assert(snprintf(neogeo_core, sizeof(neogeo_core), "%s/fbneo_libretro.so", cores_dir) > 0);
-    assert(snprintf(pce_info, sizeof(pce_info), "%s/mednafen_pce_fast_libretro.info", info_dir) > 0);
-    assert(snprintf(ws_core, sizeof(ws_core), "%s/mednafen_wswan_libretro.so", cores_dir) > 0);
-    assert(snprintf(saturn_core, sizeof(saturn_core), "%s/yabasanshiro_libretro.so", cores_dir) > 0);
-    assert(snprintf(gw_core, sizeof(gw_core), "%s/gw_libretro.so", cores_dir) > 0);
-    assert(snprintf(dos_core, sizeof(dos_core), "%s/dosbox_pure_libretro.so", cores_dir) > 0);
-    assert(snprintf(foo_info, sizeof(foo_info), "%s/foo_libretro.info", info_dir) > 0);
-
-    make_dir(roms_dir);
-    make_dir(system_root);
-    make_dir(leaf_root);
-    make_dir(platforms_root);
-    make_dir(mlp1_root);
+    path_join(defaults_dir, sizeof(defaults_dir), root, ".system/leaf/platforms/mlp1/defaults");
+    path_join(cores_dir, sizeof(cores_dir), root, ".system/leaf/platforms/mlp1/cores");
+    path_join(info_dir, sizeof(info_dir), root, ".system/leaf/platforms/mlp1/info");
+    path_join(roms_dir, sizeof(roms_dir), root, "Roms");
+    make_dir(defaults_dir);
     make_dir(cores_dir);
     make_dir(info_dir);
-    write_file(gba_core, "core");
-    write_file(snes_core, "core");
-    write_file(sega_info, "info");
-    write_file(ps_core, "core");
-    write_file(n64_core, "core");
-    write_file(dc_core, "core");
-    write_file(neogeo_core, "core");
-    write_file(pce_info, "info");
-    write_file(ws_core, "core");
-    write_file(saturn_core, "core");
-    write_file(gw_core, "core");
-    write_file(dos_core, "core");
-    write_file(foo_info, "info");
+    make_dir(roms_dir);
+    path_join(systems_path, sizeof(systems_path), defaults_dir, "systems.json");
+    path_join(cores_path, sizeof(cores_path), defaults_dir, "cores.json");
 
+    write_file(systems_path,
+               "{"
+               "\"version\":1,"
+               "\"systems\":["
+               "{\"id\":\"ARCADE\",\"name\":\"Arcade\",\"patterns\":[\"ARCADE\"],\"extensions\":[],\"default_core\":\"fbneo\",\"alternate_cores\":[],\"rom_root\":\"Roms/ARCADE\"},"
+               "{\"id\":\"FC\",\"name\":\"NES\",\"patterns\":[\"FC\",\"NES\",\"FAMICOM\"],\"extensions\":[],\"default_core\":\"fceumm\",\"alternate_cores\":[],\"rom_root\":\"Roms/FC\"},"
+               "{\"id\":\"NES\",\"name\":\"NES\",\"patterns\":[\"NES\",\"FC\"],\"extensions\":[],\"default_core\":\"fceumm\",\"alternate_cores\":[],\"rom_root\":\"Roms/NES\"},"
+               "{\"id\":\"GB\",\"name\":\"GB\",\"patterns\":[\"GB\",\"DMG\"],\"extensions\":[],\"default_core\":\"gambatte\",\"alternate_cores\":[\"mgba\"],\"rom_root\":\"Roms/GB\"},"
+               "{\"id\":\"GBA\",\"name\":\"GBA\",\"patterns\":[\"GBA\",\"GAMEBOYADVANCE\"],\"extensions\":[],\"default_core\":\"mgba\",\"alternate_cores\":[\"gpsp\"],\"rom_root\":\"Roms/GBA\"},"
+               "{\"id\":\"GBC\",\"name\":\"GBC\",\"patterns\":[\"GBC\",\"CGB\"],\"extensions\":[],\"default_core\":\"gambatte\",\"alternate_cores\":[\"mgba\"],\"rom_root\":\"Roms/GBC\"},"
+               "{\"id\":\"MD\",\"name\":\"Genesis\",\"patterns\":[\"MD\",\"GENESIS\"],\"extensions\":[],\"default_core\":\"genesis_plus_gx\",\"alternate_cores\":[],\"rom_root\":\"Roms/MD\"},"
+               "{\"id\":\"GEN\",\"name\":\"GEN\",\"patterns\":[\"GEN\"],\"extensions\":[],\"default_core\":\"genesis_plus_gx\",\"alternate_cores\":[],\"rom_root\":\"Roms/GEN\"},"
+               "{\"id\":\"GENESIS\",\"name\":\"Genesis\",\"patterns\":[\"GENESIS\",\"MEGADRIVE\"],\"extensions\":[],\"default_core\":\"genesis_plus_gx\",\"alternate_cores\":[],\"rom_root\":\"Roms/GENESIS\"},"
+               "{\"id\":\"MS\",\"name\":\"Sega MS\",\"patterns\":[\"MS\",\"SMS\"],\"extensions\":[],\"default_core\":\"genesis_plus_gx\",\"alternate_cores\":[],\"rom_root\":\"Roms/MS\"},"
+               "{\"id\":\"NDS\",\"name\":\"Nintendo DS\",\"patterns\":[\"NDS\"],\"extensions\":[],\"default_core\":\"drastic\",\"alternate_cores\":[],\"rom_root\":\"Roms/NDS\"},"
+               "{\"id\":\"PICO8\",\"name\":\"Pico-8\",\"patterns\":[\"PICO8\",\"P8\"],\"extensions\":[],\"default_core\":\"fake08\",\"alternate_cores\":[],\"rom_root\":\"Roms/PICO8\"},"
+               "{\"id\":\"PORTS\",\"name\":\"Ports\",\"patterns\":[\"PORTS\"],\"extensions\":[],\"default_core\":\"ports\",\"alternate_cores\":[],\"rom_root\":\"Roms/PORTS\"},"
+               "{\"id\":\"PS\",\"name\":\"PSX\",\"patterns\":[\"PS\",\"PSX\"],\"extensions\":[],\"default_core\":\"pcsx_rearmed\",\"alternate_cores\":[],\"rom_root\":\"Roms/PS\"},"
+               "{\"id\":\"PSX\",\"name\":\"PSX\",\"patterns\":[\"PSX\",\"PS\"],\"extensions\":[],\"default_core\":\"pcsx_rearmed\",\"alternate_cores\":[],\"rom_root\":\"Roms/PSX\"},"
+               "{\"id\":\"PSP\",\"name\":\"PSP\",\"patterns\":[\"PSP\"],\"extensions\":[],\"default_core\":\"ppsspp\",\"alternate_cores\":[],\"rom_root\":\"Roms/PSP\"},"
+               "{\"id\":\"SEVENTYEIGHTHUNDRED\",\"name\":\"Atari 7800\",\"patterns\":[\"SEVENTYEIGHTHUNDRED\",\"A7800\"],\"extensions\":[],\"default_core\":\"prosystem\",\"alternate_cores\":[],\"rom_root\":\"Roms/SEVENTYEIGHTHUNDRED\"},"
+               "{\"id\":\"PROSYSTEM\",\"name\":\"PROSYSTEM\",\"patterns\":[\"PROSYSTEM\"],\"extensions\":[],\"default_core\":\"prosystem\",\"alternate_cores\":[],\"rom_root\":\"Roms/PROSYSTEM\"},"
+               "{\"id\":\"SFC\",\"name\":\"SNES\",\"patterns\":[\"SFC\",\"SNES\"],\"extensions\":[],\"default_core\":\"snes9x\",\"alternate_cores\":[],\"rom_root\":\"Roms/SFC\"},"
+               "{\"id\":\"SNES\",\"name\":\"SNES\",\"patterns\":[\"SNES\",\"SFC\"],\"extensions\":[],\"default_core\":\"snes9x\",\"alternate_cores\":[],\"rom_root\":\"Roms/SNES\"}"
+               "]"
+               "}");
+
+    write_file(cores_path,
+               "{"
+               "\"version\":2,"
+               "\"cores\":["
+               "{\"id\":\"fbneo\",\"display_name\":\"FBNeo\",\"type\":\"retroarch\",\"file_name\":\"fbneo_libretro.so\",\"info_name\":\"fbneo_libretro.info\",\"path\":null},"
+               "{\"id\":\"fceumm\",\"display_name\":\"FCEUmm\",\"type\":\"retroarch\",\"file_name\":\"fceumm_libretro.so\",\"info_name\":\"fceumm_libretro.info\",\"path\":null},"
+               "{\"id\":\"fake08\",\"display_name\":\"FAKE-08\",\"type\":\"retroarch\",\"file_name\":\"fake08_libretro.so\",\"info_name\":\"fake08_libretro.info\",\"path\":null},"
+               "{\"id\":\"gambatte\",\"display_name\":\"Gambatte\",\"type\":\"retroarch\",\"file_name\":\"gambatte_libretro.so\",\"info_name\":\"gambatte_libretro.info\",\"path\":null},"
+               "{\"id\":\"genesis_plus_gx\",\"display_name\":\"Genesis Plus GX\",\"type\":\"retroarch\",\"file_name\":\"genesis_plus_gx_libretro.so\",\"info_name\":\"genesis_plus_gx_libretro.info\",\"path\":null},"
+               "{\"id\":\"gpsp\",\"display_name\":\"gpSP\",\"type\":\"retroarch\",\"file_name\":\"gpsp_libretro.so\",\"info_name\":\"gpsp_libretro.info\",\"path\":null},"
+               "{\"id\":\"mgba\",\"display_name\":\"mGBA\",\"type\":\"retroarch\",\"file_name\":\"mgba_libretro.so\",\"info_name\":\"mgba_libretro.info\",\"path\":null},"
+               "{\"id\":\"pcsx_rearmed\",\"display_name\":\"PCSX ReARMed\",\"type\":\"retroarch\",\"file_name\":\"pcsx_rearmed_libretro.so\",\"info_name\":\"pcsx_rearmed_libretro.info\",\"path\":null},"
+               "{\"id\":\"prosystem\",\"display_name\":\"ProSystem\",\"type\":\"retroarch\",\"file_name\":\"prosystem_libretro.so\",\"info_name\":\"prosystem_libretro.info\",\"path\":null},"
+               "{\"id\":\"snes9x\",\"display_name\":\"Snes9x\",\"type\":\"retroarch\",\"file_name\":\"snes9x_libretro.so\",\"info_name\":\"snes9x_libretro.info\",\"path\":null},"
+               "{\"id\":\"mednafen_supafaust\",\"display_name\":\"Supafaust\",\"type\":\"retroarch\",\"file_name\":\"mednafen_supafaust_libretro.so\",\"info_name\":\"mednafen_supafaust_libretro.info\",\"path\":null},"
+               "{\"id\":\"snes9x2010\",\"display_name\":\"Snes9x 2010\",\"type\":\"retroarch\",\"file_name\":\"snes9x2010_libretro.so\",\"info_name\":\"snes9x2010_libretro.info\",\"path\":null},"
+               "{\"id\":\"snes9x2005\",\"display_name\":\"Snes9x 2005\",\"type\":\"retroarch\",\"file_name\":\"snes9x2005_libretro.so\",\"info_name\":\"snes9x2005_libretro.info\",\"path\":null},"
+               "{\"id\":\"snes9x2005_plus\",\"display_name\":\"Snes9x 2005 Plus\",\"type\":\"retroarch\",\"file_name\":\"snes9x2005_plus_libretro.so\",\"info_name\":\"snes9x2005_plus_libretro.info\",\"path\":null},"
+               "{\"id\":\"snes9x2002\",\"display_name\":\"Snes9x 2002\",\"type\":\"retroarch\",\"file_name\":\"snes9x2002_libretro.so\",\"info_name\":\"snes9x2002_libretro.info\",\"path\":null},"
+               "{\"id\":\"chimerasnes\",\"display_name\":\"ChimeraSNES\",\"type\":\"retroarch\",\"file_name\":\"chimerasnes_libretro.so\",\"info_name\":\"chimerasnes_libretro.info\",\"path\":null},"
+               "{\"id\":\"drastic\",\"display_name\":\"DraStic\",\"type\":\"path\",\"file_name\":null,\"info_name\":null,\"path\":\"emulators/drastic/launch.sh\"},"
+               "{\"id\":\"ppsspp\",\"display_name\":\"PPSSPP\",\"type\":\"path\",\"file_name\":null,\"info_name\":null,\"path\":\"emulators/ppsspp/launch.sh\"},"
+               "{\"id\":\"ports\",\"display_name\":\"Ports\",\"type\":\"path\",\"file_name\":null,\"info_name\":null,\"path\":\"/mnt/SDCARD/Roms/PORTS\"}"
+               "]"
+               "}");
+}
+
+static void write_core(const char *root, const char *file_name) {
+    char path[PATH_MAX];
+
+    assert(snprintf(path, sizeof(path), "%s/.system/leaf/platforms/mlp1/cores/%s", root, file_name) > 0);
+    write_file(path, "core");
+}
+
+static void write_info(const char *root, const char *file_name) {
+    char path[PATH_MAX];
+
+    assert(snprintf(path, sizeof(path), "%s/.system/leaf/platforms/mlp1/info/%s", root, file_name) > 0);
+    write_file(path, "info");
+}
+
+static void write_path_core_launcher(const char *root, const char *relative) {
+    char path[PATH_MAX];
+
+    assert(snprintf(path, sizeof(path), "%s/.system/leaf/platforms/mlp1/%s", root, relative) > 0);
+    make_dir(path);
+    assert(rmdir(path) == 0);
+    make_dir(path);
+}
+
+static void write_launcher_file(const char *root, const char *relative) {
+    char path[PATH_MAX];
+    char dir[PATH_MAX];
+    char *slash;
+
+    assert(snprintf(path, sizeof(path), "%s/.system/leaf/platforms/mlp1/%s", root, relative) > 0);
+    snprintf(dir, sizeof(dir), "%s", path);
+    slash = strrchr(dir, '/');
+    assert(slash != NULL);
+    *slash = '\0';
+    make_dir(dir);
+    write_file(path, "#!/bin/sh\n");
+}
+
+static void test_path_defaults(void) {
+    char template[] = "/tmp/cs-paths-catalog-XXXXXX";
+    char *root = mkdtemp(template);
+    cs_paths paths = {0};
+
+    assert(root != NULL);
+    write_catalogs(root);
     set_sdcard_root_realpath(root);
     assert(cs_paths_init(&paths) == 0);
-    assert(cs_platform_collect_installed_emulators(&paths, codes, sizeof(codes) / sizeof(codes[0]), &code_count) == 0);
-    assert(code_count >= 8);
-    assert(cs_platform_has_installed_emulator(thirty_two_x, (const char (*)[CS_PLATFORM_CODE_MAX]) codes, code_count) == 1);
-    assert(cs_platform_has_installed_emulator(gba, (const char (*)[CS_PLATFORM_CODE_MAX]) codes, code_count) == 1);
-    assert(cs_platform_has_installed_emulator(fc, (const char (*)[CS_PLATFORM_CODE_MAX]) codes, code_count) == 0);
-    assert(cs_platform_has_installed_emulator(sfc, (const char (*)[CS_PLATFORM_CODE_MAX]) codes, code_count) == 1);
-    assert(cs_platform_has_installed_emulator(sfc_jp, (const char (*)[CS_PLATFORM_CODE_MAX]) codes, code_count) == 1);
-    assert(cs_platform_has_installed_emulator(md, (const char (*)[CS_PLATFORM_CODE_MAX]) codes, code_count) == 1);
-    assert(cs_platform_has_installed_emulator(ps, (const char (*)[CS_PLATFORM_CODE_MAX]) codes, code_count) == 1);
-    assert(cs_platform_has_installed_emulator(n64, (const char (*)[CS_PLATFORM_CODE_MAX]) codes, code_count) == 1);
-    assert(cs_platform_has_installed_emulator(dc, (const char (*)[CS_PLATFORM_CODE_MAX]) codes, code_count) == 1);
-    assert(cs_platform_has_installed_emulator(neogeo, (const char (*)[CS_PLATFORM_CODE_MAX]) codes, code_count) == 1);
-    assert(cs_platform_has_installed_emulator(pcecd, (const char (*)[CS_PLATFORM_CODE_MAX]) codes, code_count) == 1);
-    assert(cs_platform_has_installed_emulator(ws, (const char (*)[CS_PLATFORM_CODE_MAX]) codes, code_count) == 1);
-    assert(cs_platform_has_installed_emulator(wsc, (const char (*)[CS_PLATFORM_CODE_MAX]) codes, code_count) == 1);
-    assert(cs_platform_has_installed_emulator(saturn, (const char (*)[CS_PLATFORM_CODE_MAX]) codes, code_count) == 1);
-    assert(cs_platform_has_installed_emulator(ports, (const char (*)[CS_PLATFORM_CODE_MAX]) codes, code_count) == 1);
-    assert(cs_platform_has_installed_emulator(gw, (const char (*)[CS_PLATFORM_CODE_MAX]) codes, code_count) == 1);
-    assert(cs_platform_has_installed_emulator(dos, (const char (*)[CS_PLATFORM_CODE_MAX]) codes, code_count) == 1);
-    assert(has_emulator_code((const char (*)[CS_PLATFORM_CODE_MAX]) codes, code_count, "FOO") == 1);
-    assert(has_emulator_code((const char (*)[CS_PLATFORM_CODE_MAX]) codes, code_count, "DC") == 1);
-    assert(has_emulator_code((const char (*)[CS_PLATFORM_CODE_MAX]) codes, code_count, "NEOGEO") == 1);
-    assert(has_emulator_code((const char (*)[CS_PLATFORM_CODE_MAX]) codes, code_count, "N64") == 1);
-    assert(has_emulator_code((const char (*)[CS_PLATFORM_CODE_MAX]) codes, code_count, "MUPEN64PLUS_NEXT") == 1);
-    assert(has_emulator_code((const char (*)[CS_PLATFORM_CODE_MAX]) codes, code_count, "SNES9X") == 1);
-    assert(has_emulator_code((const char (*)[CS_PLATFORM_CODE_MAX]) codes, code_count, "WS") == 1);
+    assert(strstr(paths.systems_catalog_path, ".system/leaf/platforms/mlp1/defaults/systems.json") != NULL);
+    assert(strstr(paths.cores_catalog_path, ".system/leaf/platforms/mlp1/defaults/cores.json") != NULL);
+}
 
-    assert(remove(gba_core) == 0);
-    assert(remove(snes_core) == 0);
-    assert(remove(sega_info) == 0);
-    assert(remove(ps_core) == 0);
-    assert(remove(n64_core) == 0);
-    assert(remove(dc_core) == 0);
-    assert(remove(neogeo_core) == 0);
-    assert(remove(pce_info) == 0);
-    assert(remove(ws_core) == 0);
-    assert(remove(saturn_core) == 0);
-    assert(remove(gw_core) == 0);
-    assert(remove(dos_core) == 0);
-    assert(remove(foo_info) == 0);
-    assert(rmdir(info_dir) == 0);
-    assert(rmdir(cores_dir) == 0);
-    assert(rmdir(mlp1_root) == 0);
-    assert(rmdir(platforms_root) == 0);
-    assert(rmdir(leaf_root) == 0);
-    assert(rmdir(system_root) == 0);
-    assert(rmdir(roms_dir) == 0);
-    assert(rmdir(root) == 0);
+static void test_static_identity_helpers(void) {
+    const cs_platform_info *info;
+
+    assert(cs_platform_count() > 0);
+    assert(cs_platform_at(cs_platform_count()) == NULL);
+    info = cs_platform_find("PICO8");
+    assert(info != NULL);
+    assert(strcmp(info->tag, "P8") == 0);
+    info = cs_platform_find("ARCADE");
+    assert(info != NULL);
+    assert(strcmp(info->tag, "FBN") == 0);
+    info = cs_platform_find("SEVENTYEIGHTHUNDRED");
+    assert(info != NULL);
+    assert(strcmp(info->tag, "A7800") == 0);
+}
+
+static void test_visibility_requires_present_libretro_core(void) {
+    char template[] = "/tmp/cs-platforms-visible-XXXXXX";
+    char *root = mkdtemp(template);
+    cs_paths paths = {0};
+    cs_platform_info platforms[128];
+    size_t count = 0;
+
+    assert(root != NULL);
+    write_catalogs(root);
+    set_sdcard_root_realpath(root);
+    assert(cs_paths_init(&paths) == 0);
+
+    assert(cs_platform_discover(&paths, platforms, sizeof(platforms) / sizeof(platforms[0]), &count) == 0);
+    assert(find_platform_entry(platforms, count, "GBA") == NULL);
+
+    write_info(root, "mgba_libretro.info");
+    assert(cs_platform_discover(&paths, platforms, sizeof(platforms) / sizeof(platforms[0]), &count) == 0);
+    assert(find_platform_entry(platforms, count, "GBA") == NULL);
+
+    write_core(root, "mgba_libretro.so");
+    assert(cs_platform_discover(&paths, platforms, sizeof(platforms) / sizeof(platforms[0]), &count) == 0);
+    assert(find_platform_entry(platforms, count, "GBA") != NULL);
+    assert(find_platform_entry(platforms, count, "MGBA") != NULL);
+}
+
+static void test_canonical_alias_rows_collapse_and_match_folders(void) {
+    char template[] = "/tmp/cs-platforms-canonical-XXXXXX";
+    char *root = mkdtemp(template);
+    char nes_dir[PATH_MAX];
+    cs_paths paths = {0};
+    cs_platform_info platforms[128];
+    cs_platform_info resolved = {0};
+    size_t count = 0;
+    const cs_platform_info *fc;
+
+    assert(root != NULL);
+    write_catalogs(root);
+    assert(snprintf(nes_dir, sizeof(nes_dir), "%s/Roms/Nintendo Entertainment System (NES)", root) > 0);
+    make_dir(nes_dir);
+    write_core(root, "fceumm_libretro.so");
+    set_sdcard_root_realpath(root);
+    assert(cs_paths_init(&paths) == 0);
+
+    assert(cs_platform_discover(&paths, platforms, sizeof(platforms) / sizeof(platforms[0]), &count) == 0);
+    fc = find_platform_entry(platforms, count, "FC");
+    assert(fc != NULL);
+    assert(find_platform_entry(platforms, count, "NES") == NULL);
+    assert(strcmp(fc->rom_directory, "Nintendo Entertainment System (NES)") == 0);
+    assert(cs_platform_resolve(&paths, "NES", &resolved) == 0);
+    assert(strcmp(resolved.tag, "FC") == 0);
+    assert(strcmp(resolved.rom_directory, "Nintendo Entertainment System (NES)") == 0);
+}
+
+static void test_independent_variants_are_co_visible(void) {
+    char template[] = "/tmp/cs-platforms-variants-XXXXXX";
+    char *root = mkdtemp(template);
+    cs_paths paths = {0};
+    cs_platform_info platforms[128];
+    size_t count = 0;
+
+    assert(root != NULL);
+    write_catalogs(root);
+    write_core(root, "mgba_libretro.so");
+    write_core(root, "snes9x_libretro.so");
+    set_sdcard_root_realpath(root);
+    assert(cs_paths_init(&paths) == 0);
+
+    assert(cs_platform_discover(&paths, platforms, sizeof(platforms) / sizeof(platforms[0]), &count) == 0);
+    assert(find_platform_entry(platforms, count, "GBA") != NULL);
+    assert(find_platform_entry(platforms, count, "MGBA") != NULL);
+    assert(find_platform_entry(platforms, count, "SFC") != NULL);
+    assert(find_platform_entry(platforms, count, "SUPA") != NULL);
+    assert(find_platform_entry(platforms, count, "SGB") != NULL);
+    assert(strcmp(find_platform_entry(platforms, count, "MGBA")->primary_code, "MGBA") == 0);
+    assert(strcmp(find_platform_entry(platforms, count, "SUPA")->primary_code, "SUPA") == 0);
+}
+
+static void test_path_cores_and_ports_visibility(void) {
+    char template[] = "/tmp/cs-platforms-path-XXXXXX";
+    char *root = mkdtemp(template);
+    char ports_dir[PATH_MAX];
+    cs_paths paths = {0};
+    cs_platform_info platforms[128];
+    size_t count = 0;
+
+    assert(root != NULL);
+    write_catalogs(root);
+    set_sdcard_root_realpath(root);
+    assert(cs_paths_init(&paths) == 0);
+
+    assert(cs_platform_discover(&paths, platforms, sizeof(platforms) / sizeof(platforms[0]), &count) == 0);
+    assert(find_platform_entry(platforms, count, "NDS") == NULL);
+    assert(find_platform_entry(platforms, count, "PSP") == NULL);
+    assert(find_platform_entry(platforms, count, "PORTS") == NULL);
+
+    write_launcher_file(root, "emulators/drastic/launch.sh");
+    write_launcher_file(root, "emulators/ppsspp/launch.sh");
+    assert(snprintf(ports_dir, sizeof(ports_dir), "%s/Roms/Ports (PORTS)", root) > 0);
+    make_dir(ports_dir);
+
+    assert(cs_platform_discover(&paths, platforms, sizeof(platforms) / sizeof(platforms[0]), &count) == 0);
+    assert(find_platform_entry(platforms, count, "NDS") != NULL);
+    assert(find_platform_entry(platforms, count, "PSP") != NULL);
+    assert(find_platform_entry(platforms, count, "PORTS") != NULL);
+}
+
+static void test_identity_map_and_rom_root_stripping(void) {
+    char template[] = "/tmp/cs-platforms-identity-XXXXXX";
+    char *root = mkdtemp(template);
+    cs_paths paths = {0};
+    cs_platform_info platforms[128];
+    size_t count = 0;
+    const cs_platform_info *arcade;
+    const cs_platform_info *sms;
+    const cs_platform_info *p8;
+    const cs_platform_info *a7800;
+
+    assert(root != NULL);
+    write_catalogs(root);
+    write_core(root, "fbneo_libretro.so");
+    write_core(root, "fake08_libretro.so");
+    write_core(root, "genesis_plus_gx_libretro.so");
+    write_core(root, "prosystem_libretro.so");
+    set_sdcard_root_realpath(root);
+    assert(cs_paths_init(&paths) == 0);
+
+    assert(cs_platform_discover(&paths, platforms, sizeof(platforms) / sizeof(platforms[0]), &count) == 0);
+    arcade = find_platform_entry(platforms, count, "FBN");
+    sms = find_platform_entry(platforms, count, "SMS");
+    p8 = find_platform_entry(platforms, count, "P8");
+    a7800 = find_platform_entry(platforms, count, "A7800");
+    assert(arcade != NULL);
+    assert(sms != NULL);
+    assert(p8 != NULL);
+    assert(a7800 != NULL);
+    assert(strcmp(arcade->primary_code, "FBN") == 0);
+    assert(strcmp(arcade->rom_directory, "ARCADE") == 0);
+    assert(strcmp(sms->rom_directory, "MS") == 0);
+    assert(strcmp(p8->rom_directory, "PICO8") == 0);
+    assert(strcmp(a7800->rom_directory, "SEVENTYEIGHTHUNDRED") == 0);
+}
+
+static void test_custom_rom_directories_are_exposed_when_core_present(void) {
+    char template[] = "/tmp/cs-platforms-custom-XXXXXX";
+    char *root = mkdtemp(template);
+    char foo_dir[PATH_MAX];
+    cs_paths paths = {0};
+    cs_platform_info platforms[128];
+    cs_platform_info resolved = {0};
+    size_t count = 0;
+    const cs_platform_info *foo;
+
+    assert(root != NULL);
+    write_catalogs(root);
+    assert(snprintf(foo_dir, sizeof(foo_dir), "%s/Roms/Awesome System (FOO)", root) > 0);
+    make_dir(foo_dir);
+    write_info(root, "FOO_libretro.info");
+    set_sdcard_root_realpath(root);
+    assert(cs_paths_init(&paths) == 0);
+
+    assert(cs_platform_discover(&paths, platforms, sizeof(platforms) / sizeof(platforms[0]), &count) == 0);
+    assert(find_platform_entry(platforms, count, "FOO") == NULL);
+
+    write_core(root, "FOO_libretro.so");
+    assert(cs_platform_discover(&paths, platforms, sizeof(platforms) / sizeof(platforms[0]), &count) == 0);
+    foo = find_platform_entry(platforms, count, "FOO");
+    assert(foo != NULL);
+    assert(foo->is_custom == 1);
+    assert(strcmp(foo->rom_directory, "Awesome System (FOO)") == 0);
+    assert(cs_platform_resolve(&paths, "FOO", &resolved) == 0);
+    assert(resolved.is_custom == 1);
+}
+
+static void test_load_errors_are_typed(void) {
+    char template[] = "/tmp/cs-platforms-errors-XXXXXX";
+    char *root = mkdtemp(template);
+    char defaults_dir[PATH_MAX];
+    char systems_path[PATH_MAX];
+    char cores_path[PATH_MAX];
+    cs_paths paths = {0};
+    cs_platform_info platforms[16];
+    size_t count = 0;
+    cs_catalog_error error = {0};
+
+    assert(root != NULL);
+    write_catalogs(root);
+    set_sdcard_root_realpath(root);
+    assert(cs_paths_init(&paths) == 0);
+    assert(remove(paths.systems_catalog_path) == 0);
+    assert(cs_platform_discover_with_error(&paths, platforms, sizeof(platforms) / sizeof(platforms[0]), &count, &error) != 0);
+    assert(error.kind == CS_CATALOG_ERROR_MISSING);
+    assert(count == 0);
+
+    path_join(defaults_dir, sizeof(defaults_dir), root, ".system/leaf/platforms/mlp1/defaults");
+    path_join(systems_path, sizeof(systems_path), defaults_dir, "systems.json");
+    path_join(cores_path, sizeof(cores_path), defaults_dir, "cores.json");
+    write_file(systems_path, "{\"version\":2,\"systems\":[]}");
+    error.kind = CS_CATALOG_ERROR_NONE;
+    assert(cs_platform_discover_with_error(&paths, platforms, sizeof(platforms) / sizeof(platforms[0]), &count, &error) != 0);
+    assert(error.kind == CS_CATALOG_ERROR_VERSION);
+
+    write_file(systems_path, "{not json");
+    error.kind = CS_CATALOG_ERROR_NONE;
+    assert(cs_platform_discover_with_error(&paths, platforms, sizeof(platforms) / sizeof(platforms[0]), &count, &error) != 0);
+    assert(error.kind == CS_CATALOG_ERROR_PARSE);
+
+    write_file(systems_path, "{\"version\":1,\"systems\":[]}");
+    write_file(cores_path, "{\"version\":3,\"cores\":[]}");
+    error.kind = CS_CATALOG_ERROR_NONE;
+    assert(cs_platform_discover_with_error(&paths, platforms, sizeof(platforms) / sizeof(platforms[0]), &count, &error) != 0);
+    assert(error.kind == CS_CATALOG_ERROR_VERSION);
+}
+
+static void test_shortcut_directories_are_excluded(void) {
+    char template[] = "/tmp/cs-platforms-shortcut-XXXXXX";
+    char *root = mkdtemp(template);
+    char shortcut_dir[PATH_MAX];
+    char marker[PATH_MAX];
+    cs_paths paths = {0};
+    cs_platform_info platforms[128];
+    size_t count = 0;
+
+    assert(root != NULL);
+    write_catalogs(root);
+    write_core(root, "genesis_plus_gx_libretro.so");
+    assert(snprintf(shortcut_dir, sizeof(shortcut_dir), "%s/Roms/0) Sonic - Spindash (MD)", root) > 0);
+    make_dir(shortcut_dir);
+    assert(snprintf(marker, sizeof(marker), "%s/.shortcut", shortcut_dir) > 0);
+    write_file(marker, "shortcut");
+    set_sdcard_root_realpath(root);
+    assert(cs_paths_init(&paths) == 0);
+
+    assert(cs_platform_discover(&paths, platforms, sizeof(platforms) / sizeof(platforms[0]), &count) == 0);
+    assert(find_platform_entry(platforms, count, "MD") != NULL);
+    assert(strcmp(find_platform_entry(platforms, count, "MD")->rom_directory, "MD") == 0);
+    assert(cs_platform_is_shortcut_directory("0) Sonic - Spindash (MD)", shortcut_dir) == 1);
 }
 
 int main(void) {
-    test_static_platform_metadata();
-    test_portmaster_platform_metadata();
-    test_path_core_platforms_do_not_require_emulator();
-    test_leaf_standard_platform_resources();
-    test_parse_rejects_unsafe_custom_platform_codes();
-    test_alias_rom_directories_are_resolved();
-    test_shortcut_directories_are_excluded_from_discovery();
-    test_custom_rom_directories_are_not_exposed_in_library();
-    test_missing_known_rom_directory_uses_canonical_leaf_name();
-    test_custom_rom_directories_are_exposed_when_emulator_installed();
-    test_ports_are_only_discovered_when_installed();
-    test_emulator_scan_checks_leaf_cores_and_info();
+    test_path_defaults();
+    test_static_identity_helpers();
+    test_visibility_requires_present_libretro_core();
+    test_canonical_alias_rows_collapse_and_match_folders();
+    test_independent_variants_are_co_visible();
+    test_path_cores_and_ports_visibility();
+    test_identity_map_and_rom_root_stripping();
+    test_custom_rom_directories_are_exposed_when_core_present();
+    test_load_errors_are_typed();
+    test_shortcut_directories_are_excluded();
     return 0;
 }

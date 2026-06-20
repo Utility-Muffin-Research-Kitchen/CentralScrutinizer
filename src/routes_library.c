@@ -210,30 +210,6 @@ static int cs_stream_literal(struct mg_connection *conn, const char *literal) {
     return mg_send_chunk(conn, literal, (unsigned int) len) < 0 ? -1 : 0;
 }
 
-static int cs_platform_write_emulator_warning(char *dst,
-                                              size_t size,
-                                              const cs_platform_info *platform,
-                                              int requires_emulator,
-                                              int emulator_installed) {
-    int written;
-
-    if (!dst || size == 0) {
-        return -1;
-    }
-    dst[0] = '\0';
-
-    if (!platform || !requires_emulator || emulator_installed) {
-        return 0;
-    }
-
-    written = snprintf(dst,
-                       size,
-                       "No emulator is installed for %s (%s). Install it from the Pak Store to use this console.",
-                       platform->name,
-                       platform->tag);
-    return (written < 0 || (size_t) written >= size) ? -1 : 0;
-}
-
 static int cs_stream_escaped_string(struct mg_connection *conn, const char *value) {
     const unsigned char *cursor = (const unsigned char *) (value ? value : "");
     char out[512];
@@ -494,23 +470,18 @@ static int cs_count_files_recursive(const char *path, int allow_hidden) {
 
 static int cs_stream_platform_object(struct mg_connection *conn,
                                      const cs_paths *paths,
-                                     const cs_platform_info *platform,
-                                     const char emulator_codes[][CS_PLATFORM_CODE_MAX],
-                                     size_t emulator_code_count) {
+                                     const cs_platform_info *platform) {
     char rom_root[CS_PATH_MAX];
     char save_root[CS_PATH_MAX];
     char bios_root[CS_PATH_MAX];
     char overlays_root[CS_PATH_MAX];
     char cheats_root[CS_PATH_MAX];
-    char emulator_warning[256];
     size_t state_count = 0;
     int rom_count = 0;
     int save_count = 0;
     int bios_count = 0;
     int overlay_count = 0;
     int cheat_count = 0;
-    int requires_emulator;
-    int emulator_installed;
     int supports_roms;
     int supports_saves;
     int supports_states;
@@ -527,16 +498,6 @@ static int cs_stream_platform_object(struct mg_connection *conn,
     supports_bios = cs_platform_supports_resource(platform, "bios");
     supports_overlays = cs_platform_supports_resource(platform, "overlays");
     supports_cheats = cs_platform_supports_resource(platform, "cheats");
-    requires_emulator = cs_platform_requires_emulator(platform);
-    emulator_installed = cs_platform_has_installed_emulator(platform, emulator_codes, emulator_code_count);
-    if (cs_platform_write_emulator_warning(emulator_warning,
-                                           sizeof(emulator_warning),
-                                           platform,
-                                           requires_emulator,
-                                           emulator_installed)
-        != 0) {
-        return -1;
-    }
 
     if (supports_roms) {
         if (cs_library_db_count_roms_for_platform(paths, platform, &rom_count) != 0
@@ -572,16 +533,6 @@ static int cs_stream_platform_object(struct mg_connection *conn,
         || cs_stream_escaped_string(conn, platform->icon) != 0
         || cs_stream_literal(conn, "\",\"isCustom\":") != 0
         || cs_stream_literal(conn, platform->is_custom ? "true" : "false") != 0
-        || cs_stream_literal(conn, ",\"requiresEmulator\":") != 0
-        || cs_stream_literal(conn, requires_emulator ? "true" : "false") != 0
-        || cs_stream_literal(conn, ",\"emulatorInstalled\":") != 0
-        || cs_stream_literal(conn, emulator_installed ? "true" : "false") != 0
-        || cs_stream_literal(conn, ",\"emulatorWarning\":") != 0
-        || (emulator_warning[0] == '\0'
-                ? cs_stream_literal(conn, "null")
-                : (cs_stream_literal(conn, "\"") != 0
-                   || cs_stream_escaped_string(conn, emulator_warning) != 0
-                   || cs_stream_literal(conn, "\"") != 0))
         || cs_stream_literal(conn, ",\"romPath\":\"Roms/") != 0
         || cs_stream_escaped_string(conn, platform->rom_directory) != 0
         || cs_stream_literal(conn, "\",\"savePath\":\"Saves/") != 0
@@ -621,17 +572,32 @@ static int cs_stream_platform_object(struct mg_connection *conn,
 
 static int cs_stream_platform_event(struct mg_connection *conn,
                                     const cs_paths *paths,
-                                    const cs_platform_info *platform,
-                                    const char emulator_codes[][CS_PLATFORM_CODE_MAX],
-                                    size_t emulator_code_count) {
+                                    const cs_platform_info *platform) {
     if (!conn || !platform) {
         return -1;
     }
     if (cs_stream_literal(conn, "{\"type\":\"platform\",\"group\":\"") != 0
         || cs_stream_escaped_string(conn, platform->group) != 0
         || cs_stream_literal(conn, "\",\"platform\":") != 0
-        || cs_stream_platform_object(conn, paths, platform, emulator_codes, emulator_code_count) != 0
+        || cs_stream_platform_object(conn, paths, platform) != 0
         || cs_stream_literal(conn, "}\n") != 0) {
+        return -1;
+    }
+    return 0;
+}
+
+static int cs_stream_catalog_error_event(struct mg_connection *conn, const cs_catalog_error *error) {
+    const char *kind = error ? cs_catalog_error_kind_name(error->kind) : "parse";
+    const char *path = error ? error->path : "";
+
+    if (!conn) {
+        return -1;
+    }
+    if (cs_stream_literal(conn, "{\"type\":\"catalog_error\",\"kind\":\"") != 0
+        || cs_stream_escaped_string(conn, kind) != 0
+        || cs_stream_literal(conn, "\",\"path\":\"") != 0
+        || cs_stream_escaped_string(conn, path) != 0
+        || cs_stream_literal(conn, "\"}\n") != 0) {
         return -1;
     }
     return 0;
@@ -640,11 +606,10 @@ static int cs_stream_platform_event(struct mg_connection *conn,
 int cs_route_platforms_handler(struct mg_connection *conn, void *cbdata) {
     cs_app *app = (cs_app *) cbdata;
     cs_platform_info platforms[256];
-    char emulator_codes[256][CS_PLATFORM_CODE_MAX];
     size_t platform_count = 0;
-    size_t emulator_code_count = 0;
     size_t i;
     int guard_status;
+    cs_catalog_error catalog_error = {0};
 
     if (!cs_method_is(conn, "GET")) {
         return cs_write_json(conn, 405, "Method Not Allowed", "{\"error\":\"method_not_allowed\"}");
@@ -654,27 +619,31 @@ int cs_route_platforms_handler(struct mg_connection *conn, void *cbdata) {
         return guard_status;
     }
 
-    if (cs_platform_discover(&app->paths, platforms, sizeof(platforms) / sizeof(platforms[0]), &platform_count) != 0
-        || cs_platform_collect_installed_emulators(&app->paths,
-                                                   emulator_codes,
-                                                   sizeof(emulator_codes) / sizeof(emulator_codes[0]),
-                                                   &emulator_code_count)
-               != 0) {
-        return cs_write_json(conn, 500, "Internal Server Error", "{\"error\":\"discover_failed\"}");
-    }
-
     if (cs_stream_begin_ndjson_response(conn) != 0) {
         return 1;
+    }
+
+    if (cs_platform_discover_with_error(&app->paths,
+                                        platforms,
+                                        sizeof(platforms) / sizeof(platforms[0]),
+                                        &platform_count,
+                                        &catalog_error)
+        != 0) {
+        if (catalog_error.kind != CS_CATALOG_ERROR_NONE) {
+            if (cs_stream_catalog_error_event(conn, &catalog_error) != 0
+                || cs_stream_literal(conn, "{\"type\":\"done\"}\n") != 0
+                || mg_send_chunk(conn, "", 0) < 0) {
+                goto stream_fail;
+            }
+            return 1;
+        }
+        goto stream_fail;
     }
 
     /* Emit one NDJSON line per platform, flushed as the counts finish so the browser
        can render cards incrementally instead of waiting for all platforms to scan. */
     for (i = 0; i < platform_count; ++i) {
-        if (cs_stream_platform_event(conn,
-                                     &app->paths,
-                                     &platforms[i],
-                                     (const char (*)[CS_PLATFORM_CODE_MAX]) emulator_codes,
-                                     emulator_code_count)
+        if (cs_stream_platform_event(conn, &app->paths, &platforms[i])
             != 0) {
             goto stream_fail;
         }

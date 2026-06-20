@@ -63,8 +63,24 @@ static void set_sdcard_root_realpath(const char *root) {
 
     assert(realpath(root, resolved) != NULL);
     setenv("SDCARD_PATH", resolved, 1);
+    setenv("SYSTEMS_CATALOG_PATH",
+           "fixtures/mock_sdcard/.system/leaf/platforms/mlp1/defaults/systems.json",
+           1);
+    setenv("CORES_CATALOG_PATH",
+           "fixtures/mock_sdcard/.system/leaf/platforms/mlp1/defaults/cores.json",
+           1);
     unsetenv("CS_WEB_ROOT");
     unsetenv("UMRK_INTERNAL_DATA_PATH");
+}
+
+static void seed_mock_core(const char *root, const char *file_name) {
+    char cores_dir[PATH_MAX];
+    char core_path[PATH_MAX];
+
+    assert(snprintf(cores_dir, sizeof(cores_dir), "%s/.system/leaf/platforms/mlp1/cores", root) > 0);
+    make_dir_p(cores_dir);
+    assert(snprintf(core_path, sizeof(core_path), "%s/%s", cores_dir, file_name) > 0);
+    write_file(core_path, "core");
 }
 
 static const cs_browser_entry *find_entry(const cs_browser_result *result, const char *name) {
@@ -95,6 +111,19 @@ static const cs_browser_entry *find_entry_by_type(const cs_browser_result *resul
     return NULL;
 }
 
+static cs_platform_info make_test_platform(const char *tag, const char *primary_code, const char *rom_directory) {
+    cs_platform_info platform;
+
+    memset(&platform, 0, sizeof(platform));
+    assert(snprintf(platform.tag, sizeof(platform.tag), "%s", tag) > 0);
+    assert(snprintf(platform.primary_code, sizeof(platform.primary_code), "%s", primary_code) > 0);
+    assert(snprintf(platform.rom_directory, sizeof(platform.rom_directory), "%s", rom_directory) > 0);
+    assert(snprintf(platform.name, sizeof(platform.name), "%s", tag) > 0);
+    assert(snprintf(platform.group, sizeof(platform.group), "%s", "Test") > 0);
+    assert(snprintf(platform.icon, sizeof(platform.icon), "%s", tag) > 0);
+    return platform;
+}
+
 static void test_fixture_browser_scopes_and_rejection(void) {
     cs_paths paths = {0};
     cs_browser_result result = {0};
@@ -105,6 +134,8 @@ static void test_fixture_browser_scopes_and_rejection(void) {
     const cs_browser_entry *entry;
 
     setenv("SDCARD_PATH", "fixtures/mock_sdcard", 1);
+    unsetenv("SYSTEMS_CATALOG_PATH");
+    unsetenv("CORES_CATALOG_PATH");
     unsetenv("CS_WEB_ROOT");
 
     assert(cs_paths_init(&paths) == 0);
@@ -117,7 +148,7 @@ static void test_fixture_browser_scopes_and_rejection(void) {
 
     assert(cs_browser_list(&paths, CS_SCOPE_ROMS, gba, "", 0, NULL, &result) == CS_BROWSER_LIST_OK);
     assert(strcmp(result.scope, "roms") == 0);
-    assert(strcmp(result.title, "ROMs - Game Boy Advance") == 0);
+    assert(strcmp(result.title, "ROMs - GBA") == 0);
     assert(strcmp(result.root_path, "fixtures/mock_sdcard/Roms/Game Boy Advance (GBA)") == 0);
     assert(result.count == 1);
     assert(result.truncated == 0);
@@ -126,7 +157,7 @@ static void test_fixture_browser_scopes_and_rejection(void) {
     assert(strcmp(entry->type, "rom") == 0);
 
     assert(cs_browser_list(&paths, CS_SCOPE_SAVES, gba, "", 0, NULL, &result) == CS_BROWSER_LIST_OK);
-    assert(strcmp(result.title, "Saves - Game Boy Advance") == 0);
+    assert(strcmp(result.title, "Saves - GBA") == 0);
     assert(strcmp(result.root_path, "fixtures/mock_sdcard/Saves/GBA") == 0);
     assert(result.count == 1);
     entry = find_entry(&result, "Pokemon Emerald.sav");
@@ -134,7 +165,7 @@ static void test_fixture_browser_scopes_and_rejection(void) {
     assert(strcmp(entry->type, "save") == 0);
 
     assert(cs_browser_list(&paths, CS_SCOPE_BIOS, ps, "", 0, NULL, &result) == CS_BROWSER_LIST_OK);
-    assert(strcmp(result.title, "BIOS - Sony PlayStation") == 0);
+    assert(strcmp(result.title, "BIOS - PSX") == 0);
     assert(strcmp(result.root_path, "fixtures/mock_sdcard/BIOS/PS") == 0);
     assert(result.count == 1);
     entry = find_entry(&result, "scph1001.bin");
@@ -143,7 +174,7 @@ static void test_fixture_browser_scopes_and_rejection(void) {
 
     assert(cs_browser_list(&paths, CS_SCOPE_CHEATS, gba, "", 0, NULL, &result) == CS_BROWSER_LIST_OK);
     assert(strcmp(result.scope, "cheats") == 0);
-    assert(strcmp(result.title, "Cheats - Game Boy Advance") == 0);
+    assert(strcmp(result.title, "Cheats - GBA") == 0);
     assert(strcmp(result.root_path, "fixtures/mock_sdcard/Cheats/GBA") == 0);
     assert(result.count == 0);
 
@@ -208,6 +239,7 @@ static void test_rom_thumbnail_resolution_is_png_only(void) {
     write_file(rom_file, "rom");
     write_file(png_art, "png");
     write_file(jpg_art, "jpg");
+    seed_mock_core(root, "mgba_libretro.so");
 
     set_sdcard_root_realpath(root);
     assert(cs_paths_init(&paths) == 0);
@@ -229,7 +261,6 @@ static void test_rom_thumbnail_resolution_is_png_only(void) {
     assert(rmdir(images_dir) == 0);
     assert(rmdir(system_dir) == 0);
     assert(rmdir(roms_dir) == 0);
-    assert(rmdir(root) == 0);
 }
 
 static void test_library_db_populates_root_rom_listing(void) {
@@ -237,6 +268,9 @@ static void test_library_db_populates_root_rom_listing(void) {
     cs_browser_result result = {0};
     cs_browser_sort_options sort = {CS_BROWSER_SORT_SIZE, CS_BROWSER_SORT_DESC};
     cs_platform_info gba;
+    cs_platform_info arcade;
+    cs_platform_info atari2600;
+    cs_platform_info sms;
     char template[] = "/tmp/cs-library-db-XXXXXX";
     char *root;
     char roms_dir[PATH_MAX];
@@ -257,6 +291,7 @@ static void test_library_db_populates_root_rom_listing(void) {
     char *err = NULL;
     const cs_browser_entry *entry;
     int db_count = 0;
+    int alias_count = 0;
 
     root = mkdtemp(template);
     assert(root != NULL);
@@ -285,6 +320,7 @@ static void test_library_db_populates_root_rom_listing(void) {
     write_sized_file(metroid_rom, 11);
     write_sized_file(fs_only_rom, 13);
     write_file(zelda_art, "png");
+    seed_mock_core(root, "mgba_libretro.so");
 
     assert(sqlite3_open(db_path, &db) == SQLITE_OK);
     assert(sqlite3_exec(db,
@@ -305,7 +341,10 @@ static void test_library_db_populates_root_rom_listing(void) {
                         ");"
                         "INSERT INTO games (system, name, rom_path, image_path) VALUES "
                         "('GBA', 'Database Zelda', 'Roms/GBA/Zelda Minish Cap.gba', 'Images/GBA/Zelda Minish Cap.png'),"
-                        "('GBA', 'Database Metroid', 'Roms/GBA/Metroid Fusion.gba', NULL);",
+                        "('GBA', 'Database Metroid', 'Roms/GBA/Metroid Fusion.gba', NULL),"
+                        "('ARCADE', 'Database Arcade', 'Roms/ARCADE/1942.zip', NULL),"
+                        "('ATARI2600', 'Database Atari', 'Roms/ATARI/Pitfall.a26', NULL),"
+                        "('MS', 'Database Master System', 'Roms/MS/Sonic.sms', NULL);",
                         NULL,
                         NULL,
                         &err)
@@ -322,6 +361,16 @@ static void test_library_db_populates_root_rom_listing(void) {
 
     assert(cs_library_db_count_roms_for_platform(&paths, &gba, &db_count) == 0);
     assert(db_count == 2);
+
+    arcade = make_test_platform("FBN", "FBN", "ARCADE");
+    atari2600 = make_test_platform("A2600", "A2600", "ATARI");
+    sms = make_test_platform("SMS", "SMS", "MS");
+    assert(cs_library_db_count_roms_for_platform(&paths, &arcade, &alias_count) == 0);
+    assert(alias_count == 1);
+    assert(cs_library_db_count_roms_for_platform(&paths, &atari2600, &alias_count) == 0);
+    assert(alias_count == 1);
+    assert(cs_library_db_count_roms_for_platform(&paths, &sms, &alias_count) == 0);
+    assert(alias_count == 1);
 
     assert(cs_browser_list(&paths, CS_SCOPE_ROMS, &gba, "", 0, NULL, &result) == CS_BROWSER_LIST_OK);
     assert(result.count == 2);
@@ -374,12 +423,10 @@ static void test_library_db_populates_root_rom_listing(void) {
     assert(unlink(metroid_rom) == 0);
     assert(unlink(zelda_rom) == 0);
     assert(rmdir(state_dir) == 0);
-    assert(rmdir(mlp1_dir) == 0);
     assert(rmdir(image_system_dir) == 0);
     assert(rmdir(images_dir) == 0);
     assert(rmdir(system_dir) == 0);
     assert(rmdir(roms_dir) == 0);
-    assert(rmdir(root) == 0);
 }
 
 static void test_symlink_entries_are_skipped(void) {

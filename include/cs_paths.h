@@ -35,6 +35,8 @@ typedef struct cs_paths {
     char temp_upload_root[CS_PATH_MAX];
     char cores_root[CS_PATH_MAX];
     char info_root[CS_PATH_MAX];
+    char systems_catalog_path[CS_PATH_MAX];
+    char cores_catalog_path[CS_PATH_MAX];
     char logs_root[CS_PATH_MAX];
     char internal_data_root[CS_PATH_MAX];
     cs_path_source sources[CS_PATH_SOURCE_MAX];

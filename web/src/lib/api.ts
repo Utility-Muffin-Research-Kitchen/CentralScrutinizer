@@ -215,10 +215,12 @@ export async function revokeBrowser(csrf: string): Promise<void> {
 
 export type PlatformStreamEvent =
   | { type: "platform"; group: string; platform: PlatformSummary }
+  | { type: "catalog_error"; kind: string; path: string }
   | { type: "done" };
 
 export type PlatformStreamHandlers = {
   onPlatform?: (group: string, platform: PlatformSummary) => void;
+  onCatalogError?: (kind: string, path: string) => void;
   onDone?: () => void;
   signal?: AbortSignal;
 };
@@ -240,6 +242,8 @@ function dispatchPlatformEvent(line: string, handlers: PlatformStreamHandlers): 
 
   if (event.type === "platform") {
     handlers.onPlatform?.(event.group, event.platform);
+  } else if (event.type === "catalog_error") {
+    handlers.onCatalogError?.(event.kind, event.path);
   } else if (event.type === "done") {
     handlers.onDone?.();
     return true;

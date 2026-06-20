@@ -35,6 +35,8 @@ typedef enum cs_library_db_status {
     CS_LIBRARY_DB_INTERNAL = 2,
 } cs_library_db_status;
 
+#define CS_LIBRARY_DB_PLATFORM_SYSTEM_BINDING_COUNT 5
+
 static const cs_browser_sort_options CS_BROWSER_DEFAULT_SORT_OPTIONS = {
     CS_BROWSER_SORT_NAME,
     CS_BROWSER_SORT_ASC,
@@ -598,6 +600,48 @@ static cs_library_db_status cs_library_db_open_writable(const cs_paths *paths, s
     return CS_LIBRARY_DB_OK;
 }
 
+static const char *cs_library_db_nonempty_or_blank(const char *value) {
+    return value && value[0] != '\0' ? value : "";
+}
+
+static void cs_library_db_collect_platform_systems(const cs_platform_info *platform,
+                                                   const char *systems[CS_LIBRARY_DB_PLATFORM_SYSTEM_BINDING_COUNT]) {
+    const cs_platform_info *fallback = platform ? cs_platform_find(platform->tag) : NULL;
+
+    systems[0] = cs_library_db_nonempty_or_blank(platform ? platform->primary_code : NULL);
+    systems[1] = cs_library_db_nonempty_or_blank(platform ? platform->tag : NULL);
+    systems[2] = cs_library_db_nonempty_or_blank(platform ? platform->rom_directory : NULL);
+    systems[3] = cs_library_db_nonempty_or_blank(fallback ? fallback->primary_code : NULL);
+    systems[4] = cs_library_db_nonempty_or_blank(fallback ? fallback->rom_directory : NULL);
+}
+
+static void cs_library_db_bind_platform_systems(sqlite3_stmt *stmt, const cs_platform_info *platform) {
+    const char *systems[CS_LIBRARY_DB_PLATFORM_SYSTEM_BINDING_COUNT];
+    size_t i;
+
+    cs_library_db_collect_platform_systems(platform, systems);
+    for (i = 0; i < CS_LIBRARY_DB_PLATFORM_SYSTEM_BINDING_COUNT; ++i) {
+        sqlite3_bind_text(stmt, (int) i + 1, systems[i], -1, SQLITE_TRANSIENT);
+    }
+}
+
+static int cs_library_db_platform_system_matches(const cs_platform_info *platform, const char *value) {
+    const char *systems[CS_LIBRARY_DB_PLATFORM_SYSTEM_BINDING_COUNT];
+    size_t i;
+
+    if (!value || value[0] == '\0') {
+        return 0;
+    }
+    cs_library_db_collect_platform_systems(platform, systems);
+    for (i = 0; i < CS_LIBRARY_DB_PLATFORM_SYSTEM_BINDING_COUNT; ++i) {
+        if (systems[i][0] != '\0' && strcmp(systems[i], value) == 0) {
+            return 1;
+        }
+    }
+
+    return 0;
+}
+
 static int cs_library_db_path_component_matches_platform(const char *component,
                                                          size_t component_len,
                                                          const cs_platform_info *platform) {
@@ -612,9 +656,7 @@ static int cs_library_db_path_component_matches_platform(const char *component,
     memcpy(component_buf, component, component_len);
     component_buf[component_len] = '\0';
 
-    if (strcmp(component_buf, platform->rom_directory) == 0
-        || strcmp(component_buf, platform->primary_code) == 0
-        || strcmp(component_buf, platform->tag) == 0) {
+    if (cs_library_db_platform_system_matches(platform, component_buf)) {
         return 1;
     }
 
@@ -624,7 +666,7 @@ static int cs_library_db_path_component_matches_platform(const char *component,
                                         parsed_code,
                                         sizeof(parsed_code))
             == 0
-        && (strcmp(parsed_code, platform->primary_code) == 0 || strcmp(parsed_code, platform->tag) == 0)) {
+        && cs_library_db_platform_system_matches(platform, parsed_code)) {
         return 1;
     }
 
@@ -1029,7 +1071,6 @@ static cs_browser_list_status cs_browser_list_source_virtual_root(const cs_paths
 int cs_library_db_count_roms_for_platform(const cs_paths *paths, const cs_platform_info *platform, int *count_out) {
     sqlite3 *db = NULL;
     sqlite3_stmt *stmt = NULL;
-    const cs_platform_info *fallback;
     cs_library_db_status open_status;
     static const char *sql =
         "SELECT COUNT(*) FROM games WHERE system IN (?, ?, ?, ?, ?);";
@@ -1038,7 +1079,6 @@ int cs_library_db_count_roms_for_platform(const cs_paths *paths, const cs_platfo
         return -1;
     }
     *count_out = 0;
-    fallback = cs_platform_find(platform->tag);
 
     open_status = cs_library_db_open_readonly(paths, &db);
     if (open_status != CS_LIBRARY_DB_OK) {
@@ -1049,11 +1089,7 @@ int cs_library_db_count_roms_for_platform(const cs_paths *paths, const cs_platfo
         sqlite3_close(db);
         return -1;
     }
-    sqlite3_bind_text(stmt, 1, platform->primary_code, -1, SQLITE_TRANSIENT);
-    sqlite3_bind_text(stmt, 2, platform->tag, -1, SQLITE_TRANSIENT);
-    sqlite3_bind_text(stmt, 3, platform->rom_directory, -1, SQLITE_TRANSIENT);
-    sqlite3_bind_text(stmt, 4, fallback ? fallback->primary_code : "", -1, SQLITE_TRANSIENT);
-    sqlite3_bind_text(stmt, 5, fallback ? fallback->rom_directory : "", -1, SQLITE_TRANSIENT);
+    cs_library_db_bind_platform_systems(stmt, platform);
 
     if (sqlite3_step(stmt) == SQLITE_ROW) {
         *count_out = sqlite3_column_int(stmt, 0);
@@ -1080,7 +1116,7 @@ int cs_library_db_set_game_favorite(const cs_paths *paths,
     int found_id = 0;
     int step_rc;
     static const char *select_sql =
-        "SELECT id, rom_path FROM games WHERE system = ? OR system = ?;";
+        "SELECT id, rom_path FROM games WHERE system IN (?, ?, ?, ?, ?);";
     static const char *add_sql =
         "INSERT OR IGNORE INTO favorites (kind, target_id, added_at) "
         "VALUES ('game', ?, strftime('%s','now'));";
@@ -1103,8 +1139,7 @@ int cs_library_db_set_game_favorite(const cs_paths *paths,
         sqlite3_close(db);
         return -1;
     }
-    sqlite3_bind_text(stmt, 1, platform->primary_code, -1, SQLITE_TRANSIENT);
-    sqlite3_bind_text(stmt, 2, platform->tag, -1, SQLITE_TRANSIENT);
+    cs_library_db_bind_platform_systems(stmt, platform);
 
     while ((step_rc = sqlite3_step(stmt)) == SQLITE_ROW) {
         int row_id = sqlite3_column_int(stmt, 0);
@@ -1180,7 +1215,7 @@ static cs_library_db_status cs_browser_list_db_roms(const cs_paths *paths,
     static const char *sql =
         "SELECT name, rom_path, COALESCE(image_path, ''), "
         "EXISTS(SELECT 1 FROM favorites f WHERE f.kind = 'game' AND f.target_id = games.id) "
-        "FROM games WHERE system = ? OR system = ? ORDER BY name;";
+        "FROM games WHERE system IN (?, ?, ?, ?, ?) ORDER BY name;";
 
     if (!paths || !platform || !selected_source || !root || !result) {
         return CS_LIBRARY_DB_INTERNAL;
@@ -1197,8 +1232,7 @@ static cs_library_db_status cs_browser_list_db_roms(const cs_paths *paths,
         sqlite3_close(db);
         return CS_LIBRARY_DB_UNAVAILABLE;
     }
-    sqlite3_bind_text(stmt, 1, platform->primary_code, -1, SQLITE_TRANSIENT);
-    sqlite3_bind_text(stmt, 2, platform->tag, -1, SQLITE_TRANSIENT);
+    cs_library_db_bind_platform_systems(stmt, platform);
 
     entries = (cs_browser_db_entry *) calloc(CS_BROWSER_SCAN_CAP, sizeof(*entries));
     if (!entries) {

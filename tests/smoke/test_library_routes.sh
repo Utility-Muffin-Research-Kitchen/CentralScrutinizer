@@ -20,12 +20,63 @@ ROM_BASE="${ROM_NAME%.*}"
 mkdir -p "$SDCARD_ROOT/Images/GBA"
 mkdir -p "$SDCARD_ROOT/States"
 mkdir -p "$SDCARD_ROOT/.system/leaf/platforms/mlp1/cores"
+mkdir -p "$SDCARD_ROOT/Roms/ARCADE"
+mkdir -p "$SDCARD_ROOT/Roms/ATARI"
+mkdir -p "$SDCARD_ROOT/Roms/MS"
 mkdir -p "$SDCARD_ROOT/Roms/Dreamcast (FLYCAST)"
 mkdir -p "$SDCARD_ROOT/Roms/Awesome System (FOO)"
 printf 'png' > "$SDCARD_ROOT/Images/GBA/$ROM_BASE.png"
 printf 'state' > "$SDCARD_ROOT/States/$ROM_BASE.state"
+printf 'arcade' > "$SDCARD_ROOT/Roms/ARCADE/1942.zip"
+printf 'atari' > "$SDCARD_ROOT/Roms/ATARI/Pitfall.a26"
+printf 'sms' > "$SDCARD_ROOT/Roms/MS/Sonic.sms"
 printf 'rom' > "$SDCARD_ROOT/Roms/Awesome System (FOO)/sample.rom"
+printf 'core' > "$SDCARD_ROOT/.system/leaf/platforms/mlp1/cores/fbneo_libretro.so"
+printf 'core' > "$SDCARD_ROOT/.system/leaf/platforms/mlp1/cores/stella2014_libretro.so"
+printf 'core' > "$SDCARD_ROOT/.system/leaf/platforms/mlp1/cores/genesis_plus_gx_libretro.so"
 printf 'core' > "$SDCARD_ROOT/.system/leaf/platforms/mlp1/cores/FOO_libretro.so"
+export SDCARD_ROOT ROM_NAME ROM_BASE
+python3 - <<'PY'
+import os
+import sqlite3
+
+root = os.environ["SDCARD_ROOT"]
+rom_name = os.environ["ROM_NAME"]
+rom_base = os.environ["ROM_BASE"]
+db_path = os.path.join(root, ".umrk", "mlp1", "library.db")
+os.makedirs(os.path.dirname(db_path), exist_ok=True)
+db = sqlite3.connect(db_path)
+db.executescript(
+    """
+    CREATE TABLE games (
+        id INTEGER PRIMARY KEY,
+        system TEXT NOT NULL,
+        name TEXT NOT NULL,
+        rom_path TEXT NOT NULL UNIQUE,
+        image_path TEXT,
+        last_played INTEGER,
+        playtime_s INTEGER NOT NULL DEFAULT 0
+    );
+    CREATE TABLE favorites (
+        kind TEXT NOT NULL CHECK (kind IN ('game','app')),
+        target_id INTEGER NOT NULL,
+        added_at INTEGER NOT NULL,
+        PRIMARY KEY (kind, target_id)
+    );
+    """
+)
+db.executemany(
+    "INSERT INTO games (system, name, rom_path, image_path) VALUES (?, ?, ?, ?);",
+    [
+        ("GBA", "Database GBA", f"Roms/Game Boy Advance (GBA)/{rom_name}", f"Images/GBA/{rom_base}.png"),
+        ("ARCADE", "Database Arcade", "Roms/ARCADE/1942.zip", None),
+        ("ATARI2600", "Database Atari", "Roms/ATARI/Pitfall.a26", None),
+        ("MS", "Database Master System", "Roms/MS/Sonic.sms", None),
+    ],
+)
+db.commit()
+db.close()
+PY
 
 CS_PAIRING_CODE=7391 ./build/mac/central-scrutinizer --headless --port 8877 --web-root web/out --sdcard "$SDCARD_ROOT" &
 SERVER_PID=$!
@@ -70,9 +121,12 @@ CSRF_TOKEN="$(printf '%s' "$SESSION_RESPONSE" | sed -n 's/.*"csrf":"\([^"]*\)".*
 # instead of piping curl into grep — grep would short-circuit on first match and break the pipe.
 PLATFORMS_RESPONSE="$(curl -sf -b "$COOKIE_JAR" -H "X-CS-CSRF: $CSRF_TOKEN" http://127.0.0.1:8877/api/platforms)"
 printf '%s' "$PLATFORMS_RESPONSE" | grep -Fq '"tag":"GBA"'
-printf '%s' "$PLATFORMS_RESPONSE" | grep -Fq '"name":"GBA"'
+printf '%s' "$PLATFORMS_RESPONSE" | grep -Fq '"name":"Game Boy Advance"'
 printf '%s' "$PLATFORMS_RESPONSE" | grep -Fq '"group":"Nintendo"'
 printf '%s' "$PLATFORMS_RESPONSE" | grep -Fq '"counts":{"roms":1,"saves":1,"states":1,"bios":1,"overlays":0,"cheats":0}'
+printf '%s' "$PLATFORMS_RESPONSE" | grep -F '"tag":"FBN"' | grep -Fq '"counts":{"roms":1'
+printf '%s' "$PLATFORMS_RESPONSE" | grep -F '"tag":"A2600"' | grep -Fq '"counts":{"roms":1'
+printf '%s' "$PLATFORMS_RESPONSE" | grep -F '"tag":"SMS"' | grep -Fq '"counts":{"roms":1'
 printf '%s' "$PLATFORMS_RESPONSE" | grep -Fq '"type":"platform"'
 printf '%s' "$PLATFORMS_RESPONSE" | grep -Fq '{"type":"done"}'
 printf '%s' "$PLATFORMS_RESPONSE" | grep -Fq '"tag":"PORTS"'
@@ -109,6 +163,9 @@ printf '%s' "$CATALOG_ERROR_RESPONSE" | grep -Fq '{"type":"done"}'
 curl -sf -b "$COOKIE_JAR" -H "X-CS-CSRF: $CSRF_TOKEN" 'http://127.0.0.1:8877/api/browser?scope=roms&tag=FOO' | grep -Fq '"name":"sample.rom"'
 curl -sf -b "$COOKIE_JAR" -H "X-CS-CSRF: $CSRF_TOKEN" 'http://127.0.0.1:8877/api/browser?scope=roms&tag=GBA' | grep -Fq "\"name\":\"$ROM_NAME\""
 curl -sf -b "$COOKIE_JAR" -H "X-CS-CSRF: $CSRF_TOKEN" 'http://127.0.0.1:8877/api/browser?scope=roms&tag=GBA' | grep -Fq "\"thumbnailPath\":\"Images/GBA/$ROM_BASE.png\""
+curl -sf -b "$COOKIE_JAR" -H "X-CS-CSRF: $CSRF_TOKEN" 'http://127.0.0.1:8877/api/browser?scope=roms&tag=FBN' | grep -Fq '"name":"1942.zip"'
+curl -sf -b "$COOKIE_JAR" -H "X-CS-CSRF: $CSRF_TOKEN" 'http://127.0.0.1:8877/api/browser?scope=roms&tag=A2600' | grep -Fq '"name":"Pitfall.a26"'
+curl -sf -b "$COOKIE_JAR" -H "X-CS-CSRF: $CSRF_TOKEN" 'http://127.0.0.1:8877/api/browser?scope=roms&tag=SMS' | grep -Fq '"name":"Sonic.sms"'
 curl -sf -b "$COOKIE_JAR" -H "X-CS-CSRF: $CSRF_TOKEN" 'http://127.0.0.1:8877/api/browser?scope=saves&tag=GBA' | grep -Fq '"name":"Pokemon Emerald.sav"'
 curl -sf -b "$COOKIE_JAR" -H "X-CS-CSRF: $CSRF_TOKEN" 'http://127.0.0.1:8877/api/browser?scope=bios&tag=PS' | grep -Fq '"name":"scph1001.bin"'
 UNSUPPORTED_OVERLAYS="$(curl -s -b "$COOKIE_JAR" -H "X-CS-CSRF: $CSRF_TOKEN" 'http://127.0.0.1:8877/api/browser?scope=overlays&tag=GBA' -w '\n%{http_code}')"

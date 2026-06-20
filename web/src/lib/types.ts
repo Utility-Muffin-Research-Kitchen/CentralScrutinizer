@@ -15,7 +15,6 @@ export type StatusResponse = {
 };
 
 export type PlatformResource = "roms" | "saves" | "states" | "bios" | "overlays" | "cheats";
-export type LibraryEmuFilter = "all" | "installed";
 
 export type SupportedResources = Record<PlatformResource, boolean>;
 

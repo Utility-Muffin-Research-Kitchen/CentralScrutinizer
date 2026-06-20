@@ -1,5 +1,6 @@
 #include <assert.h>
 #include <arpa/inet.h>
+#include <dirent.h>
 #include <limits.h>
 #include <netinet/in.h>
 #include <stdatomic.h>
@@ -48,6 +49,46 @@ static void write_file(const char *path, const char *content) {
     assert(file != NULL);
     assert(fwrite(content, 1, strlen(content), file) == strlen(content));
     assert(fclose(file) == 0);
+}
+
+static int remove_tree(const char *path) {
+    struct stat st;
+    DIR *dir;
+    struct dirent *entry;
+
+    if (lstat(path, &st) != 0) {
+        return -1;
+    }
+    if (!S_ISDIR(st.st_mode)) {
+        return unlink(path);
+    }
+
+    dir = opendir(path);
+    if (!dir) {
+        return -1;
+    }
+    while ((entry = readdir(dir)) != NULL) {
+        char child[CS_PATH_MAX];
+        int written;
+
+        if (strcmp(entry->d_name, ".") == 0 || strcmp(entry->d_name, "..") == 0) {
+            continue;
+        }
+        written = snprintf(child, sizeof(child), "%s/%s", path, entry->d_name);
+        if (written <= 0 || (size_t) written >= sizeof(child)) {
+            closedir(dir);
+            return -1;
+        }
+        if (remove_tree(child) != 0) {
+            closedir(dir);
+            return -1;
+        }
+    }
+    if (closedir(dir) != 0) {
+        return -1;
+    }
+
+    return rmdir(path);
 }
 
 static int reserve_local_port(void) {
@@ -351,5 +392,6 @@ int main(void) {
     assert(unsetenv("CORES_CATALOG_PATH") == 0);
     assert(unsetenv("SYSTEMS_CATALOG_PATH") == 0);
     assert(unsetenv("SDCARD_PATH") == 0);
+    assert(remove_tree(root) == 0);
     return 0;
 }

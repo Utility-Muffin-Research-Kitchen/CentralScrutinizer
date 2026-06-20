@@ -1,4 +1,5 @@
 #include <assert.h>
+#include <dirent.h>
 #include <limits.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -56,6 +57,46 @@ static void write_sized_file(const char *path, size_t size) {
     assert(file != NULL);
     assert(fclose(file) == 0);
     assert(truncate(path, (off_t) size) == 0);
+}
+
+static int remove_tree(const char *path) {
+    struct stat st;
+    DIR *dir;
+    struct dirent *entry;
+
+    if (lstat(path, &st) != 0) {
+        return -1;
+    }
+    if (!S_ISDIR(st.st_mode)) {
+        return unlink(path);
+    }
+
+    dir = opendir(path);
+    if (!dir) {
+        return -1;
+    }
+    while ((entry = readdir(dir)) != NULL) {
+        char child[PATH_MAX];
+        int written;
+
+        if (strcmp(entry->d_name, ".") == 0 || strcmp(entry->d_name, "..") == 0) {
+            continue;
+        }
+        written = snprintf(child, sizeof(child), "%s/%s", path, entry->d_name);
+        if (written <= 0 || (size_t) written >= sizeof(child)) {
+            closedir(dir);
+            return -1;
+        }
+        if (remove_tree(child) != 0) {
+            closedir(dir);
+            return -1;
+        }
+    }
+    if (closedir(dir) != 0) {
+        return -1;
+    }
+
+    return rmdir(path);
 }
 
 static void set_sdcard_root_realpath(const char *root) {
@@ -148,7 +189,7 @@ static void test_fixture_browser_scopes_and_rejection(void) {
 
     assert(cs_browser_list(&paths, CS_SCOPE_ROMS, gba, "", 0, NULL, &result) == CS_BROWSER_LIST_OK);
     assert(strcmp(result.scope, "roms") == 0);
-    assert(strcmp(result.title, "ROMs - GBA") == 0);
+    assert(strcmp(result.title, "ROMs - Game Boy Advance") == 0);
     assert(strcmp(result.root_path, "fixtures/mock_sdcard/Roms/Game Boy Advance (GBA)") == 0);
     assert(result.count == 1);
     assert(result.truncated == 0);
@@ -157,7 +198,7 @@ static void test_fixture_browser_scopes_and_rejection(void) {
     assert(strcmp(entry->type, "rom") == 0);
 
     assert(cs_browser_list(&paths, CS_SCOPE_SAVES, gba, "", 0, NULL, &result) == CS_BROWSER_LIST_OK);
-    assert(strcmp(result.title, "Saves - GBA") == 0);
+    assert(strcmp(result.title, "Saves - Game Boy Advance") == 0);
     assert(strcmp(result.root_path, "fixtures/mock_sdcard/Saves/GBA") == 0);
     assert(result.count == 1);
     entry = find_entry(&result, "Pokemon Emerald.sav");
@@ -165,7 +206,7 @@ static void test_fixture_browser_scopes_and_rejection(void) {
     assert(strcmp(entry->type, "save") == 0);
 
     assert(cs_browser_list(&paths, CS_SCOPE_BIOS, ps, "", 0, NULL, &result) == CS_BROWSER_LIST_OK);
-    assert(strcmp(result.title, "BIOS - PSX") == 0);
+    assert(strcmp(result.title, "BIOS - Sony PlayStation") == 0);
     assert(strcmp(result.root_path, "fixtures/mock_sdcard/BIOS/PS") == 0);
     assert(result.count == 1);
     entry = find_entry(&result, "scph1001.bin");
@@ -174,7 +215,7 @@ static void test_fixture_browser_scopes_and_rejection(void) {
 
     assert(cs_browser_list(&paths, CS_SCOPE_CHEATS, gba, "", 0, NULL, &result) == CS_BROWSER_LIST_OK);
     assert(strcmp(result.scope, "cheats") == 0);
-    assert(strcmp(result.title, "Cheats - GBA") == 0);
+    assert(strcmp(result.title, "Cheats - Game Boy Advance") == 0);
     assert(strcmp(result.root_path, "fixtures/mock_sdcard/Cheats/GBA") == 0);
     assert(result.count == 0);
 
@@ -255,12 +296,7 @@ static void test_rom_thumbnail_resolution_is_png_only(void) {
     assert(entry != NULL);
     assert(entry->thumbnail_path[0] == '\0');
 
-    assert(unlink(jpg_art) == 0);
-    assert(unlink(rom_file) == 0);
-    assert(rmdir(image_system_dir) == 0);
-    assert(rmdir(images_dir) == 0);
-    assert(rmdir(system_dir) == 0);
-    assert(rmdir(roms_dir) == 0);
+    assert(remove_tree(root) == 0);
 }
 
 static void test_library_db_populates_root_rom_listing(void) {
@@ -418,15 +454,7 @@ static void test_library_db_populates_root_rom_listing(void) {
     assert(result.count == 3);
     assert(find_entry(&result, "Filesystem Only.gba") != NULL);
 
-    assert(unlink(zelda_art) == 0);
-    assert(unlink(fs_only_rom) == 0);
-    assert(unlink(metroid_rom) == 0);
-    assert(unlink(zelda_rom) == 0);
-    assert(rmdir(state_dir) == 0);
-    assert(rmdir(image_system_dir) == 0);
-    assert(rmdir(images_dir) == 0);
-    assert(rmdir(system_dir) == 0);
-    assert(rmdir(roms_dir) == 0);
+    assert(remove_tree(root) == 0);
 }
 
 static void test_symlink_entries_are_skipped(void) {

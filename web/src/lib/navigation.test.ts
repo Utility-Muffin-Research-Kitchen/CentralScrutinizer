@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { getDestination, readLibraryEmuFilter, readShowEmptyPlatforms, readViewState, writeViewState } from "./navigation";
+import { getDestination, readShowEmptyPlatforms, readViewState, writeViewState } from "./navigation";
 
 describe("navigation", () => {
   it("maps the legacy files route into the tools file browser", () => {
@@ -62,9 +62,4 @@ describe("navigation", () => {
     expect(readShowEmptyPlatforms("?view=dashboard")).toBe(false);
   });
 
-  it("ignores the deprecated emulator filter url param", () => {
-    expect(readLibraryEmuFilter("?view=dashboard&emu=installed")).toBe("installed");
-    expect(readLibraryEmuFilter("?view=dashboard")).toBe("installed");
-    expect(readLibraryEmuFilter("?view=dashboard&emu=all")).toBe("installed");
-  });
 });

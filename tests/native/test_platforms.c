@@ -149,15 +149,6 @@ static void write_info(const char *root, const char *file_name) {
     write_file(path, "info");
 }
 
-static void write_path_core_launcher(const char *root, const char *relative) {
-    char path[PATH_MAX];
-
-    assert(snprintf(path, sizeof(path), "%s/.system/leaf/platforms/mlp1/%s", root, relative) > 0);
-    make_dir(path);
-    assert(rmdir(path) == 0);
-    make_dir(path);
-}
-
 static void write_launcher_file(const char *root, const char *relative) {
     char path[PATH_MAX];
     char dir[PATH_MAX];
@@ -188,8 +179,6 @@ static void test_path_defaults(void) {
 static void test_static_identity_helpers(void) {
     const cs_platform_info *info;
 
-    assert(cs_platform_count() > 0);
-    assert(cs_platform_at(cs_platform_count()) == NULL);
     info = cs_platform_find("PICO8");
     assert(info != NULL);
     assert(strcmp(info->tag, "P8") == 0);

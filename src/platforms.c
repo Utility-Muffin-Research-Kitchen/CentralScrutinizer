@@ -375,7 +375,8 @@ static int cs_platform_init_view_from_catalog(cs_modeled_platform *view,
                != 0
         || cs_write_string(view->info.name,
                            sizeof(view->info.name),
-                           system->name && system->name[0] ? system->name : (identity ? identity->fallback_name : canonical_id))
+                           identity ? identity->fallback_name
+                                    : (system->name && system->name[0] ? system->name : canonical_id))
                != 0
         || cs_write_string(view->info.group,
                            sizeof(view->info.group),
@@ -1126,19 +1127,6 @@ static int cs_platform_discover_internal(const cs_paths *paths,
     return 0;
 }
 
-size_t cs_platform_count(void) {
-    return sizeof(g_fallback_platforms) / sizeof(g_fallback_platforms[0]);
-}
-
-const cs_platform_info *cs_platform_at(size_t index) {
-    cs_platform_init_fallbacks();
-    if (index >= cs_platform_count()) {
-        return NULL;
-    }
-
-    return &g_fallback_platforms[index];
-}
-
 const cs_platform_info *cs_platform_find(const char *tag) {
     return cs_platform_find_fallback_by_tag(tag);
 }
@@ -1265,11 +1253,6 @@ int cs_platform_supports_resource(const cs_platform_info *platform, const char *
            || strcmp(resource, "overlays") == 0 || strcmp(resource, "cheats") == 0;
 }
 
-int cs_platform_requires_emulator(const cs_platform_info *platform) {
-    (void) platform;
-    return 0;
-}
-
 int cs_platform_allows_hidden_rom_entries(const cs_platform_info *platform) {
     return cs_platform_is_ports(platform);
 }
@@ -1321,12 +1304,4 @@ int cs_platform_collect_installed_emulators(const cs_paths *paths,
         *count_out = count;
     }
     return 0;
-}
-
-int cs_platform_has_installed_emulator(const cs_platform_info *platform,
-                                       const char codes[][CS_PLATFORM_CODE_MAX],
-                                       size_t code_count) {
-    (void) codes;
-    (void) code_count;
-    return platform ? 1 : 0;
 }

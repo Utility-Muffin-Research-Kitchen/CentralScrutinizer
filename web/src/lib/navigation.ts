@@ -1,4 +1,4 @@
-import type { BrowserScope, LibraryEmuFilter, ToolKey } from "./types";
+import type { BrowserScope, ToolKey } from "./types";
 
 export type AppDestination = "library" | "tools";
 
@@ -28,10 +28,6 @@ export function readShowEmptyPlatforms(search: string): boolean {
   const params = new URLSearchParams(search);
 
   return params.get("showEmpty") === "1";
-}
-
-export function readLibraryEmuFilter(search: string): LibraryEmuFilter {
-  return "installed";
 }
 
 export function readViewState(search: string): AppViewState {

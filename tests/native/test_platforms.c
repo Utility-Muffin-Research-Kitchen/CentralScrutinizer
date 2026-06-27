@@ -96,6 +96,7 @@ static void write_catalogs(const char *root) {
                "{\"id\":\"GEN\",\"name\":\"GEN\",\"patterns\":[\"GEN\"],\"extensions\":[],\"default_core\":\"genesis_plus_gx\",\"alternate_cores\":[],\"rom_root\":\"Roms/GEN\"},"
                "{\"id\":\"GENESIS\",\"name\":\"Genesis\",\"patterns\":[\"GENESIS\",\"MEGADRIVE\"],\"extensions\":[],\"default_core\":\"genesis_plus_gx\",\"alternate_cores\":[],\"rom_root\":\"Roms/GENESIS\"},"
                "{\"id\":\"MS\",\"name\":\"Sega MS\",\"patterns\":[\"MS\",\"SMS\"],\"extensions\":[],\"default_core\":\"genesis_plus_gx\",\"alternate_cores\":[],\"rom_root\":\"Roms/MS\"},"
+               "{\"id\":\"N64\",\"name\":\"Nintendo 64\",\"patterns\":[\"N64\"],\"extensions\":[\"n64\",\"v64\",\"z64\"],\"default_core\":\"mupen64plus_standalone\",\"alternate_cores\":[\"mupen64plus_next\"],\"rom_root\":\"Roms/N64\",\"image_root\":\"Images/N64\"},"
                "{\"id\":\"NDS\",\"name\":\"Nintendo DS\",\"patterns\":[\"NDS\"],\"extensions\":[],\"default_core\":\"drastic\",\"alternate_cores\":[],\"rom_root\":\"Roms/NDS\"},"
                "{\"id\":\"PICO8\",\"name\":\"Pico-8\",\"patterns\":[\"PICO8\",\"P8\"],\"extensions\":[],\"default_core\":\"fake08\",\"alternate_cores\":[],\"rom_root\":\"Roms/PICO8\"},"
                "{\"id\":\"PORTS\",\"name\":\"Ports\",\"patterns\":[\"PORTS\"],\"extensions\":[],\"default_core\":\"ports\",\"alternate_cores\":[],\"rom_root\":\"Roms/PORTS\"},"
@@ -130,6 +131,7 @@ static void write_catalogs(const char *root) {
                "{\"id\":\"snes9x2002\",\"display_name\":\"Snes9x 2002\",\"type\":\"retroarch\",\"file_name\":\"snes9x2002_libretro.so\",\"info_name\":\"snes9x2002_libretro.info\",\"path\":null},"
                "{\"id\":\"chimerasnes\",\"display_name\":\"ChimeraSNES\",\"type\":\"retroarch\",\"file_name\":\"chimerasnes_libretro.so\",\"info_name\":\"chimerasnes_libretro.info\",\"path\":null},"
                "{\"id\":\"drastic\",\"display_name\":\"DraStic\",\"type\":\"path\",\"file_name\":null,\"info_name\":null,\"path\":\"emulators/drastic/launch.sh\"},"
+               "{\"id\":\"mupen64plus_standalone\",\"display_name\":\"Mupen64Plus Standalone\",\"type\":\"path\",\"file_name\":null,\"info_name\":null,\"path\":\"emulators/mupen64plus/launch.sh\"},"
                "{\"id\":\"ppsspp\",\"display_name\":\"PPSSPP\",\"type\":\"path\",\"file_name\":null,\"info_name\":null,\"path\":\"emulators/ppsspp/launch.sh\"},"
                "{\"id\":\"ports\",\"display_name\":\"Ports\",\"type\":\"path\",\"file_name\":null,\"info_name\":null,\"path\":\"/mnt/SDCARD/Roms/PORTS\"}"
                "]"
@@ -366,6 +368,10 @@ static void test_path_cores_and_ports_visibility(void) {
     cs_paths paths = {0};
     cs_platform_info platforms[128];
     size_t count = 0;
+    char browse_root[PATH_MAX];
+    char write_root[PATH_MAX];
+    char saves_root[PATH_MAX];
+    const cs_platform_info *n64;
 
     assert(root != NULL);
     write_catalogs(root);
@@ -373,16 +379,28 @@ static void test_path_cores_and_ports_visibility(void) {
     assert(cs_paths_init(&paths) == 0);
 
     assert(cs_platform_discover(&paths, platforms, sizeof(platforms) / sizeof(platforms[0]), &count) == 0);
+    assert(find_platform_entry(platforms, count, "N64") == NULL);
     assert(find_platform_entry(platforms, count, "NDS") == NULL);
     assert(find_platform_entry(platforms, count, "PSP") == NULL);
     assert(find_platform_entry(platforms, count, "PORTS") == NULL);
 
     write_launcher_file(root, "emulators/drastic/launch.sh");
+    write_launcher_file(root, "emulators/mupen64plus/launch.sh");
     write_launcher_file(root, "emulators/ppsspp/launch.sh");
     assert(snprintf(ports_dir, sizeof(ports_dir), "%s/Roms/Ports (PORTS)", root) > 0);
     make_dir(ports_dir);
 
     assert(cs_platform_discover(&paths, platforms, sizeof(platforms) / sizeof(platforms[0]), &count) == 0);
+    n64 = find_platform_entry(platforms, count, "N64");
+    assert(n64 != NULL);
+    assert(strcmp(n64->rom_directory, "N64") == 0);
+    assert(strcmp(n64->canonical_rom_directory, "N64") == 0);
+    assert(cs_browser_root_for_scope(&paths, CS_SCOPE_ROMS, n64, browse_root, sizeof(browse_root)) == 0);
+    assert(path_ends_with(browse_root, "/Roms/N64"));
+    assert(cs_browser_write_root_for_scope(&paths, CS_SCOPE_ROMS, n64, write_root, sizeof(write_root)) == 0);
+    assert(path_ends_with(write_root, "/Roms/N64"));
+    assert(cs_browser_root_for_scope(&paths, CS_SCOPE_SAVES, n64, saves_root, sizeof(saves_root)) == 0);
+    assert(path_ends_with(saves_root, "/Saves/N64"));
     assert(find_platform_entry(platforms, count, "NDS") != NULL);
     assert(find_platform_entry(platforms, count, "PSP") != NULL);
     assert(find_platform_entry(platforms, count, "PORTS") != NULL);

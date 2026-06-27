@@ -204,6 +204,72 @@ static void test_numbered_retroarch_slots_stay_regular_slots(void) {
     assert(strcmp(slot_nine->kind, "slot") == 0);
 }
 
+static void test_mupen64plus_standalone_states_use_n64_stems(void) {
+    char template[] = "/tmp/cs-states-n64-XXXXXX";
+    char *root;
+    char roms_root[PATH_MAX];
+    char rom_dir[PATH_MAX];
+    char states_root[PATH_MAX];
+    char m64p_dir[PATH_MAX];
+    char rom_path[PATH_MAX];
+    char slot_zero[PATH_MAX];
+    char slot_two[PATH_MAX];
+    char auto_state[PATH_MAX];
+    cs_paths paths = {0};
+    const cs_platform_info *n64 = cs_platform_find("N64");
+    cs_state_entry entries[CS_STATE_MAX_ENTRIES];
+    size_t count = 0;
+    int truncated = 1;
+    const cs_state_entry *manual;
+    const cs_state_entry *slot_two_entry;
+    const cs_state_entry *auto_resume;
+
+    assert(n64 != NULL);
+    root = mkdtemp(template);
+    assert(root != NULL);
+    assert(snprintf(roms_root, sizeof(roms_root), "%s/Roms", root) > 0);
+    assert(snprintf(rom_dir, sizeof(rom_dir), "%s/Roms/N64", root) > 0);
+    assert(snprintf(states_root, sizeof(states_root), "%s/States", root) > 0);
+    assert(snprintf(m64p_dir, sizeof(m64p_dir), "%s/Mupen64Plus Standalone", states_root) > 0);
+    make_dir(roms_root);
+    make_dir(rom_dir);
+    make_dir(states_root);
+    make_dir(m64p_dir);
+
+    assert(snprintf(rom_path, sizeof(rom_path), "%s/Mario Kart 64.zip", rom_dir) > 0);
+    assert(snprintf(slot_zero, sizeof(slot_zero), "%s/Mario Kart 64.state", m64p_dir) > 0);
+    assert(snprintf(slot_two, sizeof(slot_two), "%s/Mario Kart 64.state2", m64p_dir) > 0);
+    assert(snprintf(auto_state, sizeof(auto_state), "%s/Mario Kart 64.state.auto", m64p_dir) > 0);
+
+    write_file(rom_path, "rom");
+    write_file(slot_zero, "state0");
+    write_file(slot_two, "state2");
+    write_file(auto_state, "auto");
+
+    set_sdcard_root_realpath(root);
+    assert(cs_paths_init(&paths) == 0);
+    assert(cs_states_collect(&paths, n64, entries, CS_STATE_MAX_ENTRIES, &count, &truncated) == 0);
+    assert(count == 3);
+    assert(truncated == 0);
+
+    manual = find_entry(entries, count, "Mario Kart 64", "Mupen64Plus Standalone", 0);
+    assert(manual != NULL);
+    assert(strcmp(manual->format, "Mupen64Plus") == 0);
+    assert(has_path(manual->download_paths,
+                    manual->download_path_count,
+                    "States/Mupen64Plus Standalone/Mario Kart 64.state")
+           == 1);
+    assert(manual->preview_path[0] == '\0');
+
+    slot_two_entry = find_entry(entries, count, "Mario Kart 64", "Mupen64Plus Standalone", 2);
+    assert(slot_two_entry != NULL);
+    assert(strcmp(slot_two_entry->slot_label, "Slot 3") == 0);
+
+    auto_resume = find_entry(entries, count, "Mario Kart 64", "Mupen64Plus Standalone", 9);
+    assert(auto_resume != NULL);
+    assert(strcmp(auto_resume->kind, "auto-resume") == 0);
+}
+
 static void test_state_collection_reports_truncation_without_failing(void) {
     char template[] = "/tmp/cs-states-limit-XXXXXX";
     char *root;
@@ -303,6 +369,7 @@ static void test_multi_source_state_paths_use_file_browser_aliases(void) {
 int main(void) {
     test_leaf_states_are_grouped_with_thumbnails();
     test_numbered_retroarch_slots_stay_regular_slots();
+    test_mupen64plus_standalone_states_use_n64_stems();
     test_state_collection_reports_truncation_without_failing();
     test_multi_source_state_paths_use_file_browser_aliases();
     return 0;

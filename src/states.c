@@ -351,6 +351,10 @@ static void cs_state_write_format(cs_state_group *group) {
         return;
     }
 
+    if (strstr(group->entry.core_dir, "Mupen64Plus") != NULL) {
+        (void) CS_SAFE_SNPRINTF(group->entry.format, sizeof(group->entry.format), "%s", "Mupen64Plus");
+        return;
+    }
     (void) CS_SAFE_SNPRINTF(group->entry.format, sizeof(group->entry.format), "%s", "RetroArch");
 }
 

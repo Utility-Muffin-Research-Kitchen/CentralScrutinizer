@@ -7,6 +7,7 @@
 #include <unistd.h>
 
 #include "cs_catalog.h"
+#include "cs_library.h"
 #include "cs_paths.h"
 #include "cs_platforms.h"
 
@@ -88,8 +89,8 @@ static void write_catalogs(const char *root) {
                "{\"id\":\"ARCADE\",\"name\":\"Arcade\",\"patterns\":[\"ARCADE\"],\"extensions\":[],\"default_core\":\"fbneo\",\"alternate_cores\":[],\"rom_root\":\"Roms/ARCADE\"},"
                "{\"id\":\"FC\",\"name\":\"NES\",\"patterns\":[\"FC\",\"NES\",\"FAMICOM\"],\"extensions\":[],\"default_core\":\"fceumm\",\"alternate_cores\":[],\"rom_root\":\"Roms/FC\"},"
                "{\"id\":\"NES\",\"name\":\"NES\",\"patterns\":[\"NES\",\"FC\"],\"extensions\":[],\"default_core\":\"fceumm\",\"alternate_cores\":[],\"rom_root\":\"Roms/NES\"},"
-               "{\"id\":\"GB\",\"name\":\"GB\",\"patterns\":[\"GB\",\"DMG\"],\"extensions\":[],\"default_core\":\"gambatte\",\"alternate_cores\":[\"mgba\"],\"rom_root\":\"Roms/GB\"},"
-               "{\"id\":\"GBA\",\"name\":\"GBA\",\"patterns\":[\"GBA\",\"GAMEBOYADVANCE\"],\"extensions\":[],\"default_core\":\"mgba\",\"alternate_cores\":[\"gpsp\"],\"rom_root\":\"Roms/GBA\"},"
+               "{\"id\":\"GB\",\"name\":\"GB\",\"patterns\":[\"GB\",\"DMG\",\"SGB\"],\"extensions\":[],\"default_core\":\"gambatte\",\"alternate_cores\":[\"mgba\"],\"rom_root\":\"Roms/GB\"},"
+               "{\"id\":\"GBA\",\"name\":\"GBA\",\"patterns\":[\"GBA\",\"GAMEBOYADVANCE\",\"MGBA\"],\"extensions\":[],\"default_core\":\"mgba\",\"alternate_cores\":[\"gpsp\"],\"rom_root\":\"Roms/GBA\"},"
                "{\"id\":\"GBC\",\"name\":\"GBC\",\"patterns\":[\"GBC\",\"CGB\"],\"extensions\":[],\"default_core\":\"gambatte\",\"alternate_cores\":[\"mgba\"],\"rom_root\":\"Roms/GBC\"},"
                "{\"id\":\"MD\",\"name\":\"Genesis\",\"patterns\":[\"MD\",\"GENESIS\"],\"extensions\":[],\"default_core\":\"genesis_plus_gx\",\"alternate_cores\":[],\"rom_root\":\"Roms/MD\"},"
                "{\"id\":\"GEN\",\"name\":\"GEN\",\"patterns\":[\"GEN\"],\"extensions\":[],\"default_core\":\"genesis_plus_gx\",\"alternate_cores\":[],\"rom_root\":\"Roms/GEN\"},"
@@ -103,7 +104,7 @@ static void write_catalogs(const char *root) {
                "{\"id\":\"PSP\",\"name\":\"PSP\",\"patterns\":[\"PSP\"],\"extensions\":[],\"default_core\":\"ppsspp\",\"alternate_cores\":[],\"rom_root\":\"Roms/PSP\"},"
                "{\"id\":\"SEVENTYEIGHTHUNDRED\",\"name\":\"Atari 7800\",\"patterns\":[\"SEVENTYEIGHTHUNDRED\",\"A7800\"],\"extensions\":[],\"default_core\":\"prosystem\",\"alternate_cores\":[],\"rom_root\":\"Roms/SEVENTYEIGHTHUNDRED\"},"
                "{\"id\":\"PROSYSTEM\",\"name\":\"PROSYSTEM\",\"patterns\":[\"PROSYSTEM\"],\"extensions\":[],\"default_core\":\"prosystem\",\"alternate_cores\":[],\"rom_root\":\"Roms/PROSYSTEM\"},"
-               "{\"id\":\"SFC\",\"name\":\"SNES\",\"patterns\":[\"SFC\",\"SNES\"],\"extensions\":[],\"default_core\":\"snes9x\",\"alternate_cores\":[],\"rom_root\":\"Roms/SFC\"},"
+               "{\"id\":\"SFC\",\"name\":\"SNES\",\"patterns\":[\"SFC\",\"SNES\",\"SUPA\"],\"extensions\":[],\"default_core\":\"snes9x\",\"alternate_cores\":[],\"rom_root\":\"Roms/SFC\"},"
                "{\"id\":\"SNES\",\"name\":\"SNES\",\"patterns\":[\"SNES\",\"SFC\"],\"extensions\":[],\"default_core\":\"snes9x\",\"alternate_cores\":[],\"rom_root\":\"Roms/SNES\"}"
                "]"
                "}");
@@ -212,7 +213,9 @@ static void test_visibility_requires_present_libretro_core(void) {
     write_core(root, "mgba_libretro.so");
     assert(cs_platform_discover(&paths, platforms, sizeof(platforms) / sizeof(platforms[0]), &count) == 0);
     assert(find_platform_entry(platforms, count, "GBA") != NULL);
-    assert(find_platform_entry(platforms, count, "MGBA") != NULL);
+    /* The mGBA variant folds into the GBA card (its core is a launch choice),
+       so it is never advertised as a separate platform. */
+    assert(find_platform_entry(platforms, count, "MGBA") == NULL);
 }
 
 static void test_canonical_alias_rows_collapse_and_match_folders(void) {
@@ -243,28 +246,117 @@ static void test_canonical_alias_rows_collapse_and_match_folders(void) {
     assert(strcmp(resolved.rom_directory, "Nintendo Entertainment System (NES)") == 0);
 }
 
-static void test_independent_variants_are_co_visible(void) {
+static int path_ends_with(const char *path, const char *suffix) {
+    size_t pl = strlen(path);
+    size_t sl = strlen(suffix);
+    return pl >= sl && strcmp(path + (pl - sl), suffix) == 0;
+}
+
+static void write_collapsed_fc_catalog(const char *root) {
+    char defaults_dir[PATH_MAX];
+    char cores_dir[PATH_MAX];
+    char info_dir[PATH_MAX];
+    char roms_dir[PATH_MAX];
+    char systems_path[PATH_MAX];
+    char cores_path[PATH_MAX];
+
+    path_join(defaults_dir, sizeof(defaults_dir), root, ".system/leaf/platforms/mlp1/defaults");
+    path_join(cores_dir, sizeof(cores_dir), root, ".system/leaf/platforms/mlp1/cores");
+    path_join(info_dir, sizeof(info_dir), root, ".system/leaf/platforms/mlp1/info");
+    path_join(roms_dir, sizeof(roms_dir), root, "Roms");
+    make_dir(defaults_dir);
+    make_dir(cores_dir);
+    make_dir(info_dir);
+    make_dir(roms_dir);
+    path_join(systems_path, sizeof(systems_path), defaults_dir, "systems.json");
+    path_join(cores_path, sizeof(cores_path), defaults_dir, "cores.json");
+
+    /* One collapsed FC row whose canonical public folder is Roms/NES, matching
+       the real generated catalog. */
+    write_file(systems_path,
+               "{\"version\":1,\"systems\":["
+	       "{\"id\":\"FC\",\"name\":\"Nintendo Entertainment System / Famicom\","
+	       "\"patterns\":[\"FC\",\"NES\",\"FAMICOM\"],\"extensions\":[],"
+	       "\"default_core\":\"fceumm\",\"alternate_cores\":[],"
+	       "\"rom_root\":\"Roms/NES\",\"image_root\":\"Images/NES\"}"
+	       "]}");
+    write_file(cores_path,
+               "{\"version\":2,\"cores\":["
+               "{\"id\":\"fceumm\",\"display_name\":\"FCEUmm\",\"type\":\"retroarch\","
+               "\"file_name\":\"fceumm_libretro.so\",\"info_name\":\"fceumm_libretro.info\",\"path\":null}"
+               "]}");
+}
+
+static void test_uploads_target_canonical_folder(void) {
+    char template[] = "/tmp/cs-platforms-upload-XXXXXX";
+    char *root = mkdtemp(template);
+    char fc_dir[PATH_MAX];
+    char write_root[PATH_MAX];
+    char browse_root[PATH_MAX];
+    cs_paths paths = {0};
+    cs_platform_info platforms[128];
+    size_t count = 0;
+    const cs_platform_info *fc;
+
+    assert(root != NULL);
+    write_collapsed_fc_catalog(root);
+    /* Only a legacy alias folder exists on disk; canonical is Roms/NES. */
+    assert(snprintf(fc_dir, sizeof(fc_dir), "%s/Roms/FC", root) > 0);
+    make_dir(fc_dir);
+    write_core(root, "fceumm_libretro.so");
+    set_sdcard_root_realpath(root);
+    assert(cs_paths_init(&paths) == 0);
+
+    assert(cs_platform_discover(&paths, platforms, sizeof(platforms) / sizeof(platforms[0]), &count) == 0);
+    fc = find_platform_entry(platforms, count, "FC");
+    assert(fc != NULL);
+    /* Browse/display follows the discovered legacy folder... */
+    assert(strcmp(fc->rom_directory, "FC") == 0);
+    /* ...while the canonical public folder is recorded for new content. */
+    assert(strcmp(fc->canonical_rom_directory, "NES") == 0);
+    assert(strcmp(fc->canonical_image_directory, "NES") == 0);
+
+    /* Uploads/extraction target the canonical Roms/NES, not the alias Roms/FC. */
+    assert(cs_browser_write_root_for_scope(&paths, CS_SCOPE_ROMS, fc, write_root, sizeof(write_root)) == 0);
+    assert(path_ends_with(write_root, "/Roms/NES"));
+    /* Browsing still resolves to the legacy folder where the games actually are. */
+    assert(cs_browser_root_for_scope(&paths, CS_SCOPE_ROMS, fc, browse_root, sizeof(browse_root)) == 0);
+    assert(path_ends_with(browse_root, "/Roms/FC"));
+}
+
+static void test_emulator_variants_fold_into_base_system(void) {
     char template[] = "/tmp/cs-platforms-variants-XXXXXX";
     char *root = mkdtemp(template);
     cs_paths paths = {0};
     cs_platform_info platforms[128];
+    cs_platform_info resolved = {0};
     size_t count = 0;
 
     assert(root != NULL);
     write_catalogs(root);
     write_core(root, "mgba_libretro.so");
     write_core(root, "snes9x_libretro.so");
+    write_core(root, "gambatte_libretro.so");
     set_sdcard_root_realpath(root);
     assert(cs_paths_init(&paths) == 0);
 
+    /* Emulator/compat variants are not advertised as separate platform cards;
+       their behavior is a core/launch choice under the base system. */
     assert(cs_platform_discover(&paths, platforms, sizeof(platforms) / sizeof(platforms[0]), &count) == 0);
     assert(find_platform_entry(platforms, count, "GBA") != NULL);
-    assert(find_platform_entry(platforms, count, "MGBA") != NULL);
     assert(find_platform_entry(platforms, count, "SFC") != NULL);
-    assert(find_platform_entry(platforms, count, "SUPA") != NULL);
-    assert(find_platform_entry(platforms, count, "SGB") != NULL);
-    assert(strcmp(find_platform_entry(platforms, count, "MGBA")->primary_code, "MGBA") == 0);
-    assert(strcmp(find_platform_entry(platforms, count, "SUPA")->primary_code, "SUPA") == 0);
+    assert(find_platform_entry(platforms, count, "GB") != NULL);
+    assert(find_platform_entry(platforms, count, "MGBA") == NULL);
+    assert(find_platform_entry(platforms, count, "SUPA") == NULL);
+    assert(find_platform_entry(platforms, count, "SGB") == NULL);
+
+    /* A legacy variant folder still resolves to its canonical base card. */
+    assert(cs_platform_resolve(&paths, "MGBA", &resolved) == 0);
+    assert(strcmp(resolved.tag, "GBA") == 0);
+    assert(cs_platform_resolve(&paths, "SUPA", &resolved) == 0);
+    assert(strcmp(resolved.tag, "SFC") == 0);
+    assert(cs_platform_resolve(&paths, "SGB", &resolved) == 0);
+    assert(strcmp(resolved.tag, "GB") == 0);
 }
 
 static void test_path_cores_and_ports_visibility(void) {
@@ -433,7 +525,8 @@ int main(void) {
     test_static_identity_helpers();
     test_visibility_requires_present_libretro_core();
     test_canonical_alias_rows_collapse_and_match_folders();
-    test_independent_variants_are_co_visible();
+    test_uploads_target_canonical_folder();
+    test_emulator_variants_fold_into_base_system();
     test_path_cores_and_ports_visibility();
     test_identity_map_and_rom_root_stripping();
     test_custom_rom_directories_are_exposed_when_core_present();

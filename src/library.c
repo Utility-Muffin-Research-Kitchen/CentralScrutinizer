@@ -35,7 +35,7 @@ typedef enum cs_library_db_status {
     CS_LIBRARY_DB_INTERNAL = 2,
 } cs_library_db_status;
 
-#define CS_LIBRARY_DB_PLATFORM_SYSTEM_BINDING_COUNT 5
+#define CS_LIBRARY_DB_PLATFORM_SYSTEM_BINDING_COUNT 6
 
 static const cs_browser_sort_options CS_BROWSER_DEFAULT_SORT_OPTIONS = {
     CS_BROWSER_SORT_NAME,
@@ -216,6 +216,7 @@ static const char *cs_source_root_for_scope(const cs_path_source *source, cs_bro
 
 static int cs_browser_write_platform_relative_root(cs_browser_scope scope,
                                                    const cs_platform_info *platform,
+                                                   int prefer_canonical,
                                                    char *relative,
                                                    size_t relative_size) {
     if (!relative || relative_size == 0 || !platform) {
@@ -223,8 +224,15 @@ static int cs_browser_write_platform_relative_root(cs_browser_scope scope,
     }
 
     switch (scope) {
-        case CS_SCOPE_ROMS:
-            return CS_SAFE_SNPRINTF(relative, relative_size, "%s", platform->rom_directory);
+        case CS_SCOPE_ROMS: {
+            /* New content targets the canonical public folder; browse/read uses
+               the discovered (possibly legacy alias) folder. Fall back to
+               rom_directory when no canonical is recorded (fallback/custom). */
+            const char *dir = (prefer_canonical && platform->canonical_rom_directory[0])
+                                  ? platform->canonical_rom_directory
+                                  : platform->rom_directory;
+            return CS_SAFE_SNPRINTF(relative, relative_size, "%s", dir);
+        }
         case CS_SCOPE_SAVES:
         case CS_SCOPE_BIOS:
         case CS_SCOPE_CHEATS:
@@ -252,7 +260,7 @@ static const cs_path_source *cs_browser_select_source_for_scope(const cs_paths *
     }
     if (scope == CS_SCOPE_FILES || scope == CS_SCOPE_OVERLAYS
         || !platform
-        || cs_browser_write_platform_relative_root(scope, platform, relative, sizeof(relative)) != 0) {
+        || cs_browser_write_platform_relative_root(scope, platform, 0, relative, sizeof(relative)) != 0) {
         return &paths->sources[0];
     }
 
@@ -401,10 +409,13 @@ static int cs_browser_write_thumbnail(const char *root,
     basename[name_len] = '\0';
 
     if (images_root && images_root[0] != '\0' && platform) {
+        const char *image_dir = platform->canonical_image_directory[0] ? platform->canonical_image_directory
+                                                                       : platform->primary_code;
+
         if (CS_SAFE_SNPRINTF(candidate_relative,
                              sizeof(candidate_relative),
                              "%s/%s.png",
-                             platform->primary_code,
+                             image_dir,
                              basename)
                 != 0
             || cs_join_path(candidate_absolute, sizeof(candidate_absolute), images_root, candidate_relative) != 0) {
@@ -611,8 +622,9 @@ static void cs_library_db_collect_platform_systems(const cs_platform_info *platf
     systems[0] = cs_library_db_nonempty_or_blank(platform ? platform->primary_code : NULL);
     systems[1] = cs_library_db_nonempty_or_blank(platform ? platform->tag : NULL);
     systems[2] = cs_library_db_nonempty_or_blank(platform ? platform->rom_directory : NULL);
-    systems[3] = cs_library_db_nonempty_or_blank(fallback ? fallback->primary_code : NULL);
-    systems[4] = cs_library_db_nonempty_or_blank(fallback ? fallback->rom_directory : NULL);
+    systems[3] = cs_library_db_nonempty_or_blank(platform ? platform->canonical_rom_directory : NULL);
+    systems[4] = cs_library_db_nonempty_or_blank(fallback ? fallback->primary_code : NULL);
+    systems[5] = cs_library_db_nonempty_or_blank(fallback ? fallback->rom_directory : NULL);
 }
 
 static void cs_library_db_bind_platform_systems(sqlite3_stmt *stmt, const cs_platform_info *platform) {
@@ -972,11 +984,12 @@ int cs_browser_scope_allows_hidden_for_platform(cs_browser_scope scope, const cs
            || (scope == CS_SCOPE_ROMS && cs_platform_allows_hidden_rom_entries(platform));
 }
 
-int cs_browser_root_for_scope(const cs_paths *paths,
-                              cs_browser_scope scope,
-                              const cs_platform_info *platform,
-                              char *root,
-                              size_t root_size) {
+int cs_browser_root_for_scope_ex(const cs_paths *paths,
+                                 cs_browser_scope scope,
+                                 const cs_platform_info *platform,
+                                 int prefer_canonical,
+                                 char *root,
+                                 size_t root_size) {
     const cs_path_source *selected_source;
     char relative[CS_PATH_MAX];
     const char *base;
@@ -998,7 +1011,7 @@ int cs_browser_root_for_scope(const cs_paths *paths,
                 return -1;
             }
             base = cs_source_root_for_scope(selected_source, scope);
-            if (!base || cs_browser_write_platform_relative_root(scope, platform, relative, sizeof(relative)) != 0) {
+            if (!base || cs_browser_write_platform_relative_root(scope, platform, prefer_canonical, relative, sizeof(relative)) != 0) {
                 return -1;
             }
             return CS_SAFE_SNPRINTF(root, root_size, "%s/%s", base, relative);
@@ -1012,6 +1025,22 @@ int cs_browser_root_for_scope(const cs_paths *paths,
         default:
             return -1;
     }
+}
+
+int cs_browser_root_for_scope(const cs_paths *paths,
+                              cs_browser_scope scope,
+                              const cs_platform_info *platform,
+                              char *root,
+                              size_t root_size) {
+    return cs_browser_root_for_scope_ex(paths, scope, platform, 0, root, root_size);
+}
+
+int cs_browser_write_root_for_scope(const cs_paths *paths,
+                                    cs_browser_scope scope,
+                                    const cs_platform_info *platform,
+                                    char *root,
+                                    size_t root_size) {
+    return cs_browser_root_for_scope_ex(paths, scope, platform, 1, root, root_size);
 }
 
 static cs_browser_list_status cs_browser_list_source_virtual_root(const cs_paths *paths,
@@ -1073,7 +1102,7 @@ int cs_library_db_count_roms_for_platform(const cs_paths *paths, const cs_platfo
     sqlite3_stmt *stmt = NULL;
     cs_library_db_status open_status;
     static const char *sql =
-        "SELECT COUNT(*) FROM games WHERE system IN (?, ?, ?, ?, ?);";
+        "SELECT COUNT(*) FROM games WHERE system IN (?, ?, ?, ?, ?, ?);";
 
     if (!paths || !platform || !count_out) {
         return -1;
@@ -1116,7 +1145,7 @@ int cs_library_db_set_game_favorite(const cs_paths *paths,
     int found_id = 0;
     int step_rc;
     static const char *select_sql =
-        "SELECT id, rom_path FROM games WHERE system IN (?, ?, ?, ?, ?);";
+        "SELECT id, rom_path FROM games WHERE system IN (?, ?, ?, ?, ?, ?);";
     static const char *add_sql =
         "INSERT OR IGNORE INTO favorites (kind, target_id, added_at) "
         "VALUES ('game', ?, strftime('%s','now'));";
@@ -1215,7 +1244,7 @@ static cs_library_db_status cs_browser_list_db_roms(const cs_paths *paths,
     static const char *sql =
         "SELECT name, rom_path, COALESCE(image_path, ''), "
         "EXISTS(SELECT 1 FROM favorites f WHERE f.kind = 'game' AND f.target_id = games.id) "
-        "FROM games WHERE system IN (?, ?, ?, ?, ?) ORDER BY name;";
+        "FROM games WHERE system IN (?, ?, ?, ?, ?, ?) ORDER BY name;";
 
     if (!paths || !platform || !selected_source || !root || !result) {
         return CS_LIBRARY_DB_INTERNAL;

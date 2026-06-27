@@ -318,11 +318,11 @@ static int cs_prepare_upload_metadata(cs_upload_request *state) {
             return -1;
         }
         state->path_flags = CS_PATH_FLAG_ALLOW_HIDDEN;
-    } else if (cs_browser_root_for_scope(&state->app->paths,
-                                         scope,
-                                         platform,
-                                         state->final_root,
-                                         sizeof(state->final_root))
+    } else if (cs_browser_write_root_for_scope(&state->app->paths,
+                                               scope,
+                                               platform,
+                                               state->final_root,
+                                               sizeof(state->final_root))
                != 0) {
         return -1;
     }

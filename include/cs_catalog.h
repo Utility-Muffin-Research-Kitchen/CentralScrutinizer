@@ -16,6 +16,7 @@ typedef struct cs_catalog_system {
     char *default_core;
     cs_catalog_string_list alternate_cores;
     char *rom_root;
+    char *image_root;
     cs_catalog_string_list patterns;
     cs_catalog_string_list extensions;
 } cs_catalog_system;

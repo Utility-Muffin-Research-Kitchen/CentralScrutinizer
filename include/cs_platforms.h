@@ -15,6 +15,15 @@ typedef struct cs_platform_info {
     char icon[32];
     char primary_code[CS_PLATFORM_CODE_MAX];
     char rom_directory[256];
+    /* Canonical public ROM folder for this system (from the catalog rom_root).
+       rom_directory may be overwritten with a discovered legacy alias folder for
+       browse/display; new content (uploads, extraction) targets this canonical
+       folder instead. Empty for fallback/custom platforms, where rom_directory
+       is already canonical. */
+    char canonical_rom_directory[256];
+    /* Canonical public Images/<system> folder basename. This can differ from
+       primary_code because primary_code is an internal launch/catalog id. */
+    char canonical_image_directory[256];
     int is_custom;
 } cs_platform_info;
 

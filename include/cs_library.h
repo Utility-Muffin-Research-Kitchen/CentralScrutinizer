@@ -85,6 +85,19 @@ int cs_browser_root_for_scope(const cs_paths *paths,
                               const cs_platform_info *platform,
                               char *root,
                               size_t root_size);
+/* Like cs_browser_root_for_scope but, for ROMs, targets the canonical public
+   folder (used for new content: uploads, ZIP extraction). prefer_canonical=1. */
+int cs_browser_write_root_for_scope(const cs_paths *paths,
+                                    cs_browser_scope scope,
+                                    const cs_platform_info *platform,
+                                    char *root,
+                                    size_t root_size);
+int cs_browser_root_for_scope_ex(const cs_paths *paths,
+                                 cs_browser_scope scope,
+                                 const cs_platform_info *platform,
+                                 int prefer_canonical,
+                                 char *root,
+                                 size_t root_size);
 int cs_library_db_count_roms_for_platform(const cs_paths *paths, const cs_platform_info *platform, int *count_out);
 int cs_library_db_set_game_favorite(const cs_paths *paths,
                                     const cs_platform_info *platform,

@@ -307,10 +307,12 @@ static void test_library_db_populates_root_rom_listing(void) {
     cs_platform_info arcade;
     cs_platform_info atari2600;
     cs_platform_info sms;
+    cs_platform_info fc;
     char template[] = "/tmp/cs-library-db-XXXXXX";
     char *root;
     char roms_dir[PATH_MAX];
     char system_dir[PATH_MAX];
+    char nes_dir[PATH_MAX];
     char images_dir[PATH_MAX];
     char image_system_dir[PATH_MAX];
     char system_state_root[PATH_MAX];
@@ -322,6 +324,7 @@ static void test_library_db_populates_root_rom_listing(void) {
     char zelda_rom[PATH_MAX];
     char metroid_rom[PATH_MAX];
     char fs_only_rom[PATH_MAX];
+    char mario_rom[PATH_MAX];
     char zelda_art[PATH_MAX];
     sqlite3 *db = NULL;
     char *err = NULL;
@@ -334,6 +337,7 @@ static void test_library_db_populates_root_rom_listing(void) {
 
     assert(snprintf(roms_dir, sizeof(roms_dir), "%s/Roms", root) > 0);
     assert(snprintf(system_dir, sizeof(system_dir), "%s/Roms/GBA", root) > 0);
+    assert(snprintf(nes_dir, sizeof(nes_dir), "%s/Roms/NES", root) > 0);
     assert(snprintf(images_dir, sizeof(images_dir), "%s/Images", root) > 0);
     assert(snprintf(image_system_dir, sizeof(image_system_dir), "%s/Images/GBA", root) > 0);
     assert(snprintf(system_state_root, sizeof(system_state_root), "%s/.system", root) > 0);
@@ -345,16 +349,19 @@ static void test_library_db_populates_root_rom_listing(void) {
     assert(snprintf(zelda_rom, sizeof(zelda_rom), "%s/Zelda Minish Cap.gba", system_dir) > 0);
     assert(snprintf(metroid_rom, sizeof(metroid_rom), "%s/Metroid Fusion.gba", system_dir) > 0);
     assert(snprintf(fs_only_rom, sizeof(fs_only_rom), "%s/Filesystem Only.gba", system_dir) > 0);
+    assert(snprintf(mario_rom, sizeof(mario_rom), "%s/Mario.nes", nes_dir) > 0);
     assert(snprintf(zelda_art, sizeof(zelda_art), "%s/Zelda Minish Cap.png", image_system_dir) > 0);
 
     make_dir(roms_dir);
     make_dir(system_dir);
+    make_dir(nes_dir);
     make_dir(images_dir);
     make_dir(image_system_dir);
     make_dir_p(state_dir);
     write_sized_file(zelda_rom, 7);
     write_sized_file(metroid_rom, 11);
     write_sized_file(fs_only_rom, 13);
+    write_sized_file(mario_rom, 17);
     write_file(zelda_art, "png");
     seed_mock_core(root, "mgba_libretro.so");
 
@@ -378,9 +385,10 @@ static void test_library_db_populates_root_rom_listing(void) {
                         "INSERT INTO games (system, name, rom_path, image_path) VALUES "
                         "('GBA', 'Database Zelda', 'Roms/GBA/Zelda Minish Cap.gba', 'Images/GBA/Zelda Minish Cap.png'),"
                         "('GBA', 'Database Metroid', 'Roms/GBA/Metroid Fusion.gba', NULL),"
-                        "('ARCADE', 'Database Arcade', 'Roms/ARCADE/1942.zip', NULL),"
-                        "('ATARI2600', 'Database Atari', 'Roms/ATARI/Pitfall.a26', NULL),"
-                        "('MS', 'Database Master System', 'Roms/MS/Sonic.sms', NULL);",
+	                        "('ARCADE', 'Database Arcade', 'Roms/ARCADE/1942.zip', NULL),"
+	                        "('ATARI2600', 'Database Atari', 'Roms/ATARI/Pitfall.a26', NULL),"
+	                        "('MS', 'Database Master System', 'Roms/MS/Sonic.sms', NULL),"
+	                        "('FC', 'Database Mario', 'Roms/NES/Mario.nes', NULL);",
                         NULL,
                         NULL,
                         &err)
@@ -407,6 +415,14 @@ static void test_library_db_populates_root_rom_listing(void) {
     assert(alias_count == 1);
     assert(cs_library_db_count_roms_for_platform(&paths, &sms, &alias_count) == 0);
     assert(alias_count == 1);
+
+    fc = make_test_platform("FC", "FC", "FC");
+    assert(snprintf(fc.canonical_rom_directory, sizeof(fc.canonical_rom_directory), "%s", "NES") > 0);
+    assert(cs_browser_list(&paths, CS_SCOPE_ROMS, &fc, "", 0, NULL, &result) == CS_BROWSER_LIST_OK);
+    assert(result.count == 1);
+    entry = find_entry(&result, "Mario.nes");
+    assert(entry != NULL);
+    assert(strcmp(entry->path, "Mario.nes") == 0);
 
     assert(cs_browser_list(&paths, CS_SCOPE_ROMS, &gba, "", 0, NULL, &result) == CS_BROWSER_LIST_OK);
     assert(result.count == 2);

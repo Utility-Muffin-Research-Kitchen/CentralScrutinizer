@@ -6,7 +6,10 @@ Launch it on the handheld, open the URL shown on screen from another browser on 
 
 ## Features
 
-- Library grouped by platform, with ROM/save-state/save/BIOS/cheat counts
+- Library grouped by platform — one card per console (folder aliases and
+  emulator variants fold into the base system from the `systems.json` catalog
+  patterns, so uploads target the canonical public folder), with
+  ROM/save-state/save/BIOS/cheat counts
 - ROM, save, BIOS, cheat, and full SD file browsing
 - Upload, folder upload, ZIP extraction, download, rename, delete, and folder creation
 - ROM artwork replacement through Leaf `Images/<SYSTEM>/<ROM>.png`

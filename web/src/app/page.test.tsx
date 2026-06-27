@@ -147,42 +147,6 @@ function platformGroups() {
   };
 }
 
-function duplicatePlatformGroups() {
-  return {
-    groups: [
-      {
-        name: "Nintendo",
-        platforms: [
-          {
-            tag: "GBA",
-            name: "Game Boy Advance",
-            group: "Nintendo",
-            icon: "GBA",
-            isCustom: false,
-            romPath: "Roms/Game Boy Advance (GBA)",
-            savePath: "Saves/GBA",
-            biosPath: "BIOS/GBA",
-            supportedResources: supportedResources(),
-            counts: { roms: 2, saves: 1, states: 0, bios: 0, overlays: 0, cheats: 0 },
-          },
-          {
-            tag: "MGBA",
-            name: "Game Boy Advance",
-            group: "Nintendo",
-            icon: "MGBA",
-            isCustom: false,
-            romPath: "Roms/Game Boy Advance (MGBA)",
-            savePath: "Saves/MGBA",
-            biosPath: "BIOS/MGBA",
-            supportedResources: supportedResources(),
-            counts: { roms: 1, saves: 0, states: 0, bios: 0, overlays: 0, cheats: 0 },
-          },
-        ],
-      },
-    ],
-  };
-}
-
 function portsPlatformGroups() {
   return {
     groups: [
@@ -638,18 +602,6 @@ describe("Page", () => {
     await waitFor(() => {
       expect(window.location.search).toBe("?view=platform&tag=PORTS");
     });
-  });
-
-  it("keeps duplicate platform variants distinct in the library and header", async () => {
-    mockApi.getSession.mockResolvedValue(pairedSession());
-    mockApi.getPlatforms.mockResolvedValue(duplicatePlatformGroups());
-
-    render(<Page />);
-
-    expect(await screen.findByRole("button", { name: /Game Boy Advance \(GBA\)/ })).toBeTruthy();
-    fireEvent.click(screen.getByRole("button", { name: /Game Boy Advance \(MGBA\)/ }));
-
-    expect(await screen.findByRole("heading", { level: 1, name: "Game Boy Advance (MGBA)" })).toBeTruthy();
   });
 
   it("shows only library and tools in the shell and disables terminal from capabilities", async () => {

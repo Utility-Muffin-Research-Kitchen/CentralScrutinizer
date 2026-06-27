@@ -134,6 +134,7 @@ static int cs_catalog_load_system(cJSON *row, cs_catalog_system *out) {
     out->name = cs_catalog_json_string(row, "name");
     out->default_core = cs_catalog_json_string(row, "default_core");
     out->rom_root = cs_catalog_json_string(row, "rom_root");
+    out->image_root = cs_catalog_json_string(row, "image_root");
     if (!out->id || !out->name || !out->default_core || !out->rom_root
         || cs_catalog_load_string_list(row, "alternate_cores", &out->alternate_cores) != 0
         || cs_catalog_load_string_list(row, "patterns", &out->patterns) != 0
@@ -185,6 +186,7 @@ static void cs_catalog_system_free(cs_catalog_system *system) {
     free(system->default_core);
     cs_catalog_string_list_free(&system->alternate_cores);
     free(system->rom_root);
+    free(system->image_root);
     cs_catalog_string_list_free(&system->patterns);
     cs_catalog_string_list_free(&system->extensions);
 }

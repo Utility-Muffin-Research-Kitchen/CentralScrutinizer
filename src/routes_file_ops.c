@@ -494,7 +494,7 @@ static int cs_build_leaf_art_relative_paths(const cs_platform_info *platform,
     if (snprintf(art_base_path,
                  art_base_path_size,
                  "%s/%.*s",
-                 platform->primary_code,
+                 platform->canonical_image_directory[0] ? platform->canonical_image_directory : platform->primary_code,
                  (int) base_len,
                  rom_relative_path)
             >= (int) art_base_path_size
@@ -602,6 +602,7 @@ static int cs_resolve_scope_root(cs_app *app,
                                  size_t root_size,
                                  char *effective_relative,
                                  size_t effective_relative_size,
+                                 int prefer_write_root,
                                  unsigned int *path_flags_out) {
     cs_browser_scope scope = cs_browser_scope_parse(scope_value);
     cs_platform_info resolved_platform = {0};
@@ -634,7 +635,9 @@ static int cs_resolve_scope_root(cs_app *app,
         }
         platform = &resolved_platform;
     }
-    if (cs_browser_root_for_scope(&app->paths, scope, platform, root, root_size) != 0) {
+    if ((prefer_write_root ? cs_browser_write_root_for_scope(&app->paths, scope, platform, root, root_size)
+                           : cs_browser_root_for_scope(&app->paths, scope, platform, root, root_size))
+        != 0) {
         return -1;
     }
     if (CS_SAFE_SNPRINTF(effective_relative, effective_relative_size, "%s", relative_path ? relative_path : "") != 0) {
@@ -688,6 +691,7 @@ static int cs_route_rename_like(struct mg_connection *conn,
                               sizeof(root),
                               from_effective,
                               sizeof(from_effective),
+                              0,
                               &path_flags)
             != 0
         || cs_resolve_scope_root(app,
@@ -698,6 +702,7 @@ static int cs_route_rename_like(struct mg_connection *conn,
                                  sizeof(to_root),
                                  to_effective,
                                  sizeof(to_effective),
+                                 0,
                                  &to_path_flags)
                != 0
         || strcmp(root, to_root) != 0
@@ -749,6 +754,7 @@ int cs_route_delete_handler(struct mg_connection *conn, void *cbdata) {
                               sizeof(root),
                               effective_path,
                               sizeof(effective_path),
+                              0,
                               &path_flags)
         != 0) {
         return cs_write_json(conn, 404, "Not Found", "{\"ok\":false}");
@@ -794,6 +800,7 @@ int cs_route_create_folder_handler(struct mg_connection *conn, void *cbdata) {
                               sizeof(root),
                               effective_path,
                               sizeof(effective_path),
+                              1,
                               &path_flags)
         != 0) {
         return cs_write_json(conn, 404, "Not Found", "{\"ok\":false}");
@@ -846,6 +853,7 @@ int cs_route_download_handler(struct mg_connection *conn, void *cbdata) {
                               sizeof(root),
                               effective_path,
                               sizeof(effective_path),
+                              0,
                               &path_flags)
         != 0) {
         return cs_write_json(conn, 404, "Not Found", "{\"ok\":false}");
@@ -1141,6 +1149,7 @@ int cs_route_write_handler(struct mg_connection *conn, void *cbdata) {
                               sizeof(root),
                               effective_path,
                               sizeof(effective_path),
+                              0,
                               &path_flags)
         != 0) {
         return cs_write_json(conn, 404, "Not Found", "{\"ok\":false}");

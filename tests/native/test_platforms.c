@@ -43,6 +43,24 @@ static void set_sdcard_root_realpath(const char *root) {
 
     assert(realpath(root, resolved) != NULL);
     assert(setenv("SDCARD_PATH", resolved, 1) == 0);
+    unsetenv("SDCARD_PATHS");
+    unsetenv("SYSTEMS_CATALOG_PATH");
+    unsetenv("CORES_CATALOG_PATH");
+    unsetenv("CORES_PATH");
+    unsetenv("INFO_PATH");
+    unsetenv("CS_WEB_ROOT");
+}
+
+static void set_sdcard_roots_realpath(const char *first, const char *second) {
+    char first_resolved[PATH_MAX];
+    char second_resolved[PATH_MAX];
+    char joined[(PATH_MAX * 2) + 2];
+
+    assert(realpath(first, first_resolved) != NULL);
+    assert(realpath(second, second_resolved) != NULL);
+    assert(snprintf(joined, sizeof(joined), "%s:%s", first_resolved, second_resolved) > 0);
+    assert(setenv("SDCARD_PATHS", joined, 1) == 0);
+    unsetenv("SDCARD_PATH");
     unsetenv("SYSTEMS_CATALOG_PATH");
     unsetenv("CORES_CATALOG_PATH");
     unsetenv("CORES_PATH");
@@ -326,6 +344,53 @@ static void test_uploads_target_canonical_folder(void) {
     assert(path_ends_with(browse_root, "/Roms/FC"));
 }
 
+static void test_uploads_target_primary_source_when_folder_exists_on_secondary(void) {
+    char template[] = "/tmp/cs-platforms-upload-sources-XXXXXX";
+    char *sandbox = mkdtemp(template);
+    char primary_root[PATH_MAX];
+    char secondary_root[PATH_MAX];
+    char secondary_n64_dir[PATH_MAX];
+    char secondary_rom_path[PATH_MAX];
+    char primary_suffix[PATH_MAX];
+    char secondary_suffix[PATH_MAX];
+    char browse_root[PATH_MAX];
+    char write_root[PATH_MAX];
+    cs_paths paths = {0};
+    cs_platform_info platforms[128];
+    size_t count = 0;
+    const cs_platform_info *n64;
+
+    assert(sandbox != NULL);
+    path_join(primary_root, sizeof(primary_root), sandbox, "card-a");
+    path_join(secondary_root, sizeof(secondary_root), sandbox, "card-b");
+    assert(mkdir(primary_root, 0775) == 0);
+    assert(mkdir(secondary_root, 0775) == 0);
+    write_catalogs(primary_root);
+    write_launcher_file(primary_root, "emulators/mupen64plus/launch.sh");
+    path_join(secondary_n64_dir, sizeof(secondary_n64_dir), secondary_root, "Roms/N64");
+    make_dir(secondary_n64_dir);
+    path_join(secondary_rom_path, sizeof(secondary_rom_path), secondary_n64_dir, "existing.z64");
+    write_file(secondary_rom_path, "rom");
+
+    set_sdcard_roots_realpath(primary_root, secondary_root);
+    assert(cs_paths_init(&paths) == 0);
+    assert(paths.source_count == 2);
+
+    assert(cs_platform_discover(&paths, platforms, sizeof(platforms) / sizeof(platforms[0]), &count) == 0);
+    n64 = find_platform_entry(platforms, count, "N64");
+    assert(n64 != NULL);
+    assert(strcmp(n64->rom_directory, "N64") == 0);
+    assert(strcmp(n64->canonical_rom_directory, "N64") == 0);
+
+    assert(cs_browser_root_for_scope(&paths, CS_SCOPE_ROMS, n64, browse_root, sizeof(browse_root)) == 0);
+    assert(snprintf(secondary_suffix, sizeof(secondary_suffix), "%s/Roms/N64", paths.sources[1].root) > 0);
+    assert(path_ends_with(browse_root, secondary_suffix));
+
+    assert(cs_browser_write_root_for_scope(&paths, CS_SCOPE_ROMS, n64, write_root, sizeof(write_root)) == 0);
+    assert(snprintf(primary_suffix, sizeof(primary_suffix), "%s/Roms/N64", paths.sources[0].root) > 0);
+    assert(path_ends_with(write_root, primary_suffix));
+}
+
 static void test_emulator_variants_fold_into_base_system(void) {
     char template[] = "/tmp/cs-platforms-variants-XXXXXX";
     char *root = mkdtemp(template);
@@ -544,6 +609,7 @@ int main(void) {
     test_visibility_requires_present_libretro_core();
     test_canonical_alias_rows_collapse_and_match_folders();
     test_uploads_target_canonical_folder();
+    test_uploads_target_primary_source_when_folder_exists_on_secondary();
     test_emulator_variants_fold_into_base_system();
     test_path_cores_and_ports_visibility();
     test_identity_map_and_rom_root_stripping();

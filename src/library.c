@@ -25,6 +25,7 @@ typedef struct cs_browser_sort_entry {
 
 typedef struct cs_browser_db_entry {
     cs_browser_entry entry;
+    int is_dir;
     cs_browser_sort_column sort_column;
     cs_browser_sort_direction sort_direction;
 } cs_browser_db_entry;
@@ -475,6 +476,10 @@ static int cs_browser_db_sort_compare(const void *left, const void *right) {
     cs_browser_sort_direction direction = a->sort_direction;
     int cmp = 0;
 
+    if (a->is_dir != b->is_dir) {
+        return a->is_dir ? -1 : 1;
+    }
+
     switch (a->sort_column) {
         case CS_BROWSER_SORT_SIZE:
             cmp = (a->entry.size > b->entry.size) - (a->entry.size < b->entry.size);
@@ -852,6 +857,149 @@ static int cs_library_db_resolve_image_path(const cs_paths *paths,
     }
 }
 
+static int cs_browser_rom_entry_path_for_source(const cs_paths *paths,
+                                                const cs_path_source *source,
+                                                const char *platform_relative,
+                                                char *entry_path,
+                                                size_t entry_path_size) {
+    if (!paths || !source || !platform_relative || platform_relative[0] == '\0' || !entry_path || entry_path_size == 0) {
+        return -1;
+    }
+
+    /* ROM browser rows use paths as opaque operation handles: primary-source
+       rows stay plain, while secondary-source rows carry an "<alias>/" prefix. */
+    if (paths->source_count > 1 && source != &paths->sources[0]) {
+        return CS_SAFE_SNPRINTF(entry_path, entry_path_size, "%s/%s", source->alias, platform_relative);
+    }
+    return CS_SAFE_SNPRINTF(entry_path, entry_path_size, "%s", platform_relative);
+}
+
+static int cs_browser_rom_platform_root_for_source(const cs_path_source *source,
+                                                   const cs_platform_info *platform,
+                                                   char *root,
+                                                   size_t root_size) {
+    char relative[CS_PATH_MAX];
+
+    if (!source || !platform || !root || root_size == 0) {
+        return -1;
+    }
+    if (cs_browser_write_platform_relative_root(CS_SCOPE_ROMS, platform, 0, relative, sizeof(relative)) != 0) {
+        return -1;
+    }
+    return CS_SAFE_SNPRINTF(root, root_size, "%s/%s", source->roms_root, relative);
+}
+
+static int cs_browser_split_rom_source_prefix(const cs_paths *paths,
+                                              const char *entry_path,
+                                              const cs_path_source **source_out,
+                                              char *relative,
+                                              size_t relative_size) {
+    const char *slash;
+    char alias[sizeof(paths->sources[0].alias)];
+    size_t alias_len;
+    int source_index;
+
+    if (source_out) {
+        *source_out = NULL;
+    }
+    if (!paths || paths->source_count <= 1 || !entry_path || !relative || relative_size == 0) {
+        return -1;
+    }
+
+    slash = strchr(entry_path, '/');
+    if (!slash || slash == entry_path || slash[1] == '\0') {
+        return -1;
+    }
+    alias_len = (size_t) (slash - entry_path);
+    if (alias_len >= sizeof(alias)) {
+        return -1;
+    }
+    memcpy(alias, entry_path, alias_len);
+    alias[alias_len] = '\0';
+
+    source_index = cs_paths_source_index_for_alias(paths, alias);
+    if (source_index < 0) {
+        return -1;
+    }
+    if (CS_SAFE_SNPRINTF(relative, relative_size, "%s", slash + 1) != 0) {
+        return -1;
+    }
+    if (source_out) {
+        *source_out = &paths->sources[source_index];
+    }
+    return 0;
+}
+
+int cs_browser_resolve_rom_entry_path(const cs_paths *paths,
+                                      const cs_platform_info *platform,
+                                      const char *entry_path,
+                                      char *root,
+                                      size_t root_size,
+                                      char *relative,
+                                      size_t relative_size,
+                                      const cs_path_source **source_out) {
+    const cs_path_source *source = NULL;
+    char stripped_relative[CS_PATH_MAX];
+    size_t i;
+
+    if (source_out) {
+        *source_out = NULL;
+    }
+    if (!paths || !platform || !entry_path || entry_path[0] == '\0' || !root || root_size == 0
+        || !relative || relative_size == 0) {
+        return -1;
+    }
+
+    if (cs_browser_split_rom_source_prefix(paths,
+                                           entry_path,
+                                           &source,
+                                           stripped_relative,
+                                           sizeof(stripped_relative))
+        == 0) {
+        if (cs_browser_rom_platform_root_for_source(source, platform, root, root_size) != 0
+            || CS_SAFE_SNPRINTF(relative, relative_size, "%s", stripped_relative) != 0) {
+            return -1;
+        }
+        if (source_out) {
+            *source_out = source;
+        }
+        return 0;
+    }
+
+    for (i = 0; i < paths->source_count; ++i) {
+        char candidate_root[CS_PATH_MAX];
+        char candidate_path[CS_PATH_MAX];
+        struct stat st;
+
+        source = &paths->sources[i];
+        if (cs_browser_rom_platform_root_for_source(source, platform, candidate_root, sizeof(candidate_root)) != 0
+            || cs_join_path(candidate_path, sizeof(candidate_path), candidate_root, entry_path) != 0) {
+            continue;
+        }
+        if (lstat(candidate_path, &st) == 0 && !S_ISLNK(st.st_mode)) {
+            if (CS_SAFE_SNPRINTF(root, root_size, "%s", candidate_root) != 0
+                || CS_SAFE_SNPRINTF(relative, relative_size, "%s", entry_path) != 0) {
+                return -1;
+            }
+            if (source_out) {
+                *source_out = source;
+            }
+            return 0;
+        }
+    }
+
+    source = cs_browser_select_source_for_scope(paths, CS_SCOPE_ROMS, platform);
+    if (!source
+        || cs_browser_rom_platform_root_for_source(source, platform, root, root_size) != 0
+        || CS_SAFE_SNPRINTF(relative, relative_size, "%s", entry_path) != 0) {
+        return -1;
+    }
+    if (source_out) {
+        *source_out = source;
+    }
+    return 0;
+}
+
 static cs_browser_list_status cs_browser_path_failure_status(int error_code) {
     return (error_code == ENOENT || error_code == ENOTDIR) ? CS_BROWSER_LIST_NOT_FOUND : CS_BROWSER_LIST_INTERNAL;
 }
@@ -1001,7 +1149,9 @@ int cs_browser_root_for_scope_ex(const cs_paths *paths,
         return -1;
     }
 
-    selected_source = cs_browser_select_source_for_scope(paths, scope, platform);
+    selected_source = prefer_canonical && paths->source_count > 0
+                      ? &paths->sources[0]
+                      : cs_browser_select_source_for_scope(paths, scope, platform);
     switch (scope) {
         case CS_SCOPE_ROMS:
         case CS_SCOPE_SAVES:
@@ -1141,7 +1291,9 @@ int cs_library_db_set_game_favorite(const cs_paths *paths,
     sqlite3_stmt *stmt = NULL;
     sqlite3_stmt *write_stmt = NULL;
     cs_library_db_status open_status;
-    const cs_path_source *selected_source;
+    const cs_path_source *target_source = NULL;
+    char target_root[CS_PATH_MAX];
+    char target_relative[CS_PATH_MAX];
     int found_id = 0;
     int step_rc;
     static const char *select_sql =
@@ -1155,8 +1307,16 @@ int cs_library_db_set_game_favorite(const cs_paths *paths,
     if (!paths || !platform || !rom_relative_path || rom_relative_path[0] == '\0') {
         return -1;
     }
-    selected_source = cs_browser_select_source_for_scope(paths, CS_SCOPE_ROMS, platform);
-    if (!selected_source) {
+    if (cs_browser_resolve_rom_entry_path(paths,
+                                          platform,
+                                          rom_relative_path,
+                                          target_root,
+                                          sizeof(target_root),
+                                          target_relative,
+                                          sizeof(target_relative),
+                                          &target_source)
+            != 0
+        || !target_source) {
         return -1;
     }
 
@@ -1187,8 +1347,8 @@ int cs_library_db_set_game_favorite(const cs_paths *paths,
                                            sizeof(absolute_path))
                 == 0
             && row_source
-            && strcmp(row_source->root, selected_source->root) == 0
-            && strcmp(platform_relative, rom_relative_path) == 0) {
+            && strcmp(row_source->root, target_source->root) == 0
+            && strcmp(platform_relative, target_relative) == 0) {
             found_id = row_id;
             break;
         }
@@ -1227,7 +1387,6 @@ static cs_library_db_status cs_browser_list_db_roms(const cs_paths *paths,
                                                     size_t offset,
                                                     const char *query,
                                                     const cs_browser_sort_options *sort_options,
-                                                    const cs_path_source *selected_source,
                                                     const char *root,
                                                     cs_browser_result *result) {
     sqlite3 *db = NULL;
@@ -1238,7 +1397,7 @@ static cs_library_db_status cs_browser_list_db_roms(const cs_paths *paths,
     size_t total = 0;
     size_t out_count = 0;
     size_t i;
-    int saw_valid_row_for_source = 0;
+    int saw_valid_row = 0;
     int scan_truncated = 0;
     int step_rc;
     static const char *sql =
@@ -1246,7 +1405,7 @@ static cs_library_db_status cs_browser_list_db_roms(const cs_paths *paths,
         "EXISTS(SELECT 1 FROM favorites f WHERE f.kind = 'game' AND f.target_id = games.id) "
         "FROM games WHERE system IN (?, ?, ?, ?, ?, ?) ORDER BY name;";
 
-    if (!paths || !platform || !selected_source || !root || !result) {
+    if (!paths || !platform || !root || !result) {
         return CS_LIBRARY_DB_INTERNAL;
     }
     if (relative_path && relative_path[0] != '\0') {
@@ -1278,6 +1437,7 @@ static cs_library_db_status cs_browser_list_db_roms(const cs_paths *paths,
         const cs_path_source *row_source = NULL;
         char platform_relative[CS_PATH_MAX];
         char absolute_path[CS_PATH_MAX];
+        char entry_path[CS_PATH_MAX];
         struct stat st;
         const char *name;
         cs_browser_db_entry *entry;
@@ -1293,14 +1453,14 @@ static cs_library_db_status cs_browser_list_db_roms(const cs_paths *paths,
             != 0) {
             continue;
         }
-        if (!row_source || strcmp(row_source->root, selected_source->root) != 0) {
+        if (!row_source) {
             continue;
         }
         if (lstat(absolute_path, &st) != 0 || !S_ISREG(st.st_mode) || S_ISLNK(st.st_mode)) {
             continue;
         }
 
-        saw_valid_row_for_source = 1;
+        saw_valid_row = 1;
         name = cs_path_basename(platform_relative);
         if (!cs_browser_name_matches_query(name, query)
             && !cs_browser_name_matches_query(platform_relative, query)
@@ -1314,14 +1474,17 @@ static cs_library_db_status cs_browser_list_db_roms(const cs_paths *paths,
         }
 
         entry = &entries[total++];
-        if (CS_SAFE_SNPRINTF(entry->entry.name, sizeof(entry->entry.name), "%s", name) != 0
-            || CS_SAFE_SNPRINTF(entry->entry.path, sizeof(entry->entry.path), "%s", platform_relative) != 0
+        if (cs_browser_rom_entry_path_for_source(paths, row_source, platform_relative, entry_path, sizeof(entry_path))
+                != 0
+            || CS_SAFE_SNPRINTF(entry->entry.name, sizeof(entry->entry.name), "%s", name) != 0
+            || CS_SAFE_SNPRINTF(entry->entry.path, sizeof(entry->entry.path), "%s", entry_path) != 0
             || CS_SAFE_SNPRINTF(entry->entry.type, sizeof(entry->entry.type), "%s", "rom") != 0) {
             free(entries);
             sqlite3_finalize(stmt);
             sqlite3_close(db);
             return CS_LIBRARY_DB_INTERNAL;
         }
+        entry->is_dir = 0;
         entry->entry.size = (unsigned long long) st.st_size;
         entry->entry.modified = (long long) st.st_mtime;
         entry->entry.favorite = favorite ? 1 : 0;
@@ -1354,7 +1517,7 @@ static cs_library_db_status cs_browser_list_db_roms(const cs_paths *paths,
     sqlite3_finalize(stmt);
     sqlite3_close(db);
 
-    if (!saw_valid_row_for_source) {
+    if (!saw_valid_row) {
         free(entries);
         return CS_LIBRARY_DB_UNAVAILABLE;
     }
@@ -1381,6 +1544,214 @@ static cs_library_db_status cs_browser_list_db_roms(const cs_paths *paths,
 
     free(entries);
     return CS_LIBRARY_DB_OK;
+}
+
+static int cs_browser_result_path_seen(const cs_browser_db_entry *entries, size_t count, const char *path) {
+    size_t i;
+
+    if (!entries || !path) {
+        return 0;
+    }
+    for (i = 0; i < count; ++i) {
+        if (strcmp(entries[i].entry.path, path) == 0) {
+            return 1;
+        }
+    }
+    return 0;
+}
+
+static cs_browser_list_status cs_browser_list_merged_rom_filesystem(const cs_paths *paths,
+                                                                    const cs_platform_info *platform,
+                                                                    const char *relative_path,
+                                                                    size_t offset,
+                                                                    const char *query,
+                                                                    const cs_browser_sort_options *sort_options,
+                                                                    cs_browser_result *result) {
+    cs_browser_db_entry *entries = NULL;
+    cs_browser_sort_options normalized_sort = cs_browser_normalize_sort_options(sort_options);
+    unsigned int path_flags = CS_PATH_FLAG_ALLOW_EMPTY;
+    size_t total = 0;
+    size_t out_count = 0;
+    size_t i;
+    int scan_truncated = 0;
+    int opened_any = 0;
+    const char *request_relative = relative_path ? relative_path : "";
+
+    if (!paths || !platform || !result) {
+        return CS_BROWSER_LIST_INTERNAL;
+    }
+    if (cs_browser_scope_allows_hidden_for_platform(CS_SCOPE_ROMS, platform)) {
+        path_flags |= CS_PATH_FLAG_ALLOW_HIDDEN;
+    }
+
+    entries = (cs_browser_db_entry *) calloc(CS_BROWSER_SCAN_CAP, sizeof(*entries));
+    if (!entries) {
+        return CS_BROWSER_LIST_INTERNAL;
+    }
+
+    for (i = 0; i < paths->source_count; ++i) {
+        const cs_path_source *source = &paths->sources[i];
+        char source_root[CS_PATH_MAX];
+        char target_path[CS_PATH_MAX];
+        DIR *dir;
+        struct dirent *entry;
+
+        if (cs_browser_rom_platform_root_for_source(source, platform, source_root, sizeof(source_root)) != 0
+            || cs_resolve_path_under_root_with_flags(source_root,
+                                                     request_relative,
+                                                     path_flags,
+                                                     target_path,
+                                                     sizeof(target_path))
+                   != 0) {
+            continue;
+        }
+
+        dir = opendir(target_path);
+        if (!dir) {
+            continue;
+        }
+        opened_any = 1;
+
+        while ((entry = readdir(dir)) != NULL) {
+            char entry_absolute[CS_PATH_MAX];
+            char platform_relative[CS_PATH_MAX];
+            char entry_path[CS_PATH_MAX];
+            char thumbnail_path[CS_PATH_MAX];
+            struct stat st;
+            int is_dir;
+            cs_browser_db_entry *out;
+
+            if (strcmp(entry->d_name, ".") == 0 || strcmp(entry->d_name, "..") == 0) {
+                continue;
+            }
+            if (cs_join_path(entry_absolute, sizeof(entry_absolute), target_path, entry->d_name) != 0) {
+                continue;
+            }
+            if (!cs_browser_should_include_entry(CS_SCOPE_ROMS, platform, entry->d_name, entry_absolute)) {
+                continue;
+            }
+            if (!cs_browser_name_matches_query(entry->d_name, query)) {
+                continue;
+            }
+            if (lstat(entry_absolute, &st) != 0 || S_ISLNK(st.st_mode)
+                || (!S_ISREG(st.st_mode) && !S_ISDIR(st.st_mode))) {
+                continue;
+            }
+
+            is_dir = S_ISDIR(st.st_mode) ? 1 : 0;
+            if (request_relative[0] != '\0') {
+                if (CS_SAFE_SNPRINTF(platform_relative,
+                                     sizeof(platform_relative),
+                                     "%s/%s",
+                                     request_relative,
+                                     entry->d_name)
+                    != 0) {
+                    continue;
+                }
+            } else if (CS_SAFE_SNPRINTF(platform_relative, sizeof(platform_relative), "%s", entry->d_name) != 0) {
+                continue;
+            }
+
+            if (is_dir) {
+                /* Directories are merged by platform-relative path, so entering
+                   one opens and merges that directory from every source. */
+                if (CS_SAFE_SNPRINTF(entry_path, sizeof(entry_path), "%s", platform_relative) != 0) {
+                    continue;
+                }
+                if (cs_browser_result_path_seen(entries, total, entry_path)) {
+                    continue;
+                }
+            } else {
+                /* Files keep source identity in their path handle so operations
+                   can distinguish same-name ROMs that live on different cards. */
+                if (cs_browser_rom_entry_path_for_source(paths,
+                                                         source,
+                                                         platform_relative,
+                                                         entry_path,
+                                                         sizeof(entry_path))
+                    != 0) {
+                    continue;
+                }
+            }
+
+            if (total >= CS_BROWSER_SCAN_CAP) {
+                scan_truncated = 1;
+                continue;
+            }
+
+            out = &entries[total++];
+            if (CS_SAFE_SNPRINTF(out->entry.name, sizeof(out->entry.name), "%s", entry->d_name) != 0
+                || CS_SAFE_SNPRINTF(out->entry.path, sizeof(out->entry.path), "%s", entry_path) != 0
+                || CS_SAFE_SNPRINTF(out->entry.type,
+                                    sizeof(out->entry.type),
+                                    "%s",
+                                    cs_browser_entry_type_for_scope(CS_SCOPE_ROMS, is_dir, platform_relative))
+                       != 0) {
+                (void) closedir(dir);
+                free(entries);
+                return CS_BROWSER_LIST_INTERNAL;
+            }
+            out->entry.size = is_dir ? 0 : (unsigned long long) st.st_size;
+            out->entry.modified = (long long) st.st_mtime;
+            out->is_dir = is_dir;
+            out->sort_column = normalized_sort.column;
+            out->sort_direction = normalized_sort.direction;
+
+            if (!is_dir
+                && cs_browser_write_thumbnail(source_root,
+                                              source->images_root,
+                                              platform,
+                                              platform_relative,
+                                              thumbnail_path,
+                                              sizeof(thumbnail_path))
+                       == 0
+                && thumbnail_path[0] != '\0') {
+                if (paths->source_count > 1 && source != &paths->sources[0]) {
+                    (void) cs_library_db_virtual_file_path_for_source(paths,
+                                                                      source,
+                                                                      thumbnail_path,
+                                                                      out->entry.thumbnail_path,
+                                                                      sizeof(out->entry.thumbnail_path));
+                } else {
+                    (void) CS_SAFE_SNPRINTF(out->entry.thumbnail_path,
+                                            sizeof(out->entry.thumbnail_path),
+                                            "%s",
+                                            thumbnail_path);
+                }
+            }
+        }
+
+        (void) closedir(dir);
+    }
+
+    if (!opened_any && request_relative[0] != '\0') {
+        free(entries);
+        return CS_BROWSER_LIST_NOT_FOUND;
+    }
+
+    qsort(entries, total, sizeof(*entries), cs_browser_db_sort_compare);
+
+    memset(result, 0, sizeof(*result));
+    result->offset = offset;
+    result->total_count = total;
+    result->truncated = scan_truncated;
+    if (CS_SAFE_SNPRINTF(result->scope, sizeof(result->scope), "%s", cs_browser_scope_name(CS_SCOPE_ROMS)) != 0
+        || CS_SAFE_SNPRINTF(result->root_path, sizeof(result->root_path), "%s", "merged")
+               != 0
+        || CS_SAFE_SNPRINTF(result->path, sizeof(result->path), "%s", request_relative) != 0
+        || cs_browser_write_title(result->title, sizeof(result->title), CS_SCOPE_ROMS, platform) != 0
+        || cs_browser_write_breadcrumbs(result, request_relative) != 0) {
+        free(entries);
+        return CS_BROWSER_LIST_INTERNAL;
+    }
+
+    for (i = offset; i < total && out_count < CS_BROWSER_PAGE_SIZE; ++i) {
+        result->entries[out_count++] = entries[i].entry;
+    }
+    result->count = out_count;
+
+    free(entries);
+    return CS_BROWSER_LIST_OK;
 }
 
 cs_browser_list_status cs_browser_list(const cs_paths *paths,
@@ -1470,7 +1841,6 @@ cs_browser_list_status cs_browser_list_with_sort(const cs_paths *paths,
                                                                  offset,
                                                                  query,
                                                                  &normalized_sort,
-                                                                 selected_source,
                                                                  root,
                                                                  result);
 
@@ -1480,6 +1850,16 @@ cs_browser_list_status cs_browser_list_with_sort(const cs_paths *paths,
         if (db_status == CS_LIBRARY_DB_INTERNAL) {
             return CS_BROWSER_LIST_INTERNAL;
         }
+    }
+
+    if (scope == CS_SCOPE_ROMS && paths->source_count > 1) {
+        return cs_browser_list_merged_rom_filesystem(paths,
+                                                     platform,
+                                                     relative_path,
+                                                     offset,
+                                                     query,
+                                                     &normalized_sort,
+                                                     result);
     }
 
     memset(result, 0, sizeof(*result));

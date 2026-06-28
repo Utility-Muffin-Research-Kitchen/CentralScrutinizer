@@ -445,24 +445,6 @@ static void cs_remove_temp_upload(const char *path) {
     }
 }
 
-static const cs_path_source *cs_source_for_rom_root(const cs_paths *paths, const char *rom_root) {
-    size_t i;
-
-    if (!paths || !rom_root) {
-        return NULL;
-    }
-    for (i = 0; i < paths->source_count; ++i) {
-        size_t len = strlen(paths->sources[i].roms_root);
-
-        if (len > 0 && strncmp(rom_root, paths->sources[i].roms_root, len) == 0
-            && (rom_root[len] == '\0' || rom_root[len] == '/')) {
-            return &paths->sources[i];
-        }
-    }
-
-    return paths->source_count > 0 ? &paths->sources[0] : NULL;
-}
-
 static int cs_build_leaf_art_relative_paths(const cs_platform_info *platform,
                                             const char *rom_relative_path,
                                             char *art_relative_path,
@@ -634,6 +616,21 @@ static int cs_resolve_scope_root(cs_app *app,
             return -1;
         }
         platform = &resolved_platform;
+    }
+    if (!prefer_write_root && scope == CS_SCOPE_ROMS && app->paths.source_count > 1) {
+        if (cs_browser_resolve_rom_entry_path(&app->paths,
+                                              platform,
+                                              relative_path,
+                                              root,
+                                              root_size,
+                                              effective_relative,
+                                              effective_relative_size,
+                                              NULL)
+            != 0) {
+            return -1;
+        }
+        *path_flags_out = cs_browser_scope_allows_hidden_for_platform(scope, platform) ? CS_PATH_FLAG_ALLOW_HIDDEN : 0;
+        return 0;
     }
     if ((prefer_write_root ? cs_browser_write_root_for_scope(&app->paths, scope, platform, root, root_size)
                            : cs_browser_root_for_scope(&app->paths, scope, platform, root, root_size))
@@ -1013,6 +1010,7 @@ int cs_route_replace_art_handler(struct mg_connection *conn, void *cbdata) {
     const cs_platform_info *platform = NULL;
     const cs_path_source *rom_source = NULL;
     char rom_root[CS_PATH_MAX];
+    char rom_relative[CS_PATH_MAX];
     char rom_absolute[CS_PATH_MAX];
     char art_relative_path[CS_PATH_MAX];
     char art_base_path[CS_PATH_MAX];
@@ -1059,12 +1057,19 @@ int cs_route_replace_art_handler(struct mg_connection *conn, void *cbdata) {
         return cs_write_json(conn, 404, "Not Found", "{\"ok\":false}");
     }
     platform = &resolved_platform;
-    if (cs_browser_root_for_scope(&app->paths, CS_SCOPE_ROMS, platform, rom_root, sizeof(rom_root)) != 0) {
+    if (cs_browser_resolve_rom_entry_path(&app->paths,
+                                          platform,
+                                          request_state.rom_path,
+                                          rom_root,
+                                          sizeof(rom_root),
+                                          rom_relative,
+                                          sizeof(rom_relative),
+                                          &rom_source)
+        != 0) {
         cs_remove_temp_upload(request_state.temp_path);
         return cs_write_json(conn, 404, "Not Found", "{\"ok\":false}");
     }
-    rom_source = cs_source_for_rom_root(&app->paths, rom_root);
-    if (cs_resolve_path_under_root(rom_root, request_state.rom_path, rom_absolute, sizeof(rom_absolute)) != 0) {
+    if (cs_resolve_path_under_root(rom_root, rom_relative, rom_absolute, sizeof(rom_absolute)) != 0) {
         cs_remove_temp_upload(request_state.temp_path);
         return cs_write_json(conn, 400, "Bad Request", "{\"ok\":false}");
     }
@@ -1074,7 +1079,7 @@ int cs_route_replace_art_handler(struct mg_connection *conn, void *cbdata) {
     }
     if (!rom_source || rom_source->images_root[0] == '\0'
         || cs_build_leaf_art_relative_paths(platform,
-                                            request_state.rom_path,
+                                            rom_relative,
                                             art_relative_path,
                                             sizeof(art_relative_path),
                                             art_base_path,

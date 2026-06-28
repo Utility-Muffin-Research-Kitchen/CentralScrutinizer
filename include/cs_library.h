@@ -98,6 +98,14 @@ int cs_browser_root_for_scope_ex(const cs_paths *paths,
                                  int prefer_canonical,
                                  char *root,
                                  size_t root_size);
+int cs_browser_resolve_rom_entry_path(const cs_paths *paths,
+                                      const cs_platform_info *platform,
+                                      const char *entry_path,
+                                      char *root,
+                                      size_t root_size,
+                                      char *relative,
+                                      size_t relative_size,
+                                      const cs_path_source **source_out);
 int cs_library_db_count_roms_for_platform(const cs_paths *paths, const cs_platform_info *platform, int *count_out);
 int cs_library_db_set_game_favorite(const cs_paths *paths,
                                     const cs_platform_info *platform,

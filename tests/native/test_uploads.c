@@ -446,6 +446,58 @@ static void test_prepare_final_directory_merges_existing_directories(void) {
     assert(rmdir(sandbox_template) == 0);
 }
 
+static void test_promote_into_missing_final_root(void) {
+    cs_paths paths = {0};
+    cs_upload_plan plan;
+    char sandbox_template[] = "/tmp/cs-upload-missing-root-XXXXXX";
+    char roms_root[CS_PATH_MAX];
+    char final_root[CS_PATH_MAX];
+    char userdata_root[CS_PATH_MAX];
+    char app_root[CS_PATH_MAX];
+    char uploads_root[CS_PATH_MAX];
+    char temp_path[CS_PATH_MAX];
+    char final_path[CS_PATH_MAX];
+    char uploaded[32];
+
+    assert(mkdtemp(sandbox_template) != NULL);
+    path_join(roms_root, sizeof(roms_root), sandbox_template, "Roms");
+    path_join(final_root, sizeof(final_root), roms_root, "GBA");
+    path_join(userdata_root, sizeof(userdata_root), sandbox_template, ".userdata");
+    path_join(app_root, sizeof(app_root), userdata_root, "CentralScrutinizer");
+    path_join(uploads_root, sizeof(uploads_root), app_root, "uploads");
+    path_join(final_path, sizeof(final_path), final_root, "fresh.gba");
+
+    assert(mkdir(roms_root, 0775) == 0);
+    assert(snprintf(paths.sdcard_root, sizeof(paths.sdcard_root), "%s", sandbox_template) > 0);
+    assert(snprintf(paths.shared_state_root, sizeof(paths.shared_state_root), "%s", app_root) > 0);
+    assert(snprintf(paths.temp_upload_root, sizeof(paths.temp_upload_root), "%s/tmp", uploads_root) > 0);
+    assert(cs_upload_reserve_temp_path(&paths, "fresh.gba", temp_path, sizeof(temp_path)) == 0);
+    write_file(temp_path, "fresh-bytes");
+
+    assert(cs_upload_plan_make(&paths,
+                               final_root,
+                               sandbox_template,
+                               "",
+                               "fresh.gba",
+                               0,
+                               &plan)
+           == 0);
+    assert(snprintf(plan.temp_path, sizeof(plan.temp_path), "%s", temp_path) > 0);
+    assert(cs_upload_promote(&plan) == 0);
+    assert(access(temp_path, F_OK) != 0);
+    read_file(final_path, uploaded, sizeof(uploaded));
+    assert(strcmp(uploaded, "fresh-bytes") == 0);
+
+    assert(remove(final_path) == 0);
+    assert(rmdir(final_root) == 0);
+    assert(rmdir(roms_root) == 0);
+    assert(rmdir(paths.temp_upload_root) == 0);
+    assert(rmdir(uploads_root) == 0);
+    assert(rmdir(app_root) == 0);
+    assert(rmdir(userdata_root) == 0);
+    assert(rmdir(sandbox_template) == 0);
+}
+
 static void test_no_replace_fallback_path(void) {
     assert(setenv("CS_FORCE_RENAME_NOREPLACE_FALLBACK", "1", 1) == 0);
     test_existing_destination_is_rejected();
@@ -577,6 +629,7 @@ int main(void) {
     test_no_replace_fallback_path();
     test_reserved_temp_paths_are_unique();
     test_prepare_final_directory_merges_existing_directories();
+    test_promote_into_missing_final_root();
     test_temp_upload_root_can_live_on_secondary_source();
 
     return 0;

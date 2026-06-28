@@ -973,15 +973,16 @@ static int cs_platform_discover_internal(const cs_paths *paths,
                                          size_t capacity,
                                          size_t *count_out,
                                          cs_catalog_error *error_out) {
-    cs_discovered_rom_dir dirs[CS_DISCOVERED_PLATFORM_MAX];
-    cs_modeled_platform *views;
-    char emulator_codes[CS_DISCOVERED_PLATFORM_MAX][CS_PLATFORM_CODE_MAX];
+    cs_discovered_rom_dir *dirs = NULL;
+    cs_modeled_platform *views = NULL;
+    char (*emulator_codes)[CS_PLATFORM_CODE_MAX] = NULL;
     size_t dir_count = 0;
     size_t view_count = 0;
     size_t emulator_code_count = 0;
     size_t count = 0;
     size_t custom_start;
     size_t i;
+    int status = -1;
 
     if (count_out) {
         *count_out = 0;
@@ -989,17 +990,17 @@ static int cs_platform_discover_internal(const cs_paths *paths,
     if (!paths || !platforms || capacity == 0) {
         return -1;
     }
+    dirs = (cs_discovered_rom_dir *) calloc(CS_DISCOVERED_PLATFORM_MAX, sizeof(dirs[0]));
     views = (cs_modeled_platform *) calloc(CS_MODELED_PLATFORM_MAX, sizeof(views[0]));
-    if (!views) {
-        return -1;
+    emulator_codes = (char (*)[CS_PLATFORM_CODE_MAX]) calloc(CS_DISCOVERED_PLATFORM_MAX, sizeof(emulator_codes[0]));
+    if (!dirs || !views || !emulator_codes) {
+        goto cleanup;
     }
     if (cs_platform_runtime_views(paths, views, CS_MODELED_PLATFORM_MAX, &view_count, error_out) != 0) {
-        free(views);
-        return -1;
+        goto cleanup;
     }
     if (cs_platform_scan_rom_dirs(paths, dirs, CS_DISCOVERED_PLATFORM_MAX, &dir_count) != 0) {
-        free(views);
-        return -1;
+        goto cleanup;
     }
 
     for (i = 0; i < view_count && count < capacity; ++i) {
@@ -1022,8 +1023,7 @@ static int cs_platform_discover_internal(const cs_paths *paths,
                                sizeof(platforms[count].rom_directory),
                                dirs[discovered_index].dir_name)
                    != 0) {
-            free(views);
-            return -1;
+            goto cleanup;
         }
         count += 1;
     }
@@ -1049,8 +1049,7 @@ static int cs_platform_discover_internal(const cs_paths *paths,
             continue;
         }
         if (cs_platform_build_custom(&dirs[i], &entry) != 0) {
-            free(views);
-            return -1;
+            goto cleanup;
         }
         platforms[count++] = entry;
     }
@@ -1065,8 +1064,13 @@ static int cs_platform_discover_internal(const cs_paths *paths,
     if (count_out) {
         *count_out = count;
     }
+    status = 0;
+
+cleanup:
+    free(emulator_codes);
     free(views);
-    return 0;
+    free(dirs);
+    return status;
 }
 
 const cs_platform_info *cs_platform_find(const char *tag) {
@@ -1083,11 +1087,12 @@ int cs_platform_copy(const cs_platform_info *source, cs_platform_info *target) {
 }
 
 int cs_platform_resolve(const cs_paths *paths, const char *tag, cs_platform_info *target) {
-    cs_platform_info platforms[CS_MODELED_PLATFORM_MAX];
+    cs_platform_info *platforms = NULL;
     const cs_platform_info *fallback = NULL;
     const char *resolved_tag = tag;
     size_t platform_count = 0;
     size_t i;
+    int status = -1;
 
     if (!tag || !target) {
         return -1;
@@ -1100,14 +1105,18 @@ int cs_platform_resolve(const cs_paths *paths, const char *tag, cs_platform_info
     if (fallback) {
         resolved_tag = fallback->tag;
     }
+    platforms = (cs_platform_info *) calloc(CS_MODELED_PLATFORM_MAX, sizeof(platforms[0]));
+    if (!platforms) {
+        return -1;
+    }
 
     if (cs_platform_discover_internal(paths,
                                       platforms,
-                                      sizeof(platforms) / sizeof(platforms[0]),
+                                      CS_MODELED_PLATFORM_MAX,
                                       &platform_count,
                                       NULL)
         != 0) {
-        return -1;
+        goto cleanup;
     }
     for (i = 0; i < platform_count; ++i) {
         if (strcasecmp(platforms[i].tag, resolved_tag) == 0
@@ -1115,10 +1124,14 @@ int cs_platform_resolve(const cs_paths *paths, const char *tag, cs_platform_info
             || strcasecmp(platforms[i].primary_code, tag) == 0
             || strcasecmp(platforms[i].rom_directory, tag) == 0) {
             *target = platforms[i];
-            return 0;
+            status = 0;
+            goto cleanup;
         }
     }
-    return -1;
+
+cleanup:
+    free(platforms);
+    return status;
 }
 
 int cs_platform_discover_with_error(const cs_paths *paths,

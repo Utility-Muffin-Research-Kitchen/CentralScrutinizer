@@ -59,6 +59,12 @@ static void write_sized_file(const char *path, size_t size) {
     assert(truncate(path, (off_t) size) == 0);
 }
 
+static void path_join(char *dst, size_t dst_size, const char *left, const char *right) {
+    int written = snprintf(dst, dst_size, "%s/%s", left, right);
+
+    assert(written >= 0 && (size_t) written < dst_size);
+}
+
 static int remove_tree(const char *path) {
     struct stat st;
     DIR *dir;
@@ -104,6 +110,27 @@ static void set_sdcard_root_realpath(const char *root) {
 
     assert(realpath(root, resolved) != NULL);
     setenv("SDCARD_PATH", resolved, 1);
+    unsetenv("SDCARD_PATHS");
+    setenv("SYSTEMS_CATALOG_PATH",
+           "fixtures/mock_sdcard/.system/leaf/platforms/mlp1/defaults/systems.json",
+           1);
+    setenv("CORES_CATALOG_PATH",
+           "fixtures/mock_sdcard/.system/leaf/platforms/mlp1/defaults/cores.json",
+           1);
+    unsetenv("CS_WEB_ROOT");
+    unsetenv("UMRK_INTERNAL_DATA_PATH");
+}
+
+static void set_sdcard_roots_realpath(const char *first, const char *second) {
+    char first_resolved[PATH_MAX];
+    char second_resolved[PATH_MAX];
+    char joined[(PATH_MAX * 2) + 2];
+
+    assert(realpath(first, first_resolved) != NULL);
+    assert(realpath(second, second_resolved) != NULL);
+    assert(snprintf(joined, sizeof(joined), "%s:%s", first_resolved, second_resolved) > 0);
+    setenv("SDCARD_PATHS", joined, 1);
+    unsetenv("SDCARD_PATH");
     setenv("SYSTEMS_CATALOG_PATH",
            "fixtures/mock_sdcard/.system/leaf/platforms/mlp1/defaults/systems.json",
            1);
@@ -471,6 +498,127 @@ static void test_library_db_populates_root_rom_listing(void) {
     assert(find_entry(&result, "Filesystem Only.gba") != NULL);
 
     assert(remove_tree(root) == 0);
+}
+
+static void test_rom_browser_merges_platform_folders_across_sources(void) {
+    cs_paths paths = {0};
+    cs_browser_result result = {0};
+    cs_platform_info n64;
+    char template[] = "/tmp/cs-library-merge-XXXXXX";
+    char *sandbox;
+    char primary_root[PATH_MAX];
+    char secondary_root[PATH_MAX];
+    char primary_n64_dir[PATH_MAX];
+    char secondary_n64_dir[PATH_MAX];
+    char primary_rom[PATH_MAX];
+    char secondary_rom[PATH_MAX];
+    char secondary_rom_resolved[PATH_MAX];
+    char state_dir[PATH_MAX];
+    char db_path[PATH_MAX];
+    char sql[4096];
+    char expected_secondary_path[PATH_MAX];
+    char resolved_root[PATH_MAX];
+    char resolved_relative[PATH_MAX];
+    const cs_path_source *resolved_source = NULL;
+    const cs_browser_entry *entry;
+    sqlite3 *db = NULL;
+    char *err = NULL;
+
+    sandbox = mkdtemp(template);
+    assert(sandbox != NULL);
+    path_join(primary_root, sizeof(primary_root), sandbox, "card-a");
+    path_join(secondary_root, sizeof(secondary_root), sandbox, "card-b");
+    assert(mkdir(primary_root, 0775) == 0);
+    assert(mkdir(secondary_root, 0775) == 0);
+    path_join(primary_n64_dir, sizeof(primary_n64_dir), primary_root, "Roms/N64");
+    path_join(secondary_n64_dir, sizeof(secondary_n64_dir), secondary_root, "Roms/N64");
+    path_join(primary_rom, sizeof(primary_rom), primary_n64_dir, "main.z64");
+    path_join(secondary_rom, sizeof(secondary_rom), secondary_n64_dir, "Super Mario 64.zip");
+    path_join(state_dir, sizeof(state_dir), primary_root, ".umrk/mlp1");
+    path_join(db_path, sizeof(db_path), state_dir, "library.db");
+
+    make_dir_p(primary_n64_dir);
+    make_dir_p(secondary_n64_dir);
+    make_dir_p(state_dir);
+    write_sized_file(primary_rom, 7);
+    write_sized_file(secondary_rom, 11);
+    assert(realpath(secondary_rom, secondary_rom_resolved) != NULL);
+
+    assert(sqlite3_open(db_path, &db) == SQLITE_OK);
+    assert(snprintf(sql,
+                    sizeof(sql),
+                    "CREATE TABLE games ("
+                    "id INTEGER PRIMARY KEY,"
+                    "system TEXT NOT NULL,"
+                    "name TEXT NOT NULL,"
+                    "rom_path TEXT NOT NULL UNIQUE,"
+                    "image_path TEXT,"
+                    "last_played INTEGER,"
+                    "playtime_s INTEGER NOT NULL DEFAULT 0"
+                    ");"
+                    "CREATE TABLE favorites ("
+                    "kind TEXT NOT NULL CHECK (kind IN ('game','app')),"
+                    "target_id INTEGER NOT NULL,"
+                    "added_at INTEGER NOT NULL,"
+                    "PRIMARY KEY (kind, target_id)"
+                    ");"
+                    "INSERT INTO games (system, name, rom_path, image_path) VALUES "
+                    "('N64', 'Main', 'Roms/N64/main.z64', NULL),"
+                    "('N64', 'Mario', '%s', NULL);",
+                    secondary_rom_resolved)
+           > 0);
+    assert(sqlite3_exec(db, sql, NULL, NULL, &err) == SQLITE_OK);
+    assert(err == NULL);
+    assert(sqlite3_close(db) == SQLITE_OK);
+
+    set_sdcard_roots_realpath(primary_root, secondary_root);
+    assert(setenv("UMRK_INTERNAL_DATA_PATH", state_dir, 1) == 0);
+    assert(cs_paths_init(&paths) == 0);
+    n64 = make_test_platform("N64", "N64", "N64");
+
+    assert(cs_browser_list(&paths, CS_SCOPE_ROMS, &n64, "", 0, NULL, &result) == CS_BROWSER_LIST_OK);
+    assert(result.count == 2);
+    assert(result.total_count == 2);
+    entry = find_entry(&result, "main.z64");
+    assert(entry != NULL);
+    assert(strcmp(entry->path, "main.z64") == 0);
+    entry = find_entry(&result, "Super Mario 64.zip");
+    assert(entry != NULL);
+    assert(snprintf(expected_secondary_path,
+                    sizeof(expected_secondary_path),
+                    "%s/Super Mario 64.zip",
+                    paths.sources[1].alias)
+           > 0);
+    assert(strcmp(entry->path, expected_secondary_path) == 0);
+
+    assert(cs_browser_resolve_rom_entry_path(&paths,
+                                             &n64,
+                                             entry->path,
+                                             resolved_root,
+                                             sizeof(resolved_root),
+                                             resolved_relative,
+                                             sizeof(resolved_relative),
+                                             &resolved_source)
+           == 0);
+    assert(resolved_source == &paths.sources[1]);
+    assert(strcmp(resolved_relative, "Super Mario 64.zip") == 0);
+
+    assert(cs_library_db_set_game_favorite(&paths, &n64, expected_secondary_path, 1) == 0);
+    assert(cs_browser_list(&paths, CS_SCOPE_ROMS, &n64, "", 0, NULL, &result) == CS_BROWSER_LIST_OK);
+    entry = find_entry(&result, "Super Mario 64.zip");
+    assert(entry != NULL);
+    assert(entry->favorite == 1);
+
+    assert(unlink(db_path) == 0);
+    assert(cs_browser_list(&paths, CS_SCOPE_ROMS, &n64, "", 0, NULL, &result) == CS_BROWSER_LIST_OK);
+    assert(result.count == 2);
+    assert(result.total_count == 2);
+    assert(find_entry(&result, "main.z64") != NULL);
+    entry = find_entry(&result, "Super Mario 64.zip");
+    assert(entry != NULL);
+    assert(strcmp(entry->path, expected_secondary_path) == 0);
+
+    assert(remove_tree(sandbox) == 0);
 }
 
 static void test_symlink_entries_are_skipped(void) {
@@ -914,6 +1062,7 @@ int main(void) {
     test_fixture_browser_scopes_and_rejection();
     test_rom_thumbnail_resolution_is_png_only();
     test_library_db_populates_root_rom_listing();
+    test_rom_browser_merges_platform_folders_across_sources();
     test_symlink_entries_are_skipped();
     test_symlinked_scope_root_is_rejected();
     test_symlinked_absolute_sdcard_root_is_canonicalized_for_files_scope();

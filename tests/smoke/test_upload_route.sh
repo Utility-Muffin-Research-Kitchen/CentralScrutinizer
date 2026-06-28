@@ -8,6 +8,8 @@ make mac >/dev/null
 WORK_DIR="$(mktemp -d /tmp/cs-upload-smoke-XXXXXX)"
 SDCARD_ROOT="$WORK_DIR/sdcard"
 COOKIE_JAR="$WORK_DIR/cookies.txt"
+# The fixture ROM lives in the legacy discovered GBA folder, while uploads
+# should land in the catalog's canonical Roms/GBA folder.
 SOURCE_ROM="$(find "fixtures/mock_sdcard/Roms/Game Boy Advance (GBA)" -maxdepth 1 -type f -name '*.gba' -print | head -n 1)"
 SOURCE_SAVE="fixtures/mock_sdcard/Saves/GBA/Pokemon Emerald.sav"
 SOURCE_BIOS="fixtures/mock_sdcard/BIOS/GBA/gba_bios.bin"
@@ -25,7 +27,7 @@ NORMALIZED_PARENT_NOTE_UPLOAD_NAME="normalized-parent-$RANDOM-$$.txt"
 NORMALIZED_DOT_SEGMENT_NOTE_UPLOAD_NAME="normalized-dot-$RANDOM-$$.txt"
 NORMALIZED_DOUBLE_SEPARATOR_NOTE_UPLOAD_NAME="normalized-double-$RANDOM-$$.txt"
 MALFORMED_DIRECTORY_NAME="malformed-dir-$RANDOM-$$"
-UPLOADED_ROM="$SDCARD_ROOT/Roms/Game Boy Advance (GBA)/$ROM_UPLOAD_NAME"
+UPLOADED_ROM="$SDCARD_ROOT/Roms/GBA/$ROM_UPLOAD_NAME"
 UPLOADED_SAVE="$SDCARD_ROOT/Saves/GBA/$SAVE_UPLOAD_NAME"
 UPLOADED_BIOS="$SDCARD_ROOT/BIOS/GBA/$BIOS_UPLOAD_NAME"
 UPLOADED_NOTE="$SDCARD_ROOT/.userdata/mlp1/CentralScrutinizer/imports/Favorites/GBA/$NOTE_UPLOAD_NAME"
@@ -341,11 +343,11 @@ assert_upload_rejected "files" ".userdata/mlp1/CentralScrutinizer/imports" "/abs
 assert_upload_rejected "files" ".userdata/mlp1/CentralScrutinizer/imports" "$MALFORMED_DIRECTORY_NAME/" \
     "$SDCARD_ROOT/.userdata/mlp1/CentralScrutinizer/imports/$MALFORMED_DIRECTORY_NAME"
 assert_upload_rejected "roms" "" ".hidden/$NOTE_UPLOAD_NAME" \
-    "$SDCARD_ROOT/Roms/Game Boy Advance (GBA)/.hidden/$NOTE_UPLOAD_NAME"
+    "$SDCARD_ROOT/Roms/GBA/.hidden/$NOTE_UPLOAD_NAME"
 assert_directory_rejected "files" ".userdata/mlp1/CentralScrutinizer/imports" "../dir-escape" \
     "$SDCARD_ROOT/.userdata/mlp1/CentralScrutinizer/dir-escape"
 assert_directory_rejected "roms" "" ".hidden" \
-    "$SDCARD_ROOT/Roms/Game Boy Advance (GBA)/.hidden"
+    "$SDCARD_ROOT/Roms/GBA/.hidden"
 
 UPLOAD_RESPONSE="$(curl -sS -X POST \
     -b "$COOKIE_JAR" \

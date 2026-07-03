@@ -4,8 +4,18 @@ APP_NAME := central-scrutinizer
 LEAF_PAK_DIR_NAME := CentralScrutinizer.pak
 BUILD_DIR := build
 MLP1_TOOLCHAIN_IMAGE ?= ghcr.io/utility-muffin-research-kitchen/mlp1-toolchain:local
+MLP1_BUILD_PROFILE ?= release
 WORKSPACE_ROOT ?= $(abspath ..)
 CATASTROPHE_DIR ?= $(WORKSPACE_ROOT)/Catastrophe
+MLP1_FLAGS_MK ?= $(firstword $(wildcard /opt/mlp1-toolchain/umrk/mlp1-build-flags.mk $(WORKSPACE_ROOT)/mlp1-toolchain/flags/mlp1-build-flags.mk ../mlp1-toolchain/flags/mlp1-build-flags.mk))
+ifneq ($(MLP1_FLAGS_MK),)
+include $(MLP1_FLAGS_MK)
+else
+UMRK_MLP1_TARGET_SOC ?= rk3566
+UMRK_MLP1_TARGET_CPU ?= cortex-a55
+UMRK_MLP1_PROFILE_CFLAGS ?= -O2 -mcpu=cortex-a55 -mtune=cortex-a55 -ffunction-sections -fdata-sections -DNDEBUG
+UMRK_MLP1_PROFILE_LDFLAGS ?= -Wl,--gc-sections
+endif
 ADB ?= adb
 SDL_AVAILABLE := $(shell pkg-config --exists sdl2 SDL2_ttf SDL2_image 2>/dev/null && echo 1 || echo 0)
 ifeq ($(SDL_AVAILABLE),1)
@@ -39,6 +49,7 @@ mlp1:
 	docker run --rm \
 		-v "$(WORKSPACE_ROOT)":/workspace \
 		-w /workspace/CentralScrutinizer \
+		-e MLP1_BUILD_PROFILE="$(MLP1_BUILD_PROFILE)" \
 		$(MLP1_TOOLCHAIN_IMAGE) \
 		make -f ports/mlp1/Makefile BUILD_DIR=/workspace/CentralScrutinizer/$(BUILD_DIR)/mlp1
 
@@ -106,6 +117,20 @@ do-package-leaf:
 	@mkdir -p "$(BUILD_DIR)/$(PLATFORM)/package/$(LEAF_PAK_DIR_NAME)/bin" "$(BUILD_DIR)/$(PLATFORM)/package/$(LEAF_PAK_DIR_NAME)/resources/web"
 	@cp "$(BIN_SRC)" "$(BUILD_DIR)/$(PLATFORM)/package/$(LEAF_PAK_DIR_NAME)/bin/$(APP_NAME)"
 	@cp launch.sh pak.json "$(BUILD_DIR)/$(PLATFORM)/package/$(LEAF_PAK_DIR_NAME)/"
+	@if [ "$(PLATFORM)" = "mlp1" ]; then \
+		{ \
+			printf '{\n'; \
+			printf '  "platform": "mlp1",\n'; \
+			printf '  "target_soc": "%s",\n' "$(UMRK_MLP1_TARGET_SOC)"; \
+			printf '  "target_cpu": "%s",\n' "$(UMRK_MLP1_TARGET_CPU)"; \
+			printf '  "build_profile": "%s",\n' "$(MLP1_BUILD_PROFILE)"; \
+			printf '  "cflags": "%s",\n' "$(UMRK_MLP1_PROFILE_CFLAGS)"; \
+			printf '  "ldflags": "%s",\n' "$(UMRK_MLP1_PROFILE_LDFLAGS)"; \
+			printf '  "binaries": ["bin/$(APP_NAME)"],\n'; \
+			printf '  "exceptions": []\n'; \
+			printf '}\n'; \
+		} > "$(BUILD_DIR)/$(PLATFORM)/package/$(LEAF_PAK_DIR_NAME)/build-manifest.json"; \
+	fi
 	@cp -a web/out/. "$(BUILD_DIR)/$(PLATFORM)/package/$(LEAF_PAK_DIR_NAME)/resources/web/"
 	@chmod 755 "$(BUILD_DIR)/$(PLATFORM)/package/$(LEAF_PAK_DIR_NAME)/launch.sh" "$(BUILD_DIR)/$(PLATFORM)/package/$(LEAF_PAK_DIR_NAME)/bin/$(APP_NAME)"
 	@diff -qr web/out "$(BUILD_DIR)/$(PLATFORM)/package/$(LEAF_PAK_DIR_NAME)/resources/web" >/dev/null || { \

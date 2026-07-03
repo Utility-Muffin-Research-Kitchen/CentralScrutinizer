@@ -4,6 +4,14 @@ CC ?= aarch64-buildroot-linux-gnu-gcc
 STRIP ?= aarch64-buildroot-linux-gnu-strip
 BUILD_DIR ?= build/mlp1
 CATASTROPHE_DIR ?= /workspace/Catastrophe
+MLP1_BUILD_PROFILE ?= release
+MLP1_FLAGS_MK ?= $(firstword $(wildcard /opt/mlp1-toolchain/umrk/mlp1-build-flags.mk /workspace/mlp1-toolchain/flags/mlp1-build-flags.mk ../mlp1-toolchain/flags/mlp1-build-flags.mk))
+ifneq ($(MLP1_FLAGS_MK),)
+include $(MLP1_FLAGS_MK)
+else
+UMRK_MLP1_PROFILE_CFLAGS ?= -O2 -mcpu=cortex-a55 -mtune=cortex-a55 -ffunction-sections -fdata-sections -DNDEBUG
+UMRK_MLP1_PROFILE_LDFLAGS ?= -Wl,--gc-sections
+endif
 
 SRC := $(shell find src -name '*.c' -print | sort) third_party/qrcodegen.c third_party/civetweb/src/civetweb.c $(CATASTROPHE_DIR)/include/cjson/cJSON.c
 HDR := $(shell find include -name '*.h' -print | sort) third_party/civetweb/include/civetweb.h $(CATASTROPHE_DIR)/include/catastrophe.h $(CATASTROPHE_DIR)/include/catastrophe_widgets.h
@@ -12,12 +20,11 @@ PKG_CONFIG ?= pkg-config
 SDL_CFLAGS := $(shell $(PKG_CONFIG) --cflags sdl2 SDL2_ttf SDL2_image)
 SDL_LDFLAGS := $(shell $(PKG_CONFIG) --libs sdl2 SDL2_ttf SDL2_image)
 
-CFLAGS := -std=gnu11 -O2 -Wall -Wextra -Wno-unused-parameter \
+CFLAGS := -std=gnu11 $(UMRK_MLP1_PROFILE_CFLAGS) -Wall -Wextra -Wno-unused-parameter \
 	-DPLATFORM_MLP1 -DNO_SSL -DCS_ENABLE_CATASTROPHE_UI -DUSE_WEBSOCKET -DHAVE_POLL \
-	-ffunction-sections -fdata-sections \
 	$(INCLUDES) $(SDL_CFLAGS)
 
-LDFLAGS := $(SDL_LDFLAGS) -Wl,--gc-sections -lsqlite3 -lpthread -lutil -lm
+LDFLAGS := $(UMRK_MLP1_PROFILE_LDFLAGS) $(SDL_LDFLAGS) -lsqlite3 -lpthread -lutil -lm
 
 .PHONY: all clean
 

@@ -74,7 +74,7 @@ assert_upload_rejected() {
 
     upload_response="$(curl "${curl_args[@]}")"
 
-    echo "$upload_response" | head -n 1 | grep -Fq '{"ok":false}'
+    echo "$upload_response" | head -n 1 | grep -Fq '"ok":false'
     echo "$upload_response" | tail -n 1 | grep -q '^400$'
     test ! -e "$unexpected_path"
 }
@@ -115,7 +115,7 @@ assert_directory_rejected() {
         -w '\n%{http_code}' \
         http://127.0.0.1:8877/api/upload)"
 
-    echo "$upload_response" | head -n 1 | grep -Fq '{"ok":false}'
+    echo "$upload_response" | head -n 1 | grep -Fq '"ok":false'
     echo "$upload_response" | tail -n 1 | grep -q '^400$'
     test ! -e "$unexpected_path"
 }
@@ -358,7 +358,7 @@ UPLOAD_RESPONSE="$(curl -sS -X POST \
     -w '\n%{http_code}' \
     http://127.0.0.1:8877/api/upload)"
 
-echo "$UPLOAD_RESPONSE" | head -n 1 | grep -Fq '{"ok":false}'
+echo "$UPLOAD_RESPONSE" | head -n 1 | grep -Fq '"ok":false'
 echo "$UPLOAD_RESPONSE" | tail -n 1 | grep -q '^400$'
 test ! -e "$EMPTY_FILENAME_NOTE"
 

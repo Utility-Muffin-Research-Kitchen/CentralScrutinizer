@@ -84,9 +84,40 @@ function csrfHeaders(csrf?: string | null): HeadersInit | undefined {
   return csrf ? { "X-CS-CSRF": csrf } : undefined;
 }
 
+function uploadErrorMessage(code?: string): string | undefined {
+  switch (code) {
+    case "upload_parse_failed":
+      return "Upload was interrupted before the file finished sending.";
+    case "upload_preview_parse_failed":
+      return "Upload check was interrupted before it finished.";
+    case "upload_invalid_form":
+    case "upload_preview_invalid_form":
+      return "Upload request was malformed.";
+    case "upload_empty":
+    case "upload_preview_empty":
+      return "Choose at least one file or folder to upload.";
+    case "upload_incomplete":
+      return "Upload did not finish sending every file.";
+    case "upload_metadata_failed":
+    case "upload_preview_metadata_failed":
+      return "Upload target could not be resolved.";
+    case "upload_path_invalid":
+      return "Upload path is invalid.";
+    case "upload_directory_prepare_failed":
+      return "Upload folder could not be prepared.";
+    case "upload_plan_failed":
+      return "Upload target path is invalid.";
+    case "upload_source_required":
+      return "Open an SD card source before uploading files.";
+    default:
+      return undefined;
+  }
+}
+
 async function expectJson<T>(response: Response, errorMessage: string): Promise<T> {
   if (!response.ok) {
     let errorCode: string | undefined;
+    let mappedMessage: string | undefined;
 
     try {
       const body = (await response.json()) as { error?: string };
@@ -113,8 +144,9 @@ async function expectJson<T>(response: Response, errorMessage: string): Promise<
     if (errorCode === "pairing_unavailable") {
       throw new ApiError(PAIRING_UNAVAILABLE_MESSAGE, response.status, errorCode);
     }
-    if (errorCode === "upload_source_required") {
-      throw new ApiError("Open an SD card source before uploading files.", response.status, errorCode);
+    mappedMessage = uploadErrorMessage(errorCode);
+    if (mappedMessage) {
+      throw new ApiError(mappedMessage, response.status, errorCode);
     }
 
     throw new ApiError(errorMessage, response.status, errorCode);
@@ -152,6 +184,13 @@ function parseUploadError(xhr: XMLHttpRequest): Error {
     }
     if (body.error === "upload_source_required") {
       return new ApiError("Open an SD card source before uploading files.", xhr.status, body.error);
+    }
+    {
+      const mappedMessage = uploadErrorMessage(body.error);
+
+      if (mappedMessage) {
+        return new ApiError(mappedMessage, xhr.status, body.error);
+      }
     }
   } catch {
     // Ignore non-JSON upload failures.

@@ -8,7 +8,7 @@ test("keeps the library browser compact, searchable, and ROM-only for folder act
   const primaryNav = page.getByLabel("Primary");
   await expect(primaryNav).toBeVisible();
 
-  await page.getByRole("button", { name: /Game Boy Advance \(GBA\)/i }).click();
+  await page.getByRole("button", { name: /Game Boy Advance/i }).click();
   await page.getByRole("button", { name: "ROMs" }).click();
 
   await expect(page.getByRole("navigation", { name: "Library path" })).toBeVisible();

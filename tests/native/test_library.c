@@ -517,6 +517,7 @@ static void test_rom_browser_merges_platform_folders_across_sources(void) {
     char db_path[PATH_MAX];
     char sql[4096];
     char expected_secondary_path[PATH_MAX];
+    char expected_write_root[PATH_MAX];
     char resolved_root[PATH_MAX];
     char resolved_relative[PATH_MAX];
     const cs_path_source *resolved_source = NULL;
@@ -575,6 +576,12 @@ static void test_rom_browser_merges_platform_folders_across_sources(void) {
     assert(setenv("UMRK_INTERNAL_DATA_PATH", state_dir, 1) == 0);
     assert(cs_paths_init(&paths) == 0);
     n64 = make_test_platform("N64", "N64", "N64");
+    assert(cs_browser_write_root_for_scope(&paths,
+                                           CS_SCOPE_ROMS,
+                                           &n64,
+                                           expected_write_root,
+                                           sizeof(expected_write_root))
+           == 0);
 
     assert(cs_browser_list(&paths, CS_SCOPE_ROMS, &n64, "", 0, NULL, &result) == CS_BROWSER_LIST_OK);
     assert(result.count == 2);
@@ -613,12 +620,51 @@ static void test_rom_browser_merges_platform_folders_across_sources(void) {
     assert(cs_browser_list(&paths, CS_SCOPE_ROMS, &n64, "", 0, NULL, &result) == CS_BROWSER_LIST_OK);
     assert(result.count == 2);
     assert(result.total_count == 2);
+    assert(strcmp(result.root_path, expected_write_root) == 0);
     assert(find_entry(&result, "main.z64") != NULL);
     entry = find_entry(&result, "Super Mario 64.zip");
     assert(entry != NULL);
     assert(strcmp(entry->path, expected_secondary_path) == 0);
 
     assert(remove_tree(sandbox) == 0);
+}
+
+static void test_merged_rom_browser_uses_write_root_when_platform_folder_is_missing(void) {
+    cs_paths paths = {0};
+    cs_browser_result result = {0};
+    const cs_platform_info *ports = cs_platform_find("PORTS");
+    char template[] = "/tmp/cs-library-missing-ports-XXXXXX";
+    char *sandbox;
+    char primary_root[PATH_MAX];
+    char secondary_root[PATH_MAX];
+    char expected_root[PATH_MAX];
+
+    assert(ports != NULL);
+    sandbox = mkdtemp(template);
+    assert(sandbox != NULL);
+    path_join(primary_root, sizeof(primary_root), sandbox, "card-a");
+    path_join(secondary_root, sizeof(secondary_root), sandbox, "card-b");
+    assert(mkdir(primary_root, 0775) == 0);
+    assert(mkdir(secondary_root, 0775) == 0);
+
+    set_sdcard_roots_realpath(primary_root, secondary_root);
+    assert(cs_paths_init(&paths) == 0);
+    assert(cs_browser_write_root_for_scope(&paths,
+                                           CS_SCOPE_ROMS,
+                                           ports,
+                                           expected_root,
+                                           sizeof(expected_root))
+           == 0);
+
+    assert(cs_browser_list(&paths, CS_SCOPE_ROMS, ports, "", 0, NULL, &result) == CS_BROWSER_LIST_OK);
+    assert(result.count == 0);
+    assert(result.total_count == 0);
+    assert(strcmp(result.root_path, expected_root) == 0);
+    assert(strcmp(result.root_path, "merged") != 0);
+
+    assert(rmdir(secondary_root) == 0);
+    assert(rmdir(primary_root) == 0);
+    assert(rmdir(sandbox) == 0);
 }
 
 static void test_symlink_entries_are_skipped(void) {
@@ -1063,6 +1109,7 @@ int main(void) {
     test_rom_thumbnail_resolution_is_png_only();
     test_library_db_populates_root_rom_listing();
     test_rom_browser_merges_platform_folders_across_sources();
+    test_merged_rom_browser_uses_write_root_when_platform_folder_is_missing();
     test_symlink_entries_are_skipped();
     test_symlinked_scope_root_is_rejected();
     test_symlinked_absolute_sdcard_root_is_canonicalized_for_files_scope();

@@ -1576,12 +1576,16 @@ static cs_browser_list_status cs_browser_list_merged_rom_filesystem(const cs_pat
     int scan_truncated = 0;
     int opened_any = 0;
     const char *request_relative = relative_path ? relative_path : "";
+    char display_root[CS_PATH_MAX];
 
     if (!paths || !platform || !result) {
         return CS_BROWSER_LIST_INTERNAL;
     }
     if (cs_browser_scope_allows_hidden_for_platform(CS_SCOPE_ROMS, platform)) {
         path_flags |= CS_PATH_FLAG_ALLOW_HIDDEN;
+    }
+    if (cs_browser_write_root_for_scope(paths, CS_SCOPE_ROMS, platform, display_root, sizeof(display_root)) != 0) {
+        return CS_BROWSER_LIST_INTERNAL;
     }
 
     entries = (cs_browser_db_entry *) calloc(CS_BROWSER_SCAN_CAP, sizeof(*entries));
@@ -1736,7 +1740,7 @@ static cs_browser_list_status cs_browser_list_merged_rom_filesystem(const cs_pat
     result->total_count = total;
     result->truncated = scan_truncated;
     if (CS_SAFE_SNPRINTF(result->scope, sizeof(result->scope), "%s", cs_browser_scope_name(CS_SCOPE_ROMS)) != 0
-        || CS_SAFE_SNPRINTF(result->root_path, sizeof(result->root_path), "%s", "merged")
+        || CS_SAFE_SNPRINTF(result->root_path, sizeof(result->root_path), "%s", display_root)
                != 0
         || CS_SAFE_SNPRINTF(result->path, sizeof(result->path), "%s", request_relative) != 0
         || cs_browser_write_title(result->title, sizeof(result->title), CS_SCOPE_ROMS, platform) != 0

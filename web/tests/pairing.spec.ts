@@ -11,5 +11,5 @@ test("pairs and lands on the dashboard", async ({ page }) => {
   await expect(primaryNav.getByRole("button", { name: "Tools" })).toBeVisible();
   await expect(primaryNav.getByRole("button", { name: "Files" })).toHaveCount(0);
   await expect(page.getByRole("heading", { name: "Library" })).toBeVisible();
-  await expect(page.getByRole("button", { name: /Game Boy Advance \(GBA\)/i })).toBeVisible();
+  await expect(page.getByRole("button", { name: /Game Boy Advance/i })).toBeVisible();
 });

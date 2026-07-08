@@ -1018,13 +1018,12 @@ int cs_server_start(struct cs_app *app) {
                              "0",
                              "additional_header",
                              cs_server_security_headers(),
-                             /* Per-read/header timeout. Bounds how long mg_stop waits on an idle
-                              * or stalled socket before tearing it down — keeps the on-device B
-                              * button exit responsive even with in-flight uploads. Active clients
-                              * uploading large files send data continuously and are unaffected.
+                             /* Per-read/header timeout. This bounds how long a stalled client may
+                              * pause mid-request; shutdown responsiveness comes from CivetWeb's
+                              * poll loop checking the stop flag every SOCKET_TIMEOUT_QUANTUM.
                               */
                              "request_timeout_ms",
-                             "2000",
+                             "30000",
                              NULL};
 
     if (!app || g_context != NULL) {

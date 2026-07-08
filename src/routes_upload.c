@@ -93,6 +93,54 @@ static int cs_write_json(struct mg_connection *conn, int status, const char *rea
     return 1;
 }
 
+static int cs_write_upload_bad_request(struct mg_connection *conn,
+                                       const char *route,
+                                       const char *error,
+                                       const char *detail) {
+    char body[160];
+    const char *route_name = route && route[0] != '\0' ? route : "upload";
+    const char *error_name = error && error[0] != '\0' ? error : "upload_bad_request";
+    int written;
+
+    if (detail && detail[0] != '\0') {
+        fprintf(stderr,
+                "Central Scrutinizer %s rejected bad request: %s (%s)\n",
+                route_name,
+                error_name,
+                detail);
+    } else {
+        fprintf(stderr, "Central Scrutinizer %s rejected bad request: %s\n", route_name, error_name);
+    }
+
+    written = snprintf(body, sizeof(body), "{\"ok\":false,\"error\":\"%s\"}", error_name);
+    if (written < 0 || (size_t) written >= sizeof(body)) {
+        return cs_write_json(conn, 400, "Bad Request", "{\"ok\":false,\"error\":\"upload_bad_request\"}");
+    }
+    return cs_write_json(conn, 400, "Bad Request", body);
+}
+
+static void cs_upload_write_form_failure_detail(char *detail,
+                                                size_t detail_size,
+                                                int handled_fields,
+                                                const cs_upload_request *state) {
+    if (!detail || detail_size == 0) {
+        return;
+    }
+    if (!state) {
+        (void) snprintf(detail, detail_size, "handled_fields=%d", handled_fields);
+        return;
+    }
+    (void) snprintf(detail,
+                    detail_size,
+                    "handled_fields=%d failed=%d files=%zu stored=%zu preview_files=%zu dirs=%zu",
+                    handled_fields,
+                    state->failed,
+                    state->plan_count,
+                    state->stored_count,
+                    state->preview_file_count,
+                    state->directory_count);
+}
+
 static int cs_write_upload_conflict_response(struct mg_connection *conn, const char *error, const char *path) {
     const char *error_name = error && strcmp(error, "upload_type_conflict") == 0 ? "upload_type_conflict" : "upload_conflict";
 
@@ -803,17 +851,26 @@ int cs_route_upload_preview_handler(struct mg_connection *conn, void *cbdata) {
     handled_fields = mg_handle_form_request(conn, &form_handler);
     if (handled_fields < 0 || request_state.failed
         || (request_state.preview_file_count == 0 && request_state.directory_count == 0)) {
-        response_status = cs_write_json(conn, 400, "Bad Request", "{\"ok\":false}");
+        const char *error_code = handled_fields < 0 ? "upload_preview_parse_failed"
+                                 : request_state.failed
+                                     ? "upload_preview_invalid_form"
+                                     : "upload_preview_empty";
+        char detail[192];
+
+        cs_upload_write_form_failure_detail(detail, sizeof(detail), handled_fields, &request_state);
+        response_status = cs_write_upload_bad_request(conn, "upload preview", error_code, detail);
         free(preview_result);
         return response_status;
     }
     if (cs_prepare_upload_metadata(&request_state) != 0) {
-        response_status = cs_write_json(conn,
-                                        400,
-                                        "Bad Request",
-                                        request_state.source_required
-                                            ? "{\"ok\":false,\"error\":\"upload_source_required\"}"
-                                            : "{\"ok\":false}");
+        response_status = cs_write_upload_bad_request(conn,
+                                                      "upload preview",
+                                                      request_state.source_required
+                                                          ? "upload_source_required"
+                                                          : "upload_preview_metadata_failed",
+                                                      request_state.source_required
+                                                          ? "files scope requires a source path"
+                                                          : "target metadata could not be resolved");
         free(preview_result);
         return response_status;
     }
@@ -881,16 +938,27 @@ int cs_route_upload_handler(struct mg_connection *conn, void *cbdata) {
     if (handled_fields < 0 || request_state.failed
         || (request_state.plan_count == 0 && request_state.directory_count == 0)
         || request_state.stored_count != request_state.plan_count) {
+        const char *error_code = handled_fields < 0 ? "upload_parse_failed"
+                                 : request_state.failed
+                                     ? "upload_invalid_form"
+                                     : (request_state.plan_count == 0 && request_state.directory_count == 0)
+                                         ? "upload_empty"
+                                         : "upload_incomplete";
+        char detail[192];
+
+        cs_upload_write_form_failure_detail(detail, sizeof(detail), handled_fields, &request_state);
         cs_upload_cleanup_temp_files(&request_state);
-        return cs_write_json(conn, 400, "Bad Request", "{\"ok\":false}");
+        return cs_write_upload_bad_request(conn, "upload", error_code, detail);
     }
     if (cs_prepare_upload_metadata(&request_state) != 0) {
         cs_upload_cleanup_temp_files(&request_state);
-        return cs_write_json(conn,
-                             400,
-                             "Bad Request",
-                             request_state.source_required ? "{\"ok\":false,\"error\":\"upload_source_required\"}"
-                                                           : "{\"ok\":false}");
+        return cs_write_upload_bad_request(conn,
+                                           "upload",
+                                           request_state.source_required ? "upload_source_required"
+                                                                         : "upload_metadata_failed",
+                                           request_state.source_required
+                                               ? "files scope requires a source path"
+                                               : "target metadata could not be resolved");
     }
     for (i = 0; i < request_state.plan_count; ++i) {
         if (request_state.file_sizes[i] > cs_upload_file_limit_bytes(&request_state)) {
@@ -909,7 +977,7 @@ int cs_route_upload_handler(struct mg_connection *conn, void *cbdata) {
                 != 0
             || upload_dir[0] == '\0') {
             cs_upload_cleanup_temp_files(&request_state);
-            return cs_write_json(conn, 400, "Bad Request", "{\"ok\":false}");
+            return cs_write_upload_bad_request(conn, "upload", "upload_path_invalid", "directory path is invalid");
         }
         if (cs_upload_prepare_final_directory(request_state.final_root,
                                               request_state.final_guard_root,
@@ -920,7 +988,10 @@ int cs_route_upload_handler(struct mg_connection *conn, void *cbdata) {
             if (errno == EEXIST || errno == EISDIR || errno == ENOTDIR || errno == EINVAL || errno == ENOTEMPTY) {
                 return cs_write_upload_errno_response(conn, upload_dir);
             }
-            return cs_write_json(conn, 400, "Bad Request", "{\"ok\":false}");
+            return cs_write_upload_bad_request(conn,
+                                               "upload",
+                                               "upload_directory_prepare_failed",
+                                               "directory could not be prepared");
         }
     }
 
@@ -934,7 +1005,7 @@ int cs_route_upload_handler(struct mg_connection *conn, void *cbdata) {
                                          sizeof(upload_dir))
             != 0) {
             cs_upload_cleanup_temp_files(&request_state);
-            return cs_write_json(conn, 400, "Bad Request", "{\"ok\":false}");
+            return cs_write_upload_bad_request(conn, "upload", "upload_path_invalid", "file path is invalid");
         }
 
         if (cs_upload_plan_make(&request_state.app->paths,
@@ -957,7 +1028,7 @@ int cs_route_upload_handler(struct mg_connection *conn, void *cbdata) {
                     return cs_write_upload_errno_response(conn, upload_path);
                 }
             }
-            return cs_write_json(conn, 400, "Bad Request", "{\"ok\":false}");
+            return cs_write_upload_bad_request(conn, "upload", "upload_plan_failed", "file target could not be planned");
         }
 
         {

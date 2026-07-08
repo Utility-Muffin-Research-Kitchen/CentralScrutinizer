@@ -598,6 +598,33 @@ describe("uploadFiles", () => {
     expect(MockXhr.instances[0].body?.get("overwrite")).toBe("1");
   });
 
+  it("maps interrupted upload responses to a helpful error", async () => {
+    class InterruptedUploadXhr extends MockXhr {
+      send(body: FormData) {
+        this.status = 400;
+        this.responseText = '{"ok":false,"error":"upload_parse_failed"}';
+        this.body = body;
+        this.listeners.load?.();
+      }
+    }
+
+    vi.stubGlobal("XMLHttpRequest", InterruptedUploadXhr as unknown as typeof XMLHttpRequest);
+
+    await expect(
+      beginUploadFiles(
+        {
+          files: [new File(["payload"], "test.txt", { type: "text/plain" })],
+          scope: "files",
+        },
+        "csrf-token",
+      ).promise,
+    ).rejects.toMatchObject({
+      code: "upload_parse_failed",
+      message: "Upload was interrupted before the file finished sending.",
+      status: 400,
+    });
+  });
+
   it("can abort an upload in progress", async () => {
     MockXhr.autoLoad = false;
     vi.stubGlobal("XMLHttpRequest", MockXhr as unknown as typeof XMLHttpRequest);
@@ -650,6 +677,31 @@ describe("previewUpload", () => {
     );
     expect(options.body.getAll("directory")).toEqual(["Apps/Empty"]);
     expect(options.body.getAll("file_path")).toEqual(["Apps/mlp1/CentralScrutinizer.pak/pak.json"]);
+  });
+
+  it("maps interrupted preview responses to a helpful error", async () => {
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: false,
+      status: 400,
+      json: async () => ({ error: "upload_preview_parse_failed" }),
+    });
+
+    vi.stubGlobal("fetch", fetchMock);
+
+    await expect(
+      previewUpload(
+        {
+          scope: "files",
+          path: "Apps",
+          filePaths: ["Apps/mlp1/CentralScrutinizer.pak/pak.json"],
+        },
+        "csrf-token",
+      ),
+    ).rejects.toMatchObject({
+      code: "upload_preview_parse_failed",
+      message: "Upload check was interrupted before it finished.",
+      status: 400,
+    });
   });
 
   it("passes an abort signal to preview requests when provided", async () => {

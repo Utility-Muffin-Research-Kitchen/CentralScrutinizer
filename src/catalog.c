@@ -236,7 +236,8 @@ static int cs_catalog_parse_systems(const char *path,
         return -1;
     }
     version = cJSON_GetObjectItemCaseSensitive(root, "version");
-    if (!cJSON_IsNumber(version) || version->valueint != 1) {
+    if (!cJSON_IsNumber(version)
+        || (version->valueint != 1 && version->valueint != 2)) {
         cJSON_Delete(root);
         cs_catalog_set_error(error_out, CS_CATALOG_ERROR_VERSION, path, "unsupported systems catalog version");
         return -1;

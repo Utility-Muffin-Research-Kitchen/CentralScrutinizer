@@ -17,6 +17,15 @@
 #include <unistd.h>
 
 #define CS_JAWAKA_IPC_MAX_FRAME (16u * 1024u * 1024u)
+#define CS_JAWAKA_SCAN_POLL_INTERVAL_US (100u * 1000u)
+#define CS_JAWAKA_SCAN_POLL_ATTEMPTS 600u
+#define CS_JAWAKA_SCAN_POLL_MAX_FAILURES 5u
+
+typedef struct cs_jawaka_library_status {
+    int scan_running;
+    int pending_rescan;
+    char scan_error[160];
+} cs_jawaka_library_status;
 
 static void cs_ipc_copy_status(char *status, size_t status_size, const char *message) {
     if (!status || status_size == 0) {
@@ -228,6 +237,79 @@ static int cs_json_type_is(const cJSON *root, const char *expected) {
     return cJSON_IsString(type) && type->valuestring && strcmp(type->valuestring, expected) == 0;
 }
 
+static int cs_jawaka_get_library_status(const char *socket_path,
+                                        cs_jawaka_library_status *status_out) {
+    char *response_text = NULL;
+    cJSON *response = NULL;
+    const cJSON *scan_error;
+
+    if (!socket_path || !status_out) {
+        return -1;
+    }
+    memset(status_out, 0, sizeof(*status_out));
+
+    if (cs_ipc_request(socket_path, "{\"type\":\"library-status\"}", &response_text) != 0) {
+        return -1;
+    }
+    response = cJSON_Parse(response_text);
+    free(response_text);
+    if (!response || !cs_json_type_is(response, "library-status")) {
+        cJSON_Delete(response);
+        return -1;
+    }
+
+    status_out->scan_running =
+        cJSON_IsTrue(cJSON_GetObjectItemCaseSensitive(response, "scan_running"));
+    status_out->pending_rescan =
+        cJSON_IsTrue(cJSON_GetObjectItemCaseSensitive(response, "pending_rescan"));
+    scan_error = cJSON_GetObjectItemCaseSensitive(response, "scan_error");
+    if (cJSON_IsString(scan_error) && scan_error->valuestring) {
+        snprintf(status_out->scan_error,
+                 sizeof(status_out->scan_error),
+                 "%s",
+                 scan_error->valuestring);
+    }
+
+    cJSON_Delete(response);
+    return 0;
+}
+
+static int cs_jawaka_wait_for_library_rescan(const char *socket_path,
+                                             char *status,
+                                             size_t status_size) {
+    unsigned int attempt;
+    unsigned int consecutive_failures = 0;
+
+    for (attempt = 0; attempt < CS_JAWAKA_SCAN_POLL_ATTEMPTS; ++attempt) {
+        cs_jawaka_library_status library_status;
+
+        if (cs_jawaka_get_library_status(socket_path, &library_status) != 0) {
+            consecutive_failures += 1;
+            if (consecutive_failures >= CS_JAWAKA_SCAN_POLL_MAX_FAILURES) {
+                cs_ipc_copy_status(status, status_size, "could not read library scan status");
+                return -1;
+            }
+        } else {
+            consecutive_failures = 0;
+            if (!library_status.scan_running && !library_status.pending_rescan) {
+                if (library_status.scan_error[0] != '\0') {
+                    cs_ipc_copy_status(status, status_size, library_status.scan_error);
+                    return -1;
+                }
+                cs_ipc_copy_status(status, status_size, "scan complete");
+                return 0;
+            }
+        }
+
+        if (attempt + 1u < CS_JAWAKA_SCAN_POLL_ATTEMPTS) {
+            usleep(CS_JAWAKA_SCAN_POLL_INTERVAL_US);
+        }
+    }
+
+    cs_ipc_copy_status(status, status_size, "library scan timed out");
+    return -1;
+}
+
 int cs_jawaka_request_library_rescan(char *status, size_t status_size) {
     char socket_path[CS_PATH_MAX];
     char *response_text = NULL;
@@ -269,10 +351,10 @@ int cs_jawaka_request_library_rescan(char *status, size_t status_size) {
                  "scan complete: %d games, %d apps",
                  game_count->valueint,
                  app_count->valueint);
+        rc = 0;
     } else {
-        cs_ipc_copy_status(status, status_size, "scan complete");
+        rc = cs_jawaka_wait_for_library_rescan(socket_path, status, status_size);
     }
-    rc = 0;
 
     cJSON_Delete(response);
     return rc;

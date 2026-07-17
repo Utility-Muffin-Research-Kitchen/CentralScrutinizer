@@ -32,7 +32,7 @@ test -x "$PAK_DIR/bin/central-scrutinizer"
 test -x "$PAK_DIR/launch.sh"
 diff -qr web/out "$PAK_DIR/resources/web" >/dev/null
 grep -Fq '"platform": "mlp1"' "$PAK_DIR/pak.json"
-grep -Fq '"pak_version": "0.1.6"' "$PAK_DIR/pak.json"
+grep -Fq '"pak_version": "0.1.8"' "$PAK_DIR/pak.json"
 grep -Fq '"min_jawaka_version": "0.0.1"' "$PAK_DIR/pak.json"
 
 (

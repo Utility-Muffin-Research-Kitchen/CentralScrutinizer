@@ -102,7 +102,7 @@ static void write_catalogs(const char *root) {
 
     write_file(systems_path,
                "{"
-               "\"version\":1,"
+               "\"version\":2,"
                "\"systems\":["
                "{\"id\":\"ARCADE\",\"name\":\"Arcade\",\"patterns\":[\"ARCADE\"],\"extensions\":[],\"default_core\":\"fbneo\",\"alternate_cores\":[],\"rom_root\":\"Roms/ARCADE\"},"
                "{\"id\":\"FC\",\"name\":\"NES\",\"patterns\":[\"FC\",\"NES\",\"FAMICOM\"],\"extensions\":[],\"default_core\":\"fceumm\",\"alternate_cores\":[],\"rom_root\":\"Roms/FC\"},"
@@ -561,7 +561,7 @@ static void test_load_errors_are_typed(void) {
     path_join(defaults_dir, sizeof(defaults_dir), root, ".system/leaf/platforms/mlp1/defaults");
     path_join(systems_path, sizeof(systems_path), defaults_dir, "systems.json");
     path_join(cores_path, sizeof(cores_path), defaults_dir, "cores.json");
-    write_file(systems_path, "{\"version\":2,\"systems\":[]}");
+    write_file(systems_path, "{\"version\":3,\"systems\":[]}");
     error.kind = CS_CATALOG_ERROR_NONE;
     assert(cs_platform_discover_with_error(&paths, platforms, sizeof(platforms) / sizeof(platforms[0]), &count, &error) != 0);
     assert(error.kind == CS_CATALOG_ERROR_VERSION);

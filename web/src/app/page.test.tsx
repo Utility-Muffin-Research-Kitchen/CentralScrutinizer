@@ -1122,6 +1122,68 @@ describe("Page", () => {
     expect(folderFile.webkitRelativePath).toBe("Favorites/GBA/Pokemon Emerald.gba");
   });
 
+  it("refreshes the console ROM browser after the library rescan completes", async () => {
+    let resolveRescan: (() => void) | undefined;
+    const uploadFile = new File(["rom"], "Advance Wars.gba", { type: "application/octet-stream" });
+    const refreshedResponse = {
+      ...romBrowserResponse(),
+      entries: [
+        ...romBrowserResponse().entries,
+        {
+          name: "Advance Wars.gba",
+          path: "Advance Wars.gba",
+          type: "rom" as const,
+          size: 4096,
+          modified: 1_700_000_200,
+          status: "",
+          thumbnailPath: "",
+        },
+      ],
+    };
+
+    window.history.replaceState(null, "", "/?view=browser&scope=roms&tag=GBA");
+    mockApi.getSession.mockResolvedValue(pairedSession());
+    mockApi.getPlatforms.mockResolvedValue(platformGroups());
+    mockApi.getBrowser
+      .mockResolvedValueOnce(romBrowserResponse())
+      .mockResolvedValueOnce(refreshedResponse);
+    mockApi.requestLibraryRescan.mockImplementation(
+      () =>
+        new Promise<void>((resolve) => {
+          resolveRescan = resolve;
+        }),
+    );
+    mockApi.beginUploadFilesBatched.mockReturnValue({
+      cancel: vi.fn(),
+      promise: Promise.resolve({
+        uploaded: 1,
+        failed: 0,
+        directoriesCreated: 0,
+        directoriesFailed: 0,
+        cancelled: false,
+      }),
+    });
+
+    render(<Page />);
+
+    expect(await screen.findByRole("button", { name: "Upload File" })).toBeTruthy();
+    const uploadInput = document.querySelector('input[type="file"]') as HTMLInputElement;
+
+    fireEvent.change(uploadInput, { target: { files: createFileList([uploadFile]) } });
+
+    await waitFor(() => {
+      expect(mockApi.requestLibraryRescan).toHaveBeenCalledWith("csrf-token");
+    });
+    expect(mockApi.getBrowser).toHaveBeenCalledTimes(1);
+    expect(screen.queryByRole("link", { name: "Download Advance Wars.gba" })).toBeNull();
+
+    resolveRescan?.();
+
+    expect(await screen.findByRole("link", { name: "Download Advance Wars.gba" })).toBeTruthy();
+    expect(await screen.findByText("Uploaded 1 file.")).toBeTruthy();
+    expect(mockApi.getBrowser).toHaveBeenCalledTimes(2);
+  });
+
   it("asks for an SD source before uploading at the multi-source files root", async () => {
     const uploadFile = new File(["note"], "note.txt", { type: "text/plain" });
 

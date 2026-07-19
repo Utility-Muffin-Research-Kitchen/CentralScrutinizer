@@ -537,6 +537,7 @@ static void test_temp_upload_root_can_live_on_secondary_source(void) {
     assert(snprintf(source_list, sizeof(source_list), "%s:%s", first_resolved, second_resolved) > 0);
 
     setenv("SDCARD_PATHS", source_list, 1);
+    setenv("CS_SOURCE_TEST_AVAILABLE", "all", 1);
     setenv("USERDATA_PATH", userdata_root, 1);
     unsetenv("SDCARD_PATH");
     unsetenv("CS_WEB_ROOT");
@@ -547,6 +548,7 @@ static void test_temp_upload_root_can_live_on_secondary_source(void) {
     assert(access(tmp_root, F_OK) == 0);
 
     unsetenv("SDCARD_PATHS");
+    unsetenv("CS_SOURCE_TEST_AVAILABLE");
     unsetenv("USERDATA_PATH");
     assert(rmdir(tmp_root) == 0);
     assert(rmdir(uploads_root) == 0);

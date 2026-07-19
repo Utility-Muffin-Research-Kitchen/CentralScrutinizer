@@ -166,6 +166,7 @@ int main(void) {
     assert(resolved_source == &paths.sources[0]);
 
     setenv("SDCARD_PATHS", "/mnt/sdcard:/media/sdcard1", 1);
+    setenv("CS_SOURCE_TEST_AVAILABLE", "all", 1);
     setenv("ROMS_PATHS", "/mnt/sdcard/Roms:/media/sdcard1/Roms", 1);
     setenv("IMAGES_PATHS", "/mnt/sdcard/Images:/media/sdcard1/Images", 1);
     setenv("CS_WEB_ROOT", "custom/web/root", 1);
@@ -237,6 +238,7 @@ int main(void) {
     unsetenv("SDCARD_PATHS");
     unsetenv("ROMS_PATHS");
     unsetenv("IMAGES_PATHS");
+    unsetenv("CS_SOURCE_TEST_AVAILABLE");
 
     setenv("SDCARD_PATH", "", 1);
     setenv("CS_WEB_ROOT", "", 1);

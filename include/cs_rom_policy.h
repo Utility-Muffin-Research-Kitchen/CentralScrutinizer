@@ -54,4 +54,12 @@ int cs_platform_resolve_rom_upload_policy(const cs_paths *paths,
                                           const char *tag,
                                           cs_rom_upload_policy *out);
 
+/* Fold the effective policy for `tag` from an already-loaded catalog (no
+   discovery), for callers that iterate many platforms against one catalog.
+   is_custom short-circuits to fail-open. Returns 0 on success. */
+int cs_rom_upload_policy_from_catalog(const cs_catalog *catalog,
+                                      const char *tag,
+                                      int is_custom,
+                                      cs_rom_upload_policy *out);
+
 #endif

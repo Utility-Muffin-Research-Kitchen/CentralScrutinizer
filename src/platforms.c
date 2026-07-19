@@ -1135,12 +1135,45 @@ cleanup:
     return status;
 }
 
+int cs_rom_upload_policy_from_catalog(const cs_catalog *catalog,
+                                      const char *tag,
+                                      int is_custom,
+                                      cs_rom_upload_policy *out) {
+    size_t i;
+
+    if (!out) {
+        return -1;
+    }
+    cs_rom_upload_policy_init(out);
+    if (is_custom || !catalog || !tag || !tag[0]) {
+        return 0; /* custom/unknown: fail open */
+    }
+
+    /* Fold every catalog row that maps to this platform's tag. A row's platform
+       is its canonical id resolved through the identity table, the same grouping
+       the modeled views use. */
+    for (i = 0; i < catalog->system_count; ++i) {
+        const cs_catalog_system *system = &catalog->systems[i];
+        const char *canonical = cs_platform_canonical_id(system->id);
+        const cs_platform_identity *identity = cs_platform_identity_for_catalog_id(canonical);
+        const char *system_tag = identity ? identity->tag : canonical;
+
+        if (strcasecmp(system_tag, tag) == 0) {
+            if (cs_rom_upload_policy_add_system(out, system) != 0) {
+                cs_rom_upload_policy_free(out);
+                return -1;
+            }
+        }
+    }
+    return 0;
+}
+
 int cs_platform_resolve_rom_upload_policy(const cs_paths *paths,
                                           const char *tag,
                                           cs_rom_upload_policy *out) {
     cs_platform_info info;
     cs_catalog catalog;
-    size_t i;
+    int rc;
 
     if (!out) {
         return -1;
@@ -1158,27 +1191,9 @@ int cs_platform_resolve_rom_upload_policy(const cs_paths *paths,
                         paths->cores_catalog_path, &catalog, NULL) != 0) {
         return 0; /* catalog unreadable: fail open rather than block uploads */
     }
-
-    /* Fold every catalog row that maps to this platform's tag. A row's platform
-       is its canonical id resolved through the identity table, the same grouping
-       the modeled views use. */
-    for (i = 0; i < catalog.system_count; ++i) {
-        const cs_catalog_system *system = &catalog.systems[i];
-        const char *canonical = cs_platform_canonical_id(system->id);
-        const cs_platform_identity *identity = cs_platform_identity_for_catalog_id(canonical);
-        const char *system_tag = identity ? identity->tag : canonical;
-
-        if (strcasecmp(system_tag, info.tag) == 0) {
-            if (cs_rom_upload_policy_add_system(out, system) != 0) {
-                cs_rom_upload_policy_free(out);
-                cs_catalog_free(&catalog);
-                return -1;
-            }
-        }
-    }
-
+    rc = cs_rom_upload_policy_from_catalog(&catalog, info.tag, 0, out);
     cs_catalog_free(&catalog);
-    return 0;
+    return rc;
 }
 
 int cs_platform_discover_with_error(const cs_paths *paths,

@@ -19,6 +19,16 @@ typedef struct cs_catalog_system {
     char *image_root;
     cs_catalog_string_list patterns;
     cs_catalog_string_list extensions;
+    /* ROM metadata acceptance policy (systems.json v2). Mirrors the fields
+       Jawaka's jw__metadata_accepts_rom consults so an accepted upload will not
+       vanish after rescan. Missing lists default empty; archive_inner_extensions
+       defaults to extensions; archive_mode defaults to "pass_through". */
+    cs_catalog_string_list archive_extensions;
+    cs_catalog_string_list archive_inner_extensions;
+    char *archive_mode;
+    cs_catalog_string_list file_names;
+    cs_catalog_string_list ignore_file_names;
+    cs_catalog_string_list playlist_extensions;
 } cs_catalog_system;
 
 typedef struct cs_catalog_core {

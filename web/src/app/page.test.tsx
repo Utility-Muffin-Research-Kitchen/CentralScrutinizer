@@ -364,6 +364,17 @@ function emitPlatformStream(
 
 describe("Page", () => {
   beforeEach(() => {
+    mockApi.previewUploadBatched.mockResolvedValue({
+      overwriteable: [],
+      overwriteableCount: 0,
+      blocking: [],
+      blockingCount: 0,
+      unsupported: [],
+      unsupportedCount: 0,
+      entrypointCount: 0,
+      companionCount: 0,
+      bundleEntrypoints: [],
+    });
     // streamPlatforms delegates to whatever getPlatforms() is mocked to return so existing
     // tests can keep configuring fixtures via mockApi.getPlatforms.mockResolvedValue(...).
     mockApi.streamPlatforms.mockImplementation(
@@ -1182,6 +1193,86 @@ describe("Page", () => {
     expect(await screen.findByRole("link", { name: "Download Advance Wars.gba" })).toBeTruthy();
     expect(await screen.findByText("Uploaded 1 file.")).toBeTruthy();
     expect(mockApi.getBrowser).toHaveBeenCalledTimes(2);
+  });
+
+  it("blocks an unsupported ROM before uploading its bytes", async () => {
+    const uploadFile = new File(["notes"], "game.txt", { type: "text/plain" });
+
+    window.history.replaceState(null, "", "/?view=browser&scope=roms&tag=GBA");
+    mockApi.getSession.mockResolvedValue(pairedSession());
+    mockApi.getPlatforms.mockResolvedValue(platformGroups());
+    mockApi.getBrowser.mockResolvedValue(romBrowserResponse());
+    mockApi.previewUploadBatched.mockResolvedValue({
+      overwriteable: [],
+      overwriteableCount: 0,
+      blocking: [],
+      blockingCount: 0,
+      unsupported: [{ path: "game.txt", reason: "unsupported" }],
+      unsupportedCount: 1,
+      entrypointCount: 0,
+      companionCount: 0,
+      bundleEntrypoints: [],
+    });
+
+    render(<Page />);
+
+    expect(await screen.findByRole("button", { name: "Upload File" })).toBeTruthy();
+    const uploadInput = document.querySelector('input[type="file"]') as HTMLInputElement;
+
+    fireEvent.change(uploadInput, { target: { files: createFileList([uploadFile]) } });
+
+    expect(await screen.findByText("1 selection will not be scanned as a game. game.txt")).toBeTruthy();
+    expect(mockApi.previewUploadBatched).toHaveBeenCalledWith(
+      expect.objectContaining({ scope: "roms", tag: "GBA", filePaths: ["game.txt"] }),
+      "csrf-token",
+    );
+    expect(mockApi.beginUploadFilesBatched).not.toHaveBeenCalled();
+  });
+
+  it("uploads a bundle entrypoint before companions in later batches", async () => {
+    const companions = Array.from(
+      { length: 32 },
+      (_, index) => makeZipExtractedFile(`Game/data-${index}.bin`),
+    );
+    const entrypoint = makeZipExtractedFile("Game/game.gba");
+    const files = [...companions, entrypoint];
+
+    window.history.replaceState(null, "", "/?view=browser&scope=roms&tag=GBA");
+    mockApi.getSession.mockResolvedValue(pairedSession());
+    mockApi.getPlatforms.mockResolvedValue(platformGroups());
+    mockApi.getBrowser.mockResolvedValue(romBrowserResponse());
+    mockApi.previewUploadBatched.mockResolvedValue({
+      overwriteable: [],
+      overwriteableCount: 0,
+      blocking: [],
+      blockingCount: 0,
+      unsupported: [],
+      unsupportedCount: 0,
+      entrypointCount: 1,
+      companionCount: 32,
+      bundleEntrypoints: ["Game/game.gba"],
+    });
+    mockApi.beginUploadFilesBatched.mockReturnValue({
+      cancel: vi.fn(),
+      promise: Promise.resolve({
+        uploaded: 33,
+        failed: 0,
+        directoriesCreated: 0,
+        directoriesFailed: 0,
+        cancelled: false,
+      }),
+    });
+
+    render(<Page />);
+
+    expect(await screen.findByRole("button", { name: "Upload File" })).toBeTruthy();
+    const uploadInput = document.querySelector('input[type="file"]') as HTMLInputElement;
+
+    fireEvent.change(uploadInput, { target: { files: createFileList(files) } });
+
+    await waitFor(() => expect(mockApi.beginUploadFilesBatched).toHaveBeenCalled());
+    const request = mockApi.beginUploadFilesBatched.mock.calls[0][0] as { files: File[] };
+    expect((request.files[0] as File & { webkitRelativePath?: string }).webkitRelativePath).toBe("Game/game.gba");
   });
 
   it("asks for an SD source before uploading at the multi-source files root", async () => {

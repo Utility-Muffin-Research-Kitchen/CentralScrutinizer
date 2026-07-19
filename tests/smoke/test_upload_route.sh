@@ -189,6 +189,176 @@ echo "$UPLOAD_RESPONSE" | tail -n 1 | grep -q '^200$'
 test -f "$UPLOADED_ROM"
 cmp -s "$SOURCE_ROM" "$UPLOADED_ROM"
 
+# --- Catalog-aware ROM format gate (scope=roms) ---
+# PSP accepts only chd/cso/iso/pbp, so a pass-through .zip must be rejected with
+# 415 before any destination file is written (the motivating bug).
+PSP_ZIP_NAME="upload-$RANDOM-$$.zip"
+PSP_ZIP_DEST="$SDCARD_ROOT/Roms/PSP/$PSP_ZIP_NAME"
+PSP_PREVIEW_RESPONSE="$(curl -sS -X POST \
+    -b "$COOKIE_JAR" \
+    -H "X-CS-CSRF: $CSRF_TOKEN" \
+    -F "scope=roms" \
+    -F "tag=PSP" \
+    -F "file_path=$PSP_ZIP_NAME" \
+    -w '\n%{http_code}' \
+    http://127.0.0.1:8877/api/upload/preview)"
+printf '%s\n' "$PSP_PREVIEW_RESPONSE" | grep -Fq '"unsupportedCount":1'
+printf '%s\n' "$PSP_PREVIEW_RESPONSE" | grep -Fq "\"path\":\"$PSP_ZIP_NAME\""
+echo "$PSP_PREVIEW_RESPONSE" | tail -n 1 | grep -q '^200$'
+
+ROM_REJECT_RESPONSE="$(curl -sS -X POST \
+    -b "$COOKIE_JAR" \
+    -H "X-CS-CSRF: $CSRF_TOKEN" \
+    -F "scope=roms" \
+    -F "tag=PSP" \
+    -F "file=@$SOURCE_ROM;filename=$PSP_ZIP_NAME" \
+    -w '\n%{http_code}' \
+    http://127.0.0.1:8877/api/upload)"
+echo "$ROM_REJECT_RESPONSE" | head -n 1 | grep -Fq 'unsupported_rom_format'
+echo "$ROM_REJECT_RESPONSE" | head -n 1 | grep -Fq '"acceptedFileNames":'
+echo "$ROM_REJECT_RESPONSE" | tail -n 1 | grep -q '^415$'
+test ! -e "$PSP_ZIP_DEST"
+
+# Preview is intentionally larger than the 32-file transfer batch. The complete
+# manifest must recognize the final .iso as the bundle entrypoint instead of
+# rejecting the first 32 companion files in isolation.
+PSP_MANIFEST_BUNDLE="preview-bundle-$RANDOM-$$"
+PSP_MANIFEST_ARGS=(
+    -sS
+    -X POST
+    -b "$COOKIE_JAR"
+    -H "X-CS-CSRF: $CSRF_TOKEN"
+    -F "scope=roms"
+    -F "tag=PSP"
+)
+for index in $(seq 1 32); do
+    PSP_MANIFEST_ARGS+=(-F "file_path=$PSP_MANIFEST_BUNDLE/data-$index.bin")
+done
+PSP_MANIFEST_ARGS+=(
+    -F "file_path=$PSP_MANIFEST_BUNDLE/game.iso"
+    -w '\n%{http_code}'
+    http://127.0.0.1:8877/api/upload/preview
+)
+PSP_MANIFEST_RESPONSE="$(curl "${PSP_MANIFEST_ARGS[@]}")"
+printf '%s\n' "$PSP_MANIFEST_RESPONSE" | grep -Fq '"unsupportedCount":0'
+printf '%s\n' "$PSP_MANIFEST_RESPONSE" | grep -Fq '"entrypointCount":1'
+printf '%s\n' "$PSP_MANIFEST_RESPONSE" | grep -Fq '"companionCount":32'
+printf '%s\n' "$PSP_MANIFEST_RESPONSE" | grep -Fq "\"bundleEntrypoints\":[\"$PSP_MANIFEST_BUNDLE/game.iso\"]"
+echo "$PSP_MANIFEST_RESPONSE" | tail -n 1 | grep -q '^200$'
+
+# Hidden bundle directories are invalid for modeled ROM scopes. They must
+# produce the same specific path-policy error in preview and upload instead of
+# passing format classification and failing later during destination planning.
+PSP_HIDDEN_BUNDLE=".hidden-bundle-$RANDOM-$$"
+PSP_HIDDEN_PREVIEW_RESPONSE="$(curl -sS -X POST \
+    -b "$COOKIE_JAR" \
+    -H "X-CS-CSRF: $CSRF_TOKEN" \
+    -F "scope=roms" \
+    -F "tag=PSP" \
+    -F "file_path=$PSP_HIDDEN_BUNDLE/game.iso" \
+    -w '\n%{http_code}' \
+    http://127.0.0.1:8877/api/upload/preview)"
+printf '%s\n' "$PSP_HIDDEN_PREVIEW_RESPONSE" | grep -Fq '"error":"upload_path_invalid"'
+echo "$PSP_HIDDEN_PREVIEW_RESPONSE" | tail -n 1 | grep -q '^400$'
+
+PSP_HIDDEN_UPLOAD_RESPONSE="$(curl -sS -X POST \
+    -b "$COOKIE_JAR" \
+    -H "X-CS-CSRF: $CSRF_TOKEN" \
+    -F "scope=roms" \
+    -F "tag=PSP" \
+    -F "file=@$SOURCE_ROM;filename=$PSP_HIDDEN_BUNDLE/game.iso" \
+    -w '\n%{http_code}' \
+    http://127.0.0.1:8877/api/upload)"
+printf '%s\n' "$PSP_HIDDEN_UPLOAD_RESPONSE" | grep -Fq '"error":"upload_path_invalid"'
+echo "$PSP_HIDDEN_UPLOAD_RESPONSE" | tail -n 1 | grep -q '^400$'
+test ! -e "$SDCARD_ROOT/Roms/PSP/$PSP_HIDDEN_BUNDLE"
+
+# Once the entrypoint batch lands, later companion-only batches for the same
+# bundle remain valid. A new companion-only bundle is still rejected.
+PSP_BATCH_BUNDLE="batch-bundle-$RANDOM-$$"
+PSP_BATCH_ROOT="$SDCARD_ROOT/Roms/PSP/$PSP_BATCH_BUNDLE"
+PSP_ENTRYPOINT_RESPONSE="$(curl -sS -X POST \
+    -b "$COOKIE_JAR" \
+    -H "X-CS-CSRF: $CSRF_TOKEN" \
+    -F "scope=roms" \
+    -F "tag=PSP" \
+    -F "file=@$SOURCE_ROM;filename=$PSP_BATCH_BUNDLE/game.iso" \
+    -w '\n%{http_code}' \
+    http://127.0.0.1:8877/api/upload)"
+echo "$PSP_ENTRYPOINT_RESPONSE" | head -n 1 | grep -Fq '{"ok":true}'
+echo "$PSP_ENTRYPOINT_RESPONSE" | tail -n 1 | grep -q '^200$'
+test -f "$PSP_BATCH_ROOT/game.iso"
+
+PSP_COMPANION_RESPONSE="$(curl -sS -X POST \
+    -b "$COOKIE_JAR" \
+    -H "X-CS-CSRF: $CSRF_TOKEN" \
+    -F "scope=roms" \
+    -F "tag=PSP" \
+    -F "file=@$SOURCE_NOTE;filename=$PSP_BATCH_BUNDLE/readme.txt" \
+    -w '\n%{http_code}' \
+    http://127.0.0.1:8877/api/upload)"
+echo "$PSP_COMPANION_RESPONSE" | head -n 1 | grep -Fq '{"ok":true}'
+echo "$PSP_COMPANION_RESPONSE" | tail -n 1 | grep -q '^200$'
+test -f "$PSP_BATCH_ROOT/readme.txt"
+
+PSP_INVALID_BUNDLE="invalid-bundle-$RANDOM-$$"
+PSP_INVALID_BUNDLE_RESPONSE="$(curl -sS -X POST \
+    -b "$COOKIE_JAR" \
+    -H "X-CS-CSRF: $CSRF_TOKEN" \
+    -F "scope=roms" \
+    -F "tag=PSP" \
+    -F "file=@$SOURCE_NOTE;filename=$PSP_INVALID_BUNDLE/readme.txt" \
+    -w '\n%{http_code}' \
+    http://127.0.0.1:8877/api/upload)"
+echo "$PSP_INVALID_BUNDLE_RESPONSE" | head -n 1 | grep -Fq 'unsupported_rom_format'
+echo "$PSP_INVALID_BUNDLE_RESPONSE" | tail -n 1 | grep -q '^415$'
+test ! -e "$SDCARD_ROOT/Roms/PSP/$PSP_INVALID_BUNDLE"
+
+# PSP accepts a supported .iso.
+PSP_ISO_NAME="upload-$RANDOM-$$.iso"
+PSP_ISO_DEST="$SDCARD_ROOT/Roms/PSP/$PSP_ISO_NAME"
+ROM_ACCEPT_RESPONSE="$(curl -sS -X POST \
+    -b "$COOKIE_JAR" \
+    -H "X-CS-CSRF: $CSRF_TOKEN" \
+    -F "scope=roms" \
+    -F "tag=PSP" \
+    -F "file=@$SOURCE_ROM;filename=$PSP_ISO_NAME" \
+    -w '\n%{http_code}' \
+    http://127.0.0.1:8877/api/upload)"
+echo "$ROM_ACCEPT_RESPONSE" | head -n 1 | grep -Fq '{"ok":true}'
+echo "$ROM_ACCEPT_RESPONSE" | tail -n 1 | grep -q '^200$'
+test -f "$PSP_ISO_DEST"
+
+# A catalog-declared ZIP-capable system (GBA) still accepts a pass-through .zip.
+GBA_ZIP_NAME="upload-$RANDOM-$$.zip"
+GBA_ZIP_DEST="$SDCARD_ROOT/Roms/GBA/$GBA_ZIP_NAME"
+GBA_ZIP_RESPONSE="$(curl -sS -X POST \
+    -b "$COOKIE_JAR" \
+    -H "X-CS-CSRF: $CSRF_TOKEN" \
+    -F "scope=roms" \
+    -F "tag=GBA" \
+    -F "file=@$SOURCE_ROM;filename=$GBA_ZIP_NAME" \
+    -w '\n%{http_code}' \
+    http://127.0.0.1:8877/api/upload)"
+echo "$GBA_ZIP_RESPONSE" | head -n 1 | grep -Fq '{"ok":true}'
+echo "$GBA_ZIP_RESPONSE" | tail -n 1 | grep -q '^200$'
+test -f "$GBA_ZIP_DEST"
+
+# The generic Files tool remains an escape hatch: scope=files still places a .zip.
+FILES_ZIP_NAME="upload-$RANDOM-$$.zip"
+FILES_ZIP_DEST="$SDCARD_ROOT/.userdata/mlp1/CentralScrutinizer/imports/$FILES_ZIP_NAME"
+FILES_ZIP_RESPONSE="$(curl -sS -X POST \
+    -b "$COOKIE_JAR" \
+    -H "X-CS-CSRF: $CSRF_TOKEN" \
+    -F "scope=files" \
+    -F "path=.userdata/mlp1/CentralScrutinizer/imports" \
+    -F "file=@$SOURCE_ROM;filename=$FILES_ZIP_NAME" \
+    -w '\n%{http_code}' \
+    http://127.0.0.1:8877/api/upload)"
+echo "$FILES_ZIP_RESPONSE" | head -n 1 | grep -Fq '{"ok":true}'
+echo "$FILES_ZIP_RESPONSE" | tail -n 1 | grep -q '^200$'
+test -f "$FILES_ZIP_DEST"
+
 UPLOAD_RESPONSE="$(curl -sS -X POST \
     -b "$COOKIE_JAR" \
     -H "X-CS-CSRF: $CSRF_TOKEN" \

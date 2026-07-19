@@ -199,6 +199,35 @@ function hasUploadItems(selection: UploadSelection): boolean {
   return selection.files.length > 0 || selection.directories.length > 0;
 }
 
+function prioritizeBundleEntrypoints(
+  selection: UploadSelection,
+  bundleEntrypoints: string[] | undefined,
+): UploadSelection {
+  const prioritized = new Set(bundleEntrypoints ?? []);
+
+  if (prioritized.size === 0) {
+    return selection;
+  }
+  return {
+    ...selection,
+    files: [...selection.files].sort(
+      (left, right) =>
+        Number(prioritized.has(uploadClientPath(right))) -
+        Number(prioritized.has(uploadClientPath(left))),
+    ),
+  };
+}
+
+function unsupportedRomPreviewMessage(preflight: UploadPreviewResponse): string {
+  const count = preflight.unsupportedCount ?? 0;
+  const paths = (preflight.unsupported ?? []).map((item) => item.path);
+  const sample = paths.length > 0 ? ` ${paths.join(", ")}${count > paths.length ? ", …" : ""}` : "";
+
+  return count === 1
+    ? `1 selection will not be scanned as a game.${sample}`
+    : `${count} selections will not be scanned as games.${sample}`;
+}
+
 function formatUploadCount(count: number, singular: string): string | null {
   return count > 0 ? `${count} ${singular}${count === 1 ? "" : "s"}` : null;
 }
@@ -874,7 +903,10 @@ export default function Page() {
     }
   }
 
-  const handleUploadSelection = async (selection: UploadSelection, options?: { overwriteExisting?: boolean }) => {
+  const handleUploadSelection = async (
+    selection: UploadSelection,
+    options?: { overwriteExisting?: boolean; preflight?: UploadPreviewResponse },
+  ) => {
     const scopeState = currentScopeState();
     const csrf = session.csrf;
 
@@ -883,10 +915,36 @@ export default function Page() {
     }
 
     await withBusy(async () => {
-      const totalFiles = selection.files.length;
-      const totalDirectories = selection.directories.length;
+      let preflight = options?.preflight;
+
+      try {
+        if (scopeState.scope === "roms" && !preflight) {
+          preflight = await previewUploadBatched(
+            {
+              ...scopeState,
+              directories: selection.directories,
+              filePaths: selection.files.map(uploadClientPath),
+            },
+            csrf,
+          );
+        }
+      } catch (error) {
+        setNotice(error instanceof Error ? error.message : "Upload format check failed.");
+        return;
+      }
+      if (preflight && (preflight.unsupportedCount ?? 0) > 0) {
+        setNotice(unsupportedRomPreviewMessage(preflight));
+        return;
+      }
+
+      const orderedSelection = prioritizeBundleEntrypoints(
+        selection,
+        preflight?.bundleEntrypoints,
+      );
+      const totalFiles = orderedSelection.files.length;
+      const totalDirectories = orderedSelection.directories.length;
       const label = `Uploading ${formatUploadParts(totalFiles, totalDirectories)}`;
-      const upload = beginUploadFilesBatched({ ...scopeState, ...selection, overwriteExisting: options?.overwriteExisting }, csrf, (progress) => {
+      const upload = beginUploadFilesBatched({ ...scopeState, ...orderedSelection, overwriteExisting: options?.overwriteExisting }, csrf, (progress) => {
         setTransfer((current) => ({ ...current, progress }));
       });
 
@@ -905,7 +963,7 @@ export default function Page() {
          */
         if (
           (summary.uploaded > 0 || summary.directoriesCreated > 0) &&
-          uploadMutationMayAffectLibrary(scopeState, selection)
+          uploadMutationMayAffectLibrary(scopeState, orderedSelection)
         ) {
           await refreshAfterLibraryMutation();
         } else {
@@ -1050,7 +1108,11 @@ export default function Page() {
         zipPreviewAbortRef.current = null;
       }
 
-      if (preflight.blockingCount > 0 || (!overwriteExisting && preflight.overwriteableCount > 0)) {
+      if (
+        (preflight.unsupportedCount ?? 0) > 0 ||
+        preflight.blockingCount > 0 ||
+        (!overwriteExisting && preflight.overwriteableCount > 0)
+      ) {
         setZipExtractDialog((current) =>
           current
             ? {
@@ -1074,7 +1136,7 @@ export default function Page() {
       }
 
       setZipExtractDialog(null);
-      await handleUploadSelection(selection, { overwriteExisting });
+      await handleUploadSelection(selection, { overwriteExisting, preflight });
     } catch (error) {
       const isCurrentPreviewRequest = zipPreviewAbortRef.current === previewRequest;
       const timedOut = isCurrentPreviewRequest && previewRequest.timedOut;

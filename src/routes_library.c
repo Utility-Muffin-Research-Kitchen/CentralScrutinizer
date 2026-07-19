@@ -1,6 +1,7 @@
 #include "cs_app.h"
 #include "cs_library.h"
 #include "cs_platforms.h"
+#include "cs_rom_policy.h"
 #include "cs_server.h"
 #include "cs_states.h"
 
@@ -468,8 +469,58 @@ static int cs_count_files_recursive(const char *path, int allow_hidden) {
     return total;
 }
 
+static int cs_stream_string_array(struct mg_connection *conn,
+                                  const cs_catalog_string_list *list) {
+    size_t i;
+    if (cs_stream_literal(conn, "[") != 0) {
+        return -1;
+    }
+    for (i = 0; list && i < list->count; ++i) {
+        if ((i > 0 && cs_stream_literal(conn, ",") != 0)
+            || cs_stream_literal(conn, "\"") != 0
+            || cs_stream_escaped_string(conn, list->items[i]) != 0
+            || cs_stream_literal(conn, "\"") != 0) {
+            return -1;
+        }
+    }
+    return cs_stream_literal(conn, "]");
+}
+
+/* Emit the effective ROM-upload policy for a platform as an object:
+   {"enforced":bool,"extensions":[...],"archiveExtensions":[...],
+    "playlistExtensions":[...],"exactFileNames":[...],"ignoredFileNames":[...]}.
+   Only effective
+   pass-through archive extensions appear; empty/custom platforms are
+   enforced:false. */
+static int cs_stream_rom_upload_policy(struct mg_connection *conn,
+                                       const cs_catalog *catalog,
+                                       const cs_platform_info *platform) {
+    cs_rom_upload_policy policy;
+    int rc = 0;
+
+    (void) cs_rom_upload_policy_from_catalog(catalog, platform->tag, platform->is_custom, &policy);
+    if (cs_stream_literal(conn, "{\"enforced\":") != 0
+        || cs_stream_literal(conn, policy.enforced ? "true" : "false") != 0
+        || cs_stream_literal(conn, ",\"extensions\":") != 0
+        || cs_stream_string_array(conn, &policy.extensions) != 0
+        || cs_stream_literal(conn, ",\"archiveExtensions\":") != 0
+        || cs_stream_string_array(conn, &policy.archive_extensions) != 0
+        || cs_stream_literal(conn, ",\"playlistExtensions\":") != 0
+        || cs_stream_string_array(conn, &policy.playlist_extensions) != 0
+        || cs_stream_literal(conn, ",\"exactFileNames\":") != 0
+        || cs_stream_string_array(conn, &policy.file_names) != 0
+        || cs_stream_literal(conn, ",\"ignoredFileNames\":") != 0
+        || cs_stream_string_array(conn, &policy.ignore_file_names) != 0
+        || cs_stream_literal(conn, "}") != 0) {
+        rc = -1;
+    }
+    cs_rom_upload_policy_free(&policy);
+    return rc;
+}
+
 static int cs_stream_platform_object(struct mg_connection *conn,
                                      const cs_paths *paths,
+                                     const cs_catalog *catalog,
                                      const cs_platform_info *platform) {
     char rom_root[CS_PATH_MAX];
     char save_root[CS_PATH_MAX];
@@ -563,7 +614,9 @@ static int cs_stream_platform_object(struct mg_connection *conn,
         || cs_stream_unsigned(conn, (unsigned long long) overlay_count) != 0
         || cs_stream_literal(conn, ",\"cheats\":") != 0
         || cs_stream_unsigned(conn, (unsigned long long) cheat_count) != 0
-        || cs_stream_literal(conn, "}}") != 0) {
+        || cs_stream_literal(conn, "},\"romUploadPolicy\":") != 0
+        || cs_stream_rom_upload_policy(conn, catalog, platform) != 0
+        || cs_stream_literal(conn, "}") != 0) {
         return -1;
     }
 
@@ -572,6 +625,7 @@ static int cs_stream_platform_object(struct mg_connection *conn,
 
 static int cs_stream_platform_event(struct mg_connection *conn,
                                     const cs_paths *paths,
+                                    const cs_catalog *catalog,
                                     const cs_platform_info *platform) {
     if (!conn || !platform) {
         return -1;
@@ -579,7 +633,7 @@ static int cs_stream_platform_event(struct mg_connection *conn,
     if (cs_stream_literal(conn, "{\"type\":\"platform\",\"group\":\"") != 0
         || cs_stream_escaped_string(conn, platform->group) != 0
         || cs_stream_literal(conn, "\",\"platform\":") != 0
-        || cs_stream_platform_object(conn, paths, platform) != 0
+        || cs_stream_platform_object(conn, paths, catalog, platform) != 0
         || cs_stream_literal(conn, "}\n") != 0) {
         return -1;
     }
@@ -610,6 +664,7 @@ int cs_route_platforms_handler(struct mg_connection *conn, void *cbdata) {
     size_t i;
     int guard_status;
     cs_catalog_error catalog_error = {0};
+    cs_catalog catalog = {0};
 
     if (!cs_method_is(conn, "GET")) {
         return cs_write_json(conn, 405, "Method Not Allowed", "{\"error\":\"method_not_allowed\"}");
@@ -640,10 +695,16 @@ int cs_route_platforms_handler(struct mg_connection *conn, void *cbdata) {
         goto stream_fail;
     }
 
+    /* Load the catalog once so each platform's ROM-upload policy folds without
+       re-running discovery. A load failure leaves an empty catalog, which folds
+       to enforced:false (fail open). */
+    (void) cs_catalog_load(app->paths.systems_catalog_path,
+                           app->paths.cores_catalog_path, &catalog, NULL);
+
     /* Emit one NDJSON line per platform, flushed as the counts finish so the browser
        can render cards incrementally instead of waiting for all platforms to scan. */
     for (i = 0; i < platform_count; ++i) {
-        if (cs_stream_platform_event(conn, &app->paths, &platforms[i])
+        if (cs_stream_platform_event(conn, &app->paths, &catalog, &platforms[i])
             != 0) {
             goto stream_fail;
         }
@@ -653,9 +714,11 @@ int cs_route_platforms_handler(struct mg_connection *conn, void *cbdata) {
         goto stream_fail;
     }
 
+    cs_catalog_free(&catalog);
     return 1;
 
 stream_fail:
+    cs_catalog_free(&catalog);
     (void) mg_send_chunk(conn, "", 0);
     return 1;
 }

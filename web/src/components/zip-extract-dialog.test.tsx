@@ -241,6 +241,26 @@ describe("ZipExtractDialog", () => {
     expect(screen.getByText(/Enable overwrite to replace these existing files/)).toBeTruthy();
   });
 
+  it("shows unsupported ROM bundles and disables extraction", () => {
+    renderDialog({
+      conflicts: {
+        overwriteableCount: 0,
+        blockingCount: 0,
+        overwriteable: [],
+        blocking: [],
+        unsupportedCount: 1,
+        unsupported: [{ path: "archive/", reason: "unsupported" }],
+        entrypointCount: 0,
+        companionCount: 3,
+        bundleEntrypoints: [],
+      },
+    });
+
+    expect(screen.getByText("This extraction does not contain a supported game entrypoint.")).toBeTruthy();
+    expect(screen.getByText("archive/")).toBeTruthy();
+    expect((screen.getByRole("button", { name: "Extract" }) as HTMLButtonElement).disabled).toBe(true);
+  });
+
   it("shows inline checking status and disables editing while checking preflight conflicts", () => {
     renderDialog({ checking: true });
 

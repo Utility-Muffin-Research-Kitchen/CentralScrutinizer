@@ -766,6 +766,11 @@ describe("previewUpload", () => {
       blockingCount: 1,
       overwriteable: [{ kind: "overwrite", path: "Apps/mlp1/CentralScrutinizer.pak/pak.json" }],
       blocking: [{ kind: "directory-over-file", path: "Apps" }],
+      unsupportedCount: 0,
+      unsupported: [],
+      entrypointCount: 0,
+      companionCount: 0,
+      bundleEntrypoints: [],
     });
   });
 
@@ -829,41 +834,47 @@ describe("previewUpload", () => {
     ]);
   });
 
-  it("counts a blocked parent conflict once when multiple preview batches report it", async () => {
-    const fetchMock = vi
-      .fn()
-      .mockResolvedValueOnce({
-        ok: true,
-        json: async () => ({
-          overwriteableCount: 0,
-          blockingCount: 1,
-          overwriteable: [],
-          blocking: [{ kind: "directory-over-file", path: "Apps" }],
-        }),
-      })
-      .mockResolvedValueOnce({
-        ok: true,
-        json: async () => ({
-          overwriteableCount: 0,
-          blockingCount: 1,
-          overwriteable: [],
-          blocking: [{ kind: "directory-over-file", path: "Apps" }],
-        }),
-      });
+  it("sends a complete ROM file manifest in one preview request", async () => {
+    const filePaths = Array.from(
+      { length: UPLOAD_BATCH_SIZE + 1 },
+      (_, index) => `Game/disc-${index}.${index === UPLOAD_BATCH_SIZE ? "iso" : "bin"}`,
+    );
+    const fetchMock = vi.fn().mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({
+        overwriteableCount: 0,
+        blockingCount: 0,
+        overwriteable: [],
+        blocking: [],
+        unsupportedCount: 0,
+        unsupported: [],
+        entrypointCount: 1,
+        companionCount: UPLOAD_BATCH_SIZE,
+        bundleEntrypoints: [`Game/disc-${UPLOAD_BATCH_SIZE}.iso`],
+      }),
+    });
 
     vi.stubGlobal("fetch", fetchMock);
 
     const summary = await previewUploadBatched(
       {
-        scope: "files",
+        scope: "roms",
+        tag: "PSP",
         directories: [],
-        filePaths: Array.from({ length: UPLOAD_BATCH_SIZE + 1 }, (_, index) => `Apps/file-${index}.txt`),
+        filePaths,
       },
       "csrf-token",
     );
 
-    expect(summary.blockingCount).toBe(1);
-    expect(summary.blocking).toEqual([{ kind: "directory-over-file", path: "Apps" }]);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    const [, options] = fetchMock.mock.calls[0] as [string, { body: FormData }];
+    expect(options.body.getAll("file_path")).toEqual(filePaths);
+    expect(summary).toMatchObject({
+      unsupportedCount: 0,
+      entrypointCount: 1,
+      companionCount: UPLOAD_BATCH_SIZE,
+      bundleEntrypoints: [`Game/disc-${UPLOAD_BATCH_SIZE}.iso`],
+    });
   });
 });
 

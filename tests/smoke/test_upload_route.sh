@@ -189,6 +189,68 @@ echo "$UPLOAD_RESPONSE" | tail -n 1 | grep -q '^200$'
 test -f "$UPLOADED_ROM"
 cmp -s "$SOURCE_ROM" "$UPLOADED_ROM"
 
+# --- Catalog-aware ROM format gate (scope=roms) ---
+# PSP accepts only chd/cso/iso/pbp, so a pass-through .zip must be rejected with
+# 415 before any destination file is written (the motivating bug).
+PSP_ZIP_NAME="upload-$RANDOM-$$.zip"
+PSP_ZIP_DEST="$SDCARD_ROOT/Roms/PSP/$PSP_ZIP_NAME"
+ROM_REJECT_RESPONSE="$(curl -sS -X POST \
+    -b "$COOKIE_JAR" \
+    -H "X-CS-CSRF: $CSRF_TOKEN" \
+    -F "scope=roms" \
+    -F "tag=PSP" \
+    -F "file=@$SOURCE_ROM;filename=$PSP_ZIP_NAME" \
+    -w '\n%{http_code}' \
+    http://127.0.0.1:8877/api/upload)"
+echo "$ROM_REJECT_RESPONSE" | head -n 1 | grep -Fq 'unsupported_rom_format'
+echo "$ROM_REJECT_RESPONSE" | tail -n 1 | grep -q '^415$'
+test ! -e "$PSP_ZIP_DEST"
+
+# PSP accepts a supported .iso.
+PSP_ISO_NAME="upload-$RANDOM-$$.iso"
+PSP_ISO_DEST="$SDCARD_ROOT/Roms/PSP/$PSP_ISO_NAME"
+ROM_ACCEPT_RESPONSE="$(curl -sS -X POST \
+    -b "$COOKIE_JAR" \
+    -H "X-CS-CSRF: $CSRF_TOKEN" \
+    -F "scope=roms" \
+    -F "tag=PSP" \
+    -F "file=@$SOURCE_ROM;filename=$PSP_ISO_NAME" \
+    -w '\n%{http_code}' \
+    http://127.0.0.1:8877/api/upload)"
+echo "$ROM_ACCEPT_RESPONSE" | head -n 1 | grep -Fq '{"ok":true}'
+echo "$ROM_ACCEPT_RESPONSE" | tail -n 1 | grep -q '^200$'
+test -f "$PSP_ISO_DEST"
+
+# A catalog-declared ZIP-capable system (GBA) still accepts a pass-through .zip.
+GBA_ZIP_NAME="upload-$RANDOM-$$.zip"
+GBA_ZIP_DEST="$SDCARD_ROOT/Roms/GBA/$GBA_ZIP_NAME"
+GBA_ZIP_RESPONSE="$(curl -sS -X POST \
+    -b "$COOKIE_JAR" \
+    -H "X-CS-CSRF: $CSRF_TOKEN" \
+    -F "scope=roms" \
+    -F "tag=GBA" \
+    -F "file=@$SOURCE_ROM;filename=$GBA_ZIP_NAME" \
+    -w '\n%{http_code}' \
+    http://127.0.0.1:8877/api/upload)"
+echo "$GBA_ZIP_RESPONSE" | head -n 1 | grep -Fq '{"ok":true}'
+echo "$GBA_ZIP_RESPONSE" | tail -n 1 | grep -q '^200$'
+test -f "$GBA_ZIP_DEST"
+
+# The generic Files tool remains an escape hatch: scope=files still places a .zip.
+FILES_ZIP_NAME="upload-$RANDOM-$$.zip"
+FILES_ZIP_DEST="$SDCARD_ROOT/.userdata/mlp1/CentralScrutinizer/imports/$FILES_ZIP_NAME"
+FILES_ZIP_RESPONSE="$(curl -sS -X POST \
+    -b "$COOKIE_JAR" \
+    -H "X-CS-CSRF: $CSRF_TOKEN" \
+    -F "scope=files" \
+    -F "path=.userdata/mlp1/CentralScrutinizer/imports" \
+    -F "file=@$SOURCE_ROM;filename=$FILES_ZIP_NAME" \
+    -w '\n%{http_code}' \
+    http://127.0.0.1:8877/api/upload)"
+echo "$FILES_ZIP_RESPONSE" | head -n 1 | grep -Fq '{"ok":true}'
+echo "$FILES_ZIP_RESPONSE" | tail -n 1 | grep -q '^200$'
+test -f "$FILES_ZIP_DEST"
+
 UPLOAD_RESPONSE="$(curl -sS -X POST \
     -b "$COOKIE_JAR" \
     -H "X-CS-CSRF: $CSRF_TOKEN" \

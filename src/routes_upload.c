@@ -473,6 +473,64 @@ static int cs_prepare_upload_metadata(cs_upload_request *state) {
     return 0;
 }
 
+/* Multipart parsing permits hidden directory components because the effective
+ * policy depends on scope/platform metadata that may arrive later in the form.
+ * Revalidate every destination directory once path_flags is known, before ROM
+ * classification or destination planning can return a misleading error.
+ */
+static int cs_upload_request_paths_are_valid(const cs_upload_request *state) {
+    size_t i;
+
+    if (!state || !state->metadata_ready) {
+        return 0;
+    }
+    for (i = 0; i < state->directory_count; ++i) {
+        char upload_dir[CS_PATH_MAX];
+
+        if (cs_upload_join_relative_path(state->path,
+                                         state->directories[i],
+                                         upload_dir,
+                                         sizeof(upload_dir))
+                != 0
+            || upload_dir[0] == '\0'
+            || cs_validate_relative_path_with_flags(upload_dir, state->path_flags)
+                   != 0) {
+            return 0;
+        }
+    }
+    for (i = 0; i < state->plan_count; ++i) {
+        char upload_dir[CS_PATH_MAX];
+
+        if (cs_upload_join_relative_path(state->path,
+                                         state->relative_dirs[i],
+                                         upload_dir,
+                                         sizeof(upload_dir))
+                != 0
+            || cs_validate_relative_path_with_flags(
+                   upload_dir,
+                   state->path_flags | CS_PATH_FLAG_ALLOW_EMPTY)
+                   != 0) {
+            return 0;
+        }
+    }
+    for (i = 0; i < state->preview_file_count; ++i) {
+        char upload_dir[CS_PATH_MAX];
+
+        if (cs_upload_join_relative_path(state->path,
+                                         state->preview_files[i].relative_dir,
+                                         upload_dir,
+                                         sizeof(upload_dir))
+                != 0
+            || cs_validate_relative_path_with_flags(
+                   upload_dir,
+                   state->path_flags | CS_PATH_FLAG_ALLOW_EMPTY)
+                   != 0) {
+            return 0;
+        }
+    }
+    return 1;
+}
+
 static int cs_upload_boolean_field(const char *value, size_t valuelen) {
     return (valuelen == 1 && value[0] == '1') || (valuelen == 4 && strncmp(value, "true", 4) == 0);
 }
@@ -1222,6 +1280,15 @@ int cs_route_upload_preview_handler(struct mg_connection *conn, void *cbdata) {
         cs_upload_preview_result_free(preview_result);
         return response_status;
     }
+    if (!cs_upload_request_paths_are_valid(&request_state)) {
+        response_status = cs_write_upload_bad_request(conn,
+                                                      "upload preview",
+                                                      "upload_path_invalid",
+                                                      "destination path violates scope policy");
+        cs_upload_cleanup_preview_files(&request_state);
+        cs_upload_preview_result_free(preview_result);
+        return response_status;
+    }
 
     if (cs_upload_preview_apply_rom_policy(&request_state, preview_result) != 0) {
         response_status = cs_write_json(conn, 500, "Internal Server Error", "{\"ok\":false}");
@@ -1539,6 +1606,13 @@ int cs_route_upload_handler(struct mg_connection *conn, void *cbdata) {
                                            request_state.source_required
                                                ? "files scope requires a source path"
                                                : "target metadata could not be resolved");
+    }
+    if (!cs_upload_request_paths_are_valid(&request_state)) {
+        cs_upload_cleanup_temp_files(&request_state);
+        return cs_write_upload_bad_request(conn,
+                                           "upload",
+                                           "upload_path_invalid",
+                                           "destination path violates scope policy");
     }
     for (i = 0; i < request_state.plan_count; ++i) {
         if (request_state.file_sizes[i] > cs_upload_file_limit_bytes(&request_state)) {

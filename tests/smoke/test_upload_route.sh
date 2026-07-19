@@ -246,6 +246,33 @@ printf '%s\n' "$PSP_MANIFEST_RESPONSE" | grep -Fq '"companionCount":32'
 printf '%s\n' "$PSP_MANIFEST_RESPONSE" | grep -Fq "\"bundleEntrypoints\":[\"$PSP_MANIFEST_BUNDLE/game.iso\"]"
 echo "$PSP_MANIFEST_RESPONSE" | tail -n 1 | grep -q '^200$'
 
+# Hidden bundle directories are invalid for modeled ROM scopes. They must
+# produce the same specific path-policy error in preview and upload instead of
+# passing format classification and failing later during destination planning.
+PSP_HIDDEN_BUNDLE=".hidden-bundle-$RANDOM-$$"
+PSP_HIDDEN_PREVIEW_RESPONSE="$(curl -sS -X POST \
+    -b "$COOKIE_JAR" \
+    -H "X-CS-CSRF: $CSRF_TOKEN" \
+    -F "scope=roms" \
+    -F "tag=PSP" \
+    -F "file_path=$PSP_HIDDEN_BUNDLE/game.iso" \
+    -w '\n%{http_code}' \
+    http://127.0.0.1:8877/api/upload/preview)"
+printf '%s\n' "$PSP_HIDDEN_PREVIEW_RESPONSE" | grep -Fq '"error":"upload_path_invalid"'
+echo "$PSP_HIDDEN_PREVIEW_RESPONSE" | tail -n 1 | grep -q '^400$'
+
+PSP_HIDDEN_UPLOAD_RESPONSE="$(curl -sS -X POST \
+    -b "$COOKIE_JAR" \
+    -H "X-CS-CSRF: $CSRF_TOKEN" \
+    -F "scope=roms" \
+    -F "tag=PSP" \
+    -F "file=@$SOURCE_ROM;filename=$PSP_HIDDEN_BUNDLE/game.iso" \
+    -w '\n%{http_code}' \
+    http://127.0.0.1:8877/api/upload)"
+printf '%s\n' "$PSP_HIDDEN_UPLOAD_RESPONSE" | grep -Fq '"error":"upload_path_invalid"'
+echo "$PSP_HIDDEN_UPLOAD_RESPONSE" | tail -n 1 | grep -q '^400$'
+test ! -e "$SDCARD_ROOT/Roms/PSP/$PSP_HIDDEN_BUNDLE"
+
 # Once the entrypoint batch lands, later companion-only batches for the same
 # bundle remain valid. A new companion-only bundle is still rejected.
 PSP_BATCH_BUNDLE="batch-bundle-$RANDOM-$$"

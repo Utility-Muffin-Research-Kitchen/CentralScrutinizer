@@ -31,6 +31,11 @@ typedef struct cs_upload_preview_file {
     char *relative_dir;
 } cs_upload_preview_file;
 
+typedef struct cs_upload_preview_bundle_member {
+    const cs_upload_preview_file *file;
+    cs_rom_entry_status status;
+} cs_upload_preview_bundle_member;
+
 typedef struct cs_upload_request {
     cs_app *app;
     char scope[32];
@@ -770,9 +775,40 @@ static int cs_upload_preview_add_bundle_entrypoint(cs_upload_preview_result *res
     return 0;
 }
 
+static size_t cs_upload_top_folder_length(const char *relative_dir) {
+    const char *slash;
+
+    if (!relative_dir) {
+        return 0;
+    }
+    slash = strchr(relative_dir, '/');
+    return slash ? (size_t) (slash - relative_dir) : strlen(relative_dir);
+}
+
+static int cs_upload_preview_bundle_member_compare(const void *left_value,
+                                                   const void *right_value) {
+    const cs_upload_preview_bundle_member *left =
+        (const cs_upload_preview_bundle_member *) left_value;
+    const cs_upload_preview_bundle_member *right =
+        (const cs_upload_preview_bundle_member *) right_value;
+    const char *left_dir = left->file->relative_dir;
+    const char *right_dir = right->file->relative_dir;
+    size_t left_length = cs_upload_top_folder_length(left_dir);
+    size_t right_length = cs_upload_top_folder_length(right_dir);
+    size_t shared_length = left_length < right_length ? left_length : right_length;
+    int compared = memcmp(left_dir, right_dir, shared_length);
+
+    if (compared != 0) {
+        return compared;
+    }
+    return left_length < right_length ? -1 : left_length > right_length ? 1 : 0;
+}
+
 static int cs_upload_preview_apply_rom_policy(const cs_upload_request *state,
                                               cs_upload_preview_result *result) {
     cs_rom_upload_policy policy;
+    cs_upload_preview_bundle_member *members = NULL;
+    size_t member_count = 0;
     size_t i;
 
     if (!state || !result || cs_browser_scope_parse(state->scope) != CS_SCOPE_ROMS) {
@@ -801,54 +837,63 @@ static int cs_upload_preview_apply_rom_policy(const cs_upload_request *state,
 
     for (i = 0; i < state->preview_file_count; ++i) {
         const cs_upload_preview_file *file = &state->preview_files[i];
-        char top[CS_PATH_MAX];
+
+        if (file->relative_dir[0] != '\0') {
+            member_count += 1;
+        }
+    }
+    if (member_count > 0) {
+        size_t member_index = 0;
+
+        members = (cs_upload_preview_bundle_member *) calloc(
+            member_count, sizeof(members[0]));
+        if (!members) {
+            cs_rom_upload_policy_free(&policy);
+            return -1;
+        }
+        for (i = 0; i < state->preview_file_count; ++i) {
+            const cs_upload_preview_file *file = &state->preview_files[i];
+
+            if (file->relative_dir[0] == '\0') {
+                continue;
+            }
+            members[member_index].file = file;
+            members[member_index].status =
+                cs_rom_upload_policy_classify(&policy, file->filename);
+            member_index += 1;
+        }
+        qsort(members,
+              member_count,
+              sizeof(members[0]),
+              cs_upload_preview_bundle_member_compare);
+    }
+
+    for (i = 0; i < member_count;) {
+        size_t group_end = i + 1;
         size_t j;
-        int already_seen = 0;
+        size_t top_length =
+            cs_upload_top_folder_length(members[i].file->relative_dir);
         int has_entrypoint = 0;
         char first_entrypoint[CS_PATH_MAX] = {0};
 
-        if (file->relative_dir[0] == '\0') {
-            continue;
+        while (group_end < member_count
+               && cs_upload_preview_bundle_member_compare(
+                      &members[i], &members[group_end])
+                      == 0) {
+            group_end += 1;
         }
-        cs_upload_top_folder(file->relative_dir, top, sizeof(top));
-        for (j = 0; j < i; ++j) {
-            char previous_top[CS_PATH_MAX];
-            if (state->preview_files[j].relative_dir[0] == '\0') {
-                continue;
-            }
-            cs_upload_top_folder(state->preview_files[j].relative_dir,
-                                 previous_top,
-                                 sizeof(previous_top));
-            if (strcmp(previous_top, top) == 0) {
-                already_seen = 1;
-                break;
-            }
-        }
-        if (already_seen) {
-            continue;
-        }
+        for (j = i; j < group_end; ++j) {
+            const cs_upload_preview_bundle_member *member = &members[j];
 
-        for (j = 0; j < state->preview_file_count; ++j) {
-            const cs_upload_preview_file *candidate = &state->preview_files[j];
-            char candidate_top[CS_PATH_MAX];
-            cs_rom_entry_status status;
-
-            if (candidate->relative_dir[0] == '\0') {
-                continue;
-            }
-            cs_upload_top_folder(candidate->relative_dir, candidate_top, sizeof(candidate_top));
-            if (strcmp(candidate_top, top) != 0) {
-                continue;
-            }
-            status = cs_rom_upload_policy_classify(&policy, candidate->filename);
-            if (status == CS_ROM_ENTRY_ACCEPTED) {
+            if (member->status == CS_ROM_ENTRY_ACCEPTED) {
                 result->entrypoint_count += 1;
                 if (!has_entrypoint
-                    && cs_upload_join_relative_path(candidate->relative_dir,
-                                                    candidate->filename,
+                    && cs_upload_join_relative_path(member->file->relative_dir,
+                                                    member->file->filename,
                                                     first_entrypoint,
                                                     sizeof(first_entrypoint))
                            != 0) {
+                    free(members);
                     cs_rom_upload_policy_free(&policy);
                     return -1;
                 }
@@ -859,21 +904,30 @@ static int cs_upload_preview_apply_rom_policy(const cs_upload_request *state,
         }
         if (has_entrypoint) {
             if (cs_upload_preview_add_bundle_entrypoint(result, first_entrypoint) != 0) {
+                free(members);
                 cs_rom_upload_policy_free(&policy);
                 return -1;
             }
         } else {
             char bundle_path[CS_PATH_MAX];
-            if (snprintf(bundle_path, sizeof(bundle_path), "%s/", top)
+
+            if (snprintf(bundle_path,
+                         sizeof(bundle_path),
+                         "%.*s/",
+                         (int) top_length,
+                         members[i].file->relative_dir)
                 >= (int) sizeof(bundle_path)) {
+                free(members);
                 cs_rom_upload_policy_free(&policy);
                 return -1;
             }
             cs_upload_preview_record_unsupported(
                 result, bundle_path, CS_ROM_ENTRY_UNSUPPORTED);
         }
+        i = group_end;
     }
 
+    free(members);
     cs_rom_upload_policy_free(&policy);
     return 0;
 }

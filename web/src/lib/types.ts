@@ -18,6 +18,15 @@ export type PlatformResource = "roms" | "saves" | "states" | "bios" | "overlays"
 
 export type SupportedResources = Record<PlatformResource, boolean>;
 
+export type RomUploadPolicy = {
+  enforced: boolean;
+  extensions: string[];
+  archiveExtensions: string[];
+  playlistExtensions: string[];
+  exactFileNames: string[];
+  ignoredFileNames: string[];
+};
+
 export type PlatformSummary = {
   tag: string;
   name: string;
@@ -28,6 +37,7 @@ export type PlatformSummary = {
   savePath: string;
   biosPath: string;
   supportedResources: SupportedResources;
+  romUploadPolicy?: RomUploadPolicy;
   counts: {
     roms: number;
     saves: number;
@@ -150,6 +160,14 @@ export type UploadPreviewResponse = {
   blockingCount: number;
   overwriteable: UploadPreviewConflict[];
   blocking: UploadPreviewConflict[];
+  unsupportedCount?: number;
+  unsupported?: Array<{
+    path: string;
+    reason: string;
+  }>;
+  entrypointCount?: number;
+  companionCount?: number;
+  bundleEntrypoints?: string[];
 };
 
 export type ReplaceArtRequest = {

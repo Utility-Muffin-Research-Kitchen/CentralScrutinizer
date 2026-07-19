@@ -488,7 +488,8 @@ static int cs_stream_string_array(struct mg_connection *conn,
 
 /* Emit the effective ROM-upload policy for a platform as an object:
    {"enforced":bool,"extensions":[...],"archiveExtensions":[...],
-    "playlistExtensions":[...],"exactFileNames":[...]}. Only effective
+    "playlistExtensions":[...],"exactFileNames":[...],"ignoredFileNames":[...]}.
+   Only effective
    pass-through archive extensions appear; empty/custom platforms are
    enforced:false. */
 static int cs_stream_rom_upload_policy(struct mg_connection *conn,
@@ -508,6 +509,8 @@ static int cs_stream_rom_upload_policy(struct mg_connection *conn,
         || cs_stream_string_array(conn, &policy.playlist_extensions) != 0
         || cs_stream_literal(conn, ",\"exactFileNames\":") != 0
         || cs_stream_string_array(conn, &policy.file_names) != 0
+        || cs_stream_literal(conn, ",\"ignoredFileNames\":") != 0
+        || cs_stream_string_array(conn, &policy.ignore_file_names) != 0
         || cs_stream_literal(conn, "}") != 0) {
         rc = -1;
     }

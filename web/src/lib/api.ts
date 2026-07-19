@@ -498,6 +498,11 @@ export async function previewUploadBatched(
   const blocking: UploadPreviewResponse["blocking"] = [];
   const allOverwriteable = new Map<string, UploadPreviewResponse["overwriteable"][number]>();
   const allBlocking = new Map<string, UploadPreviewResponse["blocking"][number]>();
+  let unsupportedCount = 0;
+  let unsupported: NonNullable<UploadPreviewResponse["unsupported"]> = [];
+  let entrypointCount = 0;
+  let companionCount = 0;
+  let bundleEntrypoints: string[] = [];
 
   const appendUnique = <T extends { path: string; kind: string }>(allItems: Map<string, T>, target: T[], items: T[]) => {
     for (const item of items) {
@@ -522,12 +527,20 @@ export async function previewUploadBatched(
     appendUnique(allBlocking, blocking, response.blocking);
   }
 
-  for (let offset = 0; offset < filePaths.length; offset += UPLOAD_BATCH_SIZE) {
-    const batch = filePaths.slice(offset, offset + UPLOAD_BATCH_SIZE);
-    const response = await previewUpload({ ...rest, directories: [], filePaths: batch }, csrf, options);
+  if (filePaths.length > 0) {
+    /* Send the complete file manifest in one lightweight preview request. Format
+     * validity is a whole-selection property: splitting a folder/ZIP manifest
+     * into upload-sized slices can separate companions from their entrypoint.
+     */
+    const response = await previewUpload({ ...rest, directories: [], filePaths }, csrf, options);
 
     appendUnique(allOverwriteable, overwriteable, response.overwriteable);
     appendUnique(allBlocking, blocking, response.blocking);
+    unsupportedCount = response.unsupportedCount ?? 0;
+    unsupported = response.unsupported ?? [];
+    entrypointCount = response.entrypointCount ?? 0;
+    companionCount = response.companionCount ?? 0;
+    bundleEntrypoints = response.bundleEntrypoints ?? [];
   }
 
   return {
@@ -535,6 +548,11 @@ export async function previewUploadBatched(
     blockingCount: allBlocking.size,
     overwriteable,
     blocking,
+    unsupportedCount,
+    unsupported,
+    entrypointCount,
+    companionCount,
+    bundleEntrypoints,
   };
 }
 

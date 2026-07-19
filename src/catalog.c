@@ -128,6 +128,8 @@ static int cs_catalog_load_string_list(cJSON *object,
     return 0;
 }
 
+static void cs_catalog_system_free(cs_catalog_system *system);
+
 static int cs_catalog_string_list_dup(const cs_catalog_string_list *src,
                                       cs_catalog_string_list *out) {
     size_t i;
@@ -143,6 +145,12 @@ static int cs_catalog_string_list_dup(const cs_catalog_string_list *src,
     for (i = 0; i < src->count; ++i) {
         out->items[i] = cs_catalog_strdup(src->items[i]);
         if (!out->items[i]) {
+            while (out->count > 0) {
+                out->count -= 1;
+                free(out->items[out->count]);
+            }
+            free(out->items);
+            memset(out, 0, sizeof(*out));
             return -1;
         }
         out->count += 1;
@@ -167,9 +175,11 @@ static int cs_catalog_load_system(cJSON *row, cs_catalog_system *out) {
         || cs_catalog_load_string_list(row, "file_names", &out->file_names) != 0
         || cs_catalog_load_string_list(row, "ignore_file_names", &out->ignore_file_names) != 0
         || cs_catalog_load_string_list(row, "playlist_extensions", &out->playlist_extensions) != 0) {
+        cs_catalog_system_free(out);
         return -1;
     }
     if (out->id[0] == '\0' || out->name[0] == '\0') {
+        cs_catalog_system_free(out);
         return -1;
     }
     /* Contract defaults (see systems.json archive-policy contract): archive_mode
@@ -179,11 +189,13 @@ static int cs_catalog_load_system(cJSON *row, cs_catalog_system *out) {
         free(out->archive_mode);
         out->archive_mode = cs_catalog_strdup("pass_through");
         if (!out->archive_mode) {
+            cs_catalog_system_free(out);
             return -1;
         }
     }
     if (out->archive_inner_extensions.count == 0 && out->extensions.count > 0) {
         if (cs_catalog_string_list_dup(&out->extensions, &out->archive_inner_extensions) != 0) {
+            cs_catalog_system_free(out);
             return -1;
         }
     }

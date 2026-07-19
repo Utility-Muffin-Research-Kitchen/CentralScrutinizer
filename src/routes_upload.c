@@ -9,6 +9,7 @@
 #include "cjson/cJSON.h"
 #include "civetweb.h"
 
+#include <dirent.h>
 #include <errno.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -18,10 +19,17 @@
 
 #define CS_UPLOAD_MAX_FILES 32
 #define CS_UPLOAD_MAX_DIRECTORIES 32
+#define CS_UPLOAD_PREVIEW_MANIFEST_MAX 8192
+#define CS_UPLOAD_ROM_REPORT_MAX 16
 #define CS_UPLOAD_MAX_REQUEST_BYTES_DEFAULT (8LL * 1024 * 1024 * 1024)
 #define CS_UPLOAD_MAX_BIOS_FILE_BYTES_DEFAULT (64LL * 1024 * 1024)
 #define CS_UPLOAD_PREVIEW_TRACK_MAX 256
 #define CS_UPLOAD_PREVIEW_RESULT_MAX CS_UPLOAD_PREVIEW_TRACK_MAX
+
+typedef struct cs_upload_preview_file {
+    char filename[256];
+    char *relative_dir;
+} cs_upload_preview_file;
 
 typedef struct cs_upload_request {
     cs_app *app;
@@ -30,8 +38,8 @@ typedef struct cs_upload_request {
     char path[CS_PATH_MAX];
     char file_names[CS_UPLOAD_MAX_FILES][256];
     char relative_dirs[CS_UPLOAD_MAX_FILES][CS_PATH_MAX];
-    char preview_file_names[CS_UPLOAD_MAX_FILES][256];
-    char preview_relative_dirs[CS_UPLOAD_MAX_FILES][CS_PATH_MAX];
+    cs_upload_preview_file *preview_files;
+    size_t preview_file_capacity;
     char directories[CS_UPLOAD_MAX_DIRECTORIES][CS_PATH_MAX];
     char final_root[CS_PATH_MAX];
     char final_guard_root[CS_PATH_MAX];
@@ -69,7 +77,18 @@ typedef struct cs_upload_preview_result {
     size_t overwriteable_preview_count;
     size_t blocking_preview_count;
     size_t seen_count;
+    char unsupported[CS_UPLOAD_ROM_REPORT_MAX][CS_PATH_MAX];
+    char unsupported_reasons[CS_UPLOAD_ROM_REPORT_MAX][32];
+    char **bundle_entrypoints;
+    size_t unsupported_count;
+    size_t unsupported_preview_count;
+    size_t entrypoint_count;
+    size_t companion_count;
+    size_t bundle_entrypoint_count;
+    size_t bundle_entrypoint_capacity;
 } cs_upload_preview_result;
+
+static void cs_upload_top_folder(const char *rel, char *out, size_t out_size);
 
 static int cs_method_is(const struct mg_connection *conn, const char *method) {
     const struct mg_request_info *request = mg_get_request_info(conn);
@@ -325,6 +344,67 @@ static void cs_upload_cleanup_temp_files(cs_upload_request *state) {
     }
 }
 
+static void cs_upload_cleanup_preview_files(cs_upload_request *state) {
+    size_t i;
+
+    if (!state) {
+        return;
+    }
+    for (i = 0; i < state->preview_file_count; ++i) {
+        free(state->preview_files[i].relative_dir);
+    }
+    free(state->preview_files);
+    state->preview_files = NULL;
+    state->preview_file_count = 0;
+    state->preview_file_capacity = 0;
+}
+
+static int cs_upload_append_preview_file(cs_upload_request *state,
+                                         const char *client_path) {
+    cs_upload_preview_file *grown;
+    cs_upload_preview_file *entry;
+    char relative_dir[CS_PATH_MAX];
+    char filename[256];
+    size_t next_capacity;
+
+    if (!state || !client_path
+        || state->preview_file_count >= CS_UPLOAD_PREVIEW_MANIFEST_MAX
+        || cs_upload_split_client_path(client_path,
+                                       relative_dir,
+                                       sizeof(relative_dir),
+                                       filename,
+                                       sizeof(filename))
+               != 0) {
+        return -1;
+    }
+    if (state->preview_file_count == state->preview_file_capacity) {
+        next_capacity = state->preview_file_capacity == 0 ? 64 : state->preview_file_capacity * 2;
+        if (next_capacity > CS_UPLOAD_PREVIEW_MANIFEST_MAX) {
+            next_capacity = CS_UPLOAD_PREVIEW_MANIFEST_MAX;
+        }
+        grown = (cs_upload_preview_file *) realloc(
+            state->preview_files, next_capacity * sizeof(state->preview_files[0]));
+        if (!grown) {
+            return -1;
+        }
+        state->preview_files = grown;
+        state->preview_file_capacity = next_capacity;
+    }
+
+    entry = &state->preview_files[state->preview_file_count];
+    memset(entry, 0, sizeof(*entry));
+    entry->relative_dir = strdup(relative_dir);
+    if (!entry->relative_dir
+        || snprintf(entry->filename, sizeof(entry->filename), "%s", filename)
+               >= (int) sizeof(entry->filename)) {
+        free(entry->relative_dir);
+        entry->relative_dir = NULL;
+        return -1;
+    }
+    state->preview_file_count += 1;
+    return 0;
+}
+
 static int cs_prepare_upload_metadata(cs_upload_request *state) {
     cs_browser_scope scope;
     cs_platform_info resolved_platform = {0};
@@ -530,24 +610,17 @@ static int cs_upload_preview_field_get(const char *key, const char *value, size_
     if (strcmp(key, "file_path") == 0) {
         char client_path[CS_PATH_MAX];
 
-        if (state->preview_file_count >= CS_UPLOAD_MAX_FILES || valuelen == 0 || valuelen >= sizeof(client_path)) {
+        if (valuelen == 0 || valuelen >= sizeof(client_path)) {
             state->failed = 1;
             return MG_FORM_FIELD_HANDLE_ABORT;
         }
 
         memcpy(client_path, value, valuelen);
         client_path[valuelen] = '\0';
-        if (cs_upload_split_client_path(client_path,
-                                        state->preview_relative_dirs[state->preview_file_count],
-                                        sizeof(state->preview_relative_dirs[state->preview_file_count]),
-                                        state->preview_file_names[state->preview_file_count],
-                                        sizeof(state->preview_file_names[state->preview_file_count]))
-            != 0) {
+        if (cs_upload_append_preview_file(state, client_path) != 0) {
             state->failed = 1;
             return MG_FORM_FIELD_HANDLE_ABORT;
         }
-
-        state->preview_file_count += 1;
     }
 
     return state->failed ? MG_FORM_FIELD_HANDLE_ABORT : MG_FORM_FIELD_HANDLE_NEXT;
@@ -633,6 +706,176 @@ static void cs_upload_preview_record(cs_upload_preview_result *result,
     (void) snprintf(preview_list[*preview_count].path, sizeof(preview_list[*preview_count].path), "%s", path);
     preview_list[*preview_count].kind = kind;
     *preview_count += 1;
+}
+
+static void cs_upload_preview_result_free(cs_upload_preview_result *result) {
+    size_t i;
+
+    if (!result) {
+        return;
+    }
+    for (i = 0; i < result->bundle_entrypoint_count; ++i) {
+        free(result->bundle_entrypoints[i]);
+    }
+    free(result->bundle_entrypoints);
+    free(result);
+}
+
+static void cs_upload_preview_record_unsupported(cs_upload_preview_result *result,
+                                                 const char *path,
+                                                 cs_rom_entry_status status) {
+    if (!result || !path) {
+        return;
+    }
+    result->unsupported_count += 1;
+    if (result->unsupported_preview_count >= CS_UPLOAD_ROM_REPORT_MAX) {
+        return;
+    }
+    (void) snprintf(result->unsupported[result->unsupported_preview_count],
+                    sizeof(result->unsupported[result->unsupported_preview_count]),
+                    "%s",
+                    path);
+    (void) snprintf(result->unsupported_reasons[result->unsupported_preview_count],
+                    sizeof(result->unsupported_reasons[result->unsupported_preview_count]),
+                    "%s",
+                    cs_rom_entry_status_name(status));
+    result->unsupported_preview_count += 1;
+}
+
+static int cs_upload_preview_add_bundle_entrypoint(cs_upload_preview_result *result,
+                                                   const char *path) {
+    char **grown;
+    size_t next_capacity;
+
+    if (!result || !path || !path[0]) {
+        return -1;
+    }
+    if (result->bundle_entrypoint_count == result->bundle_entrypoint_capacity) {
+        next_capacity = result->bundle_entrypoint_capacity == 0
+            ? 16
+            : result->bundle_entrypoint_capacity * 2;
+        grown = (char **) realloc(result->bundle_entrypoints,
+                                  next_capacity * sizeof(result->bundle_entrypoints[0]));
+        if (!grown) {
+            return -1;
+        }
+        result->bundle_entrypoints = grown;
+        result->bundle_entrypoint_capacity = next_capacity;
+    }
+    result->bundle_entrypoints[result->bundle_entrypoint_count] = strdup(path);
+    if (!result->bundle_entrypoints[result->bundle_entrypoint_count]) {
+        return -1;
+    }
+    result->bundle_entrypoint_count += 1;
+    return 0;
+}
+
+static int cs_upload_preview_apply_rom_policy(const cs_upload_request *state,
+                                              cs_upload_preview_result *result) {
+    cs_rom_upload_policy policy;
+    size_t i;
+
+    if (!state || !result || cs_browser_scope_parse(state->scope) != CS_SCOPE_ROMS) {
+        return 0;
+    }
+    if (cs_platform_resolve_rom_upload_policy(&state->app->paths, state->tag, &policy) != 0
+        || !policy.enforced) {
+        cs_rom_upload_policy_free(&policy);
+        return 0;
+    }
+
+    for (i = 0; i < state->preview_file_count; ++i) {
+        const cs_upload_preview_file *file = &state->preview_files[i];
+        cs_rom_entry_status status;
+
+        if (file->relative_dir[0] != '\0') {
+            continue;
+        }
+        status = cs_rom_upload_policy_classify(&policy, file->filename);
+        if (status == CS_ROM_ENTRY_ACCEPTED) {
+            result->entrypoint_count += 1;
+        } else {
+            cs_upload_preview_record_unsupported(result, file->filename, status);
+        }
+    }
+
+    for (i = 0; i < state->preview_file_count; ++i) {
+        const cs_upload_preview_file *file = &state->preview_files[i];
+        char top[CS_PATH_MAX];
+        size_t j;
+        int already_seen = 0;
+        int has_entrypoint = 0;
+        char first_entrypoint[CS_PATH_MAX] = {0};
+
+        if (file->relative_dir[0] == '\0') {
+            continue;
+        }
+        cs_upload_top_folder(file->relative_dir, top, sizeof(top));
+        for (j = 0; j < i; ++j) {
+            char previous_top[CS_PATH_MAX];
+            if (state->preview_files[j].relative_dir[0] == '\0') {
+                continue;
+            }
+            cs_upload_top_folder(state->preview_files[j].relative_dir,
+                                 previous_top,
+                                 sizeof(previous_top));
+            if (strcmp(previous_top, top) == 0) {
+                already_seen = 1;
+                break;
+            }
+        }
+        if (already_seen) {
+            continue;
+        }
+
+        for (j = 0; j < state->preview_file_count; ++j) {
+            const cs_upload_preview_file *candidate = &state->preview_files[j];
+            char candidate_top[CS_PATH_MAX];
+            cs_rom_entry_status status;
+
+            if (candidate->relative_dir[0] == '\0') {
+                continue;
+            }
+            cs_upload_top_folder(candidate->relative_dir, candidate_top, sizeof(candidate_top));
+            if (strcmp(candidate_top, top) != 0) {
+                continue;
+            }
+            status = cs_rom_upload_policy_classify(&policy, candidate->filename);
+            if (status == CS_ROM_ENTRY_ACCEPTED) {
+                result->entrypoint_count += 1;
+                if (!has_entrypoint
+                    && cs_upload_join_relative_path(candidate->relative_dir,
+                                                    candidate->filename,
+                                                    first_entrypoint,
+                                                    sizeof(first_entrypoint))
+                           != 0) {
+                    cs_rom_upload_policy_free(&policy);
+                    return -1;
+                }
+                has_entrypoint = 1;
+            } else {
+                result->companion_count += 1;
+            }
+        }
+        if (has_entrypoint) {
+            if (cs_upload_preview_add_bundle_entrypoint(result, first_entrypoint) != 0) {
+                cs_rom_upload_policy_free(&policy);
+                return -1;
+            }
+        } else {
+            char bundle_path[CS_PATH_MAX];
+            if (snprintf(bundle_path, sizeof(bundle_path), "%s/", top)
+                >= (int) sizeof(bundle_path)) {
+                cs_rom_upload_policy_free(&policy);
+                return -1;
+            }
+            cs_upload_preview_record_unsupported(
+                result, bundle_path, CS_ROM_ENTRY_UNSUPPORTED);
+        }
+    }
+
+    cs_rom_upload_policy_free(&policy);
+    return 0;
 }
 
 static int cs_upload_preview_scan_required_directories(const cs_upload_request *state,
@@ -790,6 +1033,43 @@ static int cs_upload_preview_write_list(struct mg_connection *conn,
     return 0;
 }
 
+static int cs_upload_preview_write_unsupported(struct mg_connection *conn,
+                                               const cs_upload_preview_result *result) {
+    size_t i;
+
+    for (i = 0; result && i < result->unsupported_preview_count; ++i) {
+        if (i > 0 && cs_routes_stream_literal(conn, ",") != 0) {
+            return -1;
+        }
+        if (cs_routes_stream_literal(conn, "{\"path\":\"") != 0
+            || cs_routes_stream_escaped_string(conn, result->unsupported[i]) != 0
+            || cs_routes_stream_literal(conn, "\",\"reason\":\"") != 0
+            || cs_routes_stream_escaped_string(conn, result->unsupported_reasons[i]) != 0
+            || cs_routes_stream_literal(conn, "\"}") != 0) {
+            return -1;
+        }
+    }
+    return 0;
+}
+
+static int cs_upload_preview_write_bundle_entrypoints(
+    struct mg_connection *conn,
+    const cs_upload_preview_result *result) {
+    size_t i;
+
+    for (i = 0; result && i < result->bundle_entrypoint_count; ++i) {
+        if (i > 0 && cs_routes_stream_literal(conn, ",") != 0) {
+            return -1;
+        }
+        if (cs_routes_stream_literal(conn, "\"") != 0
+            || cs_routes_stream_escaped_string(conn, result->bundle_entrypoints[i]) != 0
+            || cs_routes_stream_literal(conn, "\"") != 0) {
+            return -1;
+        }
+    }
+    return 0;
+}
+
 static int cs_upload_preview_write_response(struct mg_connection *conn, const cs_upload_preview_result *result) {
     if (!conn || !result) {
         return 1;
@@ -805,6 +1085,16 @@ static int cs_upload_preview_write_response(struct mg_connection *conn, const cs
         || cs_upload_preview_write_list(conn, result->overwriteable, result->overwriteable_preview_count) != 0
         || cs_routes_stream_literal(conn, "],\"blocking\":[") != 0
         || cs_upload_preview_write_list(conn, result->blocking, result->blocking_preview_count) != 0
+        || cs_routes_stream_literal(conn, "],\"unsupportedCount\":") != 0
+        || cs_routes_stream_unsigned(conn, result->unsupported_count) != 0
+        || cs_routes_stream_literal(conn, ",\"unsupported\":[") != 0
+        || cs_upload_preview_write_unsupported(conn, result) != 0
+        || cs_routes_stream_literal(conn, "],\"entrypointCount\":") != 0
+        || cs_routes_stream_unsigned(conn, result->entrypoint_count) != 0
+        || cs_routes_stream_literal(conn, ",\"companionCount\":") != 0
+        || cs_routes_stream_unsigned(conn, result->companion_count) != 0
+        || cs_routes_stream_literal(conn, ",\"bundleEntrypoints\":[") != 0
+        || cs_upload_preview_write_bundle_entrypoints(conn, result) != 0
         || cs_routes_stream_literal(conn, "]}") != 0
         || mg_send_chunk(conn, "", 0) < 0) {
         (void) mg_send_chunk(conn, "", 0);
@@ -861,7 +1151,8 @@ int cs_route_upload_preview_handler(struct mg_connection *conn, void *cbdata) {
 
         cs_upload_write_form_failure_detail(detail, sizeof(detail), handled_fields, &request_state);
         response_status = cs_write_upload_bad_request(conn, "upload preview", error_code, detail);
-        free(preview_result);
+        cs_upload_cleanup_preview_files(&request_state);
+        cs_upload_preview_result_free(preview_result);
         return response_status;
     }
     if (cs_prepare_upload_metadata(&request_state) != 0) {
@@ -873,35 +1164,44 @@ int cs_route_upload_preview_handler(struct mg_connection *conn, void *cbdata) {
                                                       request_state.source_required
                                                           ? "files scope requires a source path"
                                                           : "target metadata could not be resolved");
-        free(preview_result);
+        cs_upload_cleanup_preview_files(&request_state);
+        cs_upload_preview_result_free(preview_result);
+        return response_status;
+    }
+
+    if (cs_upload_preview_apply_rom_policy(&request_state, preview_result) != 0) {
+        response_status = cs_write_json(conn, 500, "Internal Server Error", "{\"ok\":false}");
+        cs_upload_cleanup_preview_files(&request_state);
+        cs_upload_preview_result_free(preview_result);
         return response_status;
     }
 
     for (i = 0; i < request_state.directory_count; ++i) {
         if (cs_upload_preview_scan_directory(&request_state, request_state.directories[i], preview_result) != 0) {
             response_status = cs_write_json(conn, 500, "Internal Server Error", "{\"ok\":false}");
-            free(preview_result);
+            cs_upload_cleanup_preview_files(&request_state);
+            cs_upload_preview_result_free(preview_result);
             return response_status;
         }
     }
     for (i = 0; i < request_state.preview_file_count; ++i) {
         if (cs_upload_preview_scan_file(&request_state,
-                                        request_state.preview_relative_dirs[i],
-                                        request_state.preview_file_names[i],
+                                        request_state.preview_files[i].relative_dir,
+                                        request_state.preview_files[i].filename,
                                         preview_result)
             != 0) {
             response_status = cs_write_json(conn, 500, "Internal Server Error", "{\"ok\":false}");
-            free(preview_result);
+            cs_upload_cleanup_preview_files(&request_state);
+            cs_upload_preview_result_free(preview_result);
             return response_status;
         }
     }
 
     response_status = cs_upload_preview_write_response(conn, preview_result);
-    free(preview_result);
+    cs_upload_cleanup_preview_files(&request_state);
+    cs_upload_preview_result_free(preview_result);
     return response_status;
 }
-
-#define CS_UPLOAD_ROM_REPORT_MAX 16
 
 /* First path component of a relative dir ("Foo/Bar" -> "Foo"). */
 static void cs_upload_top_folder(const char *rel, char *out, size_t out_size) {
@@ -921,6 +1221,69 @@ static void cs_upload_top_folder(const char *rel, char *out, size_t out_size) {
     }
     memcpy(out, rel, n);
     out[n] = '\0';
+}
+
+static int cs_upload_existing_bundle_has_entrypoint_recursive(
+    const char *path,
+    const cs_rom_upload_policy *policy,
+    unsigned int depth) {
+    DIR *dir;
+    struct dirent *entry;
+    int found = 0;
+
+    if (!path || !policy || depth > 32) {
+        return 0;
+    }
+    dir = opendir(path);
+    if (!dir) {
+        return 0;
+    }
+    while (!found && (entry = readdir(dir)) != NULL) {
+        char child[CS_PATH_MAX];
+        struct stat st;
+
+        if (strcmp(entry->d_name, ".") == 0 || strcmp(entry->d_name, "..") == 0
+            || snprintf(child, sizeof(child), "%s/%s", path, entry->d_name)
+                   >= (int) sizeof(child)
+            || lstat(child, &st) != 0 || S_ISLNK(st.st_mode)) {
+            continue;
+        }
+        if (S_ISREG(st.st_mode)
+            && cs_rom_upload_policy_classify(policy, entry->d_name)
+                   == CS_ROM_ENTRY_ACCEPTED) {
+            found = 1;
+        } else if (S_ISDIR(st.st_mode)) {
+            found = cs_upload_existing_bundle_has_entrypoint_recursive(
+                child, policy, depth + 1);
+        }
+    }
+    closedir(dir);
+    return found;
+}
+
+static int cs_upload_existing_bundle_has_entrypoint(
+    const cs_upload_request *state,
+    const char *top,
+    const cs_rom_upload_policy *policy) {
+    char bundle_relative[CS_PATH_MAX];
+    char bundle_absolute[CS_PATH_MAX];
+
+    if (!state || !top || !policy
+        || cs_upload_join_relative_path(state->path,
+                                        top,
+                                        bundle_relative,
+                                        sizeof(bundle_relative))
+               != 0
+        || cs_resolve_path_under_root_with_flags(state->final_root,
+                                                 bundle_relative,
+                                                 state->path_flags,
+                                                 bundle_absolute,
+                                                 sizeof(bundle_absolute))
+               != 0) {
+        return 0;
+    }
+    return cs_upload_existing_bundle_has_entrypoint_recursive(
+        bundle_absolute, policy, 0);
 }
 
 static void cs_rom_formats_append(cJSON *arr, const cs_catalog_string_list *list) {
@@ -958,6 +1321,7 @@ static int cs_upload_rom_scope_rejected(cs_upload_request *state,
     cJSON *root;
     cJSON *list_json;
     cJSON *accepted_json;
+    cJSON *accepted_file_names_json;
     char *body;
 
     if (!state || !state->app) {
@@ -1020,6 +1384,10 @@ static int cs_upload_rom_scope_rejected(cs_upload_request *state,
             }
         }
         if (!has_entrypoint) {
+            has_entrypoint = cs_upload_existing_bundle_has_entrypoint(
+                state, top, &policy);
+        }
+        if (!has_entrypoint) {
             unsupported_total += 1;
             if (unsupported_count < CS_UPLOAD_ROM_REPORT_MAX) {
                 snprintf(unsupported[unsupported_count++], CS_PATH_MAX, "%s/", top);
@@ -1035,16 +1403,19 @@ static int cs_upload_rom_scope_rejected(cs_upload_request *state,
     root = cJSON_CreateObject();
     list_json = cJSON_CreateArray();
     accepted_json = cJSON_CreateArray();
+    accepted_file_names_json = cJSON_CreateArray();
     for (i = 0; i < unsupported_count; ++i) {
         cJSON_AddItemToArray(list_json, cJSON_CreateString(unsupported[i]));
     }
     cs_rom_formats_append(accepted_json, &policy.extensions);
     cs_rom_formats_append(accepted_json, &policy.playlist_extensions);
     cs_rom_formats_append(accepted_json, &policy.archive_extensions);
+    cs_rom_formats_append(accepted_file_names_json, &policy.file_names);
     cJSON_AddStringToObject(root, "error", "unsupported_rom_format");
     cJSON_AddItemToObject(root, "unsupported", list_json);
     cJSON_AddNumberToObject(root, "unsupportedCount", (double) unsupported_total);
     cJSON_AddItemToObject(root, "accepted", accepted_json);
+    cJSON_AddItemToObject(root, "acceptedFileNames", accepted_file_names_json);
     body = cJSON_PrintUnformatted(root);
     *out_status = cs_write_json(conn, 415, "Unsupported Media Type",
                                 body ? body : "{\"error\":\"unsupported_rom_format\"}");

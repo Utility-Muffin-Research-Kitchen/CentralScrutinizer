@@ -194,6 +194,18 @@ cmp -s "$SOURCE_ROM" "$UPLOADED_ROM"
 # 415 before any destination file is written (the motivating bug).
 PSP_ZIP_NAME="upload-$RANDOM-$$.zip"
 PSP_ZIP_DEST="$SDCARD_ROOT/Roms/PSP/$PSP_ZIP_NAME"
+PSP_PREVIEW_RESPONSE="$(curl -sS -X POST \
+    -b "$COOKIE_JAR" \
+    -H "X-CS-CSRF: $CSRF_TOKEN" \
+    -F "scope=roms" \
+    -F "tag=PSP" \
+    -F "file_path=$PSP_ZIP_NAME" \
+    -w '\n%{http_code}' \
+    http://127.0.0.1:8877/api/upload/preview)"
+printf '%s\n' "$PSP_PREVIEW_RESPONSE" | grep -Fq '"unsupportedCount":1'
+printf '%s\n' "$PSP_PREVIEW_RESPONSE" | grep -Fq "\"path\":\"$PSP_ZIP_NAME\""
+echo "$PSP_PREVIEW_RESPONSE" | tail -n 1 | grep -q '^200$'
+
 ROM_REJECT_RESPONSE="$(curl -sS -X POST \
     -b "$COOKIE_JAR" \
     -H "X-CS-CSRF: $CSRF_TOKEN" \
@@ -203,8 +215,77 @@ ROM_REJECT_RESPONSE="$(curl -sS -X POST \
     -w '\n%{http_code}' \
     http://127.0.0.1:8877/api/upload)"
 echo "$ROM_REJECT_RESPONSE" | head -n 1 | grep -Fq 'unsupported_rom_format'
+echo "$ROM_REJECT_RESPONSE" | head -n 1 | grep -Fq '"acceptedFileNames":'
 echo "$ROM_REJECT_RESPONSE" | tail -n 1 | grep -q '^415$'
 test ! -e "$PSP_ZIP_DEST"
+
+# Preview is intentionally larger than the 32-file transfer batch. The complete
+# manifest must recognize the final .iso as the bundle entrypoint instead of
+# rejecting the first 32 companion files in isolation.
+PSP_MANIFEST_BUNDLE="preview-bundle-$RANDOM-$$"
+PSP_MANIFEST_ARGS=(
+    -sS
+    -X POST
+    -b "$COOKIE_JAR"
+    -H "X-CS-CSRF: $CSRF_TOKEN"
+    -F "scope=roms"
+    -F "tag=PSP"
+)
+for index in $(seq 1 32); do
+    PSP_MANIFEST_ARGS+=(-F "file_path=$PSP_MANIFEST_BUNDLE/data-$index.bin")
+done
+PSP_MANIFEST_ARGS+=(
+    -F "file_path=$PSP_MANIFEST_BUNDLE/game.iso"
+    -w '\n%{http_code}'
+    http://127.0.0.1:8877/api/upload/preview
+)
+PSP_MANIFEST_RESPONSE="$(curl "${PSP_MANIFEST_ARGS[@]}")"
+printf '%s\n' "$PSP_MANIFEST_RESPONSE" | grep -Fq '"unsupportedCount":0'
+printf '%s\n' "$PSP_MANIFEST_RESPONSE" | grep -Fq '"entrypointCount":1'
+printf '%s\n' "$PSP_MANIFEST_RESPONSE" | grep -Fq '"companionCount":32'
+printf '%s\n' "$PSP_MANIFEST_RESPONSE" | grep -Fq "\"bundleEntrypoints\":[\"$PSP_MANIFEST_BUNDLE/game.iso\"]"
+echo "$PSP_MANIFEST_RESPONSE" | tail -n 1 | grep -q '^200$'
+
+# Once the entrypoint batch lands, later companion-only batches for the same
+# bundle remain valid. A new companion-only bundle is still rejected.
+PSP_BATCH_BUNDLE="batch-bundle-$RANDOM-$$"
+PSP_BATCH_ROOT="$SDCARD_ROOT/Roms/PSP/$PSP_BATCH_BUNDLE"
+PSP_ENTRYPOINT_RESPONSE="$(curl -sS -X POST \
+    -b "$COOKIE_JAR" \
+    -H "X-CS-CSRF: $CSRF_TOKEN" \
+    -F "scope=roms" \
+    -F "tag=PSP" \
+    -F "file=@$SOURCE_ROM;filename=$PSP_BATCH_BUNDLE/game.iso" \
+    -w '\n%{http_code}' \
+    http://127.0.0.1:8877/api/upload)"
+echo "$PSP_ENTRYPOINT_RESPONSE" | head -n 1 | grep -Fq '{"ok":true}'
+echo "$PSP_ENTRYPOINT_RESPONSE" | tail -n 1 | grep -q '^200$'
+test -f "$PSP_BATCH_ROOT/game.iso"
+
+PSP_COMPANION_RESPONSE="$(curl -sS -X POST \
+    -b "$COOKIE_JAR" \
+    -H "X-CS-CSRF: $CSRF_TOKEN" \
+    -F "scope=roms" \
+    -F "tag=PSP" \
+    -F "file=@$SOURCE_NOTE;filename=$PSP_BATCH_BUNDLE/readme.txt" \
+    -w '\n%{http_code}' \
+    http://127.0.0.1:8877/api/upload)"
+echo "$PSP_COMPANION_RESPONSE" | head -n 1 | grep -Fq '{"ok":true}'
+echo "$PSP_COMPANION_RESPONSE" | tail -n 1 | grep -q '^200$'
+test -f "$PSP_BATCH_ROOT/readme.txt"
+
+PSP_INVALID_BUNDLE="invalid-bundle-$RANDOM-$$"
+PSP_INVALID_BUNDLE_RESPONSE="$(curl -sS -X POST \
+    -b "$COOKIE_JAR" \
+    -H "X-CS-CSRF: $CSRF_TOKEN" \
+    -F "scope=roms" \
+    -F "tag=PSP" \
+    -F "file=@$SOURCE_NOTE;filename=$PSP_INVALID_BUNDLE/readme.txt" \
+    -w '\n%{http_code}' \
+    http://127.0.0.1:8877/api/upload)"
+echo "$PSP_INVALID_BUNDLE_RESPONSE" | head -n 1 | grep -Fq 'unsupported_rom_format'
+echo "$PSP_INVALID_BUNDLE_RESPONSE" | tail -n 1 | grep -q '^415$'
+test ! -e "$SDCARD_ROOT/Roms/PSP/$PSP_INVALID_BUNDLE"
 
 # PSP accepts a supported .iso.
 PSP_ISO_NAME="upload-$RANDOM-$$.iso"

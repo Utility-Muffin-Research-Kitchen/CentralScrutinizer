@@ -128,6 +128,13 @@ export function ZipExtractDialog({
   const totalRemaining = Math.max(0, preview.entries.length - PREVIEW_LIMIT);
   const overwriteableRemaining = Math.max(0, (conflicts?.overwriteableCount ?? 0) - (conflicts?.overwriteable.length ?? 0));
   const blockingRemaining = Math.max(0, (conflicts?.blockingCount ?? 0) - (conflicts?.blocking.length ?? 0));
+  const unsupported = conflicts?.unsupported ?? [];
+  const unsupportedCount = conflicts?.unsupportedCount ?? 0;
+  const unsupportedRemaining = Math.max(0, unsupportedCount - unsupported.length);
+  const extractionBlocked =
+    unsupportedCount > 0 ||
+    (conflicts?.blockingCount ?? 0) > 0 ||
+    (!overwriteExisting && (conflicts?.overwriteableCount ?? 0) > 0);
 
   useEffect(() => {
     setShowMobileSelectedPreview(false);
@@ -255,13 +262,37 @@ export function ZipExtractDialog({
             </div>
           </label>
 
-          {conflicts && (conflicts.overwriteableCount > 0 || conflicts.blockingCount > 0) ? (
+          {conflicts &&
+          (unsupportedCount > 0 || conflicts.overwriteableCount > 0 || conflicts.blockingCount > 0) ? (
             <section className="mt-3 rounded-xl border border-amber-300/25 bg-amber-500/10 p-3 text-sm text-[var(--text)] sm:mt-4 sm:p-4">
               <p className="font-semibold">
-                {conflicts.blockingCount > 0
+                {unsupportedCount > 0
+                  ? "This extraction does not contain a supported game entrypoint."
+                  : conflicts.blockingCount > 0
                   ? "Some paths need attention before extraction can continue."
                   : "This extraction would replace existing files."}
               </p>
+
+              {unsupportedCount > 0 ? (
+                <div className="mt-3">
+                  <p className="text-xs uppercase tracking-[0.18em] text-[var(--muted)]">
+                    Unsupported ROM bundles ({unsupportedCount})
+                  </p>
+                  <div className="mt-2 space-y-1">
+                    {unsupported.map((item) => (
+                      <p key={`${item.reason}:${item.path}`} className="break-all font-mono text-xs text-[var(--muted)]">
+                        {item.path}
+                      </p>
+                    ))}
+                    {unsupportedRemaining > 0 ? (
+                      <p className="text-xs text-[var(--muted)]">...and {unsupportedRemaining} more</p>
+                    ) : null}
+                  </div>
+                  <p className="mt-2 text-xs text-[var(--muted)]">
+                    Choose another extraction layout or include a file format supported by this system.
+                  </p>
+                </div>
+              ) : null}
 
               {conflicts.overwriteableCount > 0 ? (
                 <div className="mt-3">
@@ -335,7 +366,7 @@ export function ZipExtractDialog({
           </button>
           <button
             className="rounded-md border border-[var(--accent)] bg-[var(--accent)] px-3 py-2 text-xs font-semibold text-white transition hover:bg-[var(--accent-strong)] disabled:cursor-not-allowed disabled:opacity-70"
-            disabled={checking}
+            disabled={checking || extractionBlocked}
             onClick={() => onConfirm({ strategy: selectedStrategy, overwriteExisting })}
             type="button"
           >

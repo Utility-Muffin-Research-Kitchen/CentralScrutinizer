@@ -1,10 +1,12 @@
 #include "cs_app.h"
 #include "cs_library.h"
 #include "cs_platforms.h"
+#include "cs_rom_policy.h"
 #include "cs_routes_helpers.h"
 #include "cs_server.h"
 #include "cs_uploads.h"
 
+#include "cjson/cJSON.h"
 #include "civetweb.h"
 
 #include <errno.h>
@@ -899,6 +901,159 @@ int cs_route_upload_preview_handler(struct mg_connection *conn, void *cbdata) {
     return response_status;
 }
 
+#define CS_UPLOAD_ROM_REPORT_MAX 16
+
+/* First path component of a relative dir ("Foo/Bar" -> "Foo"). */
+static void cs_upload_top_folder(const char *rel, char *out, size_t out_size) {
+    const char *slash;
+    size_t n;
+    if (!out || out_size == 0) {
+        return;
+    }
+    out[0] = '\0';
+    if (!rel) {
+        return;
+    }
+    slash = strchr(rel, '/');
+    n = slash ? (size_t) (slash - rel) : strlen(rel);
+    if (n >= out_size) {
+        n = out_size - 1;
+    }
+    memcpy(out, rel, n);
+    out[n] = '\0';
+}
+
+static void cs_rom_formats_append(cJSON *arr, const cs_catalog_string_list *list) {
+    size_t i;
+    for (i = 0; list && i < list->count; ++i) {
+        cJSON *value;
+        int duplicate = 0;
+        cJSON_ArrayForEach(value, arr) {
+            if (value->valuestring && strcmp(value->valuestring, list->items[i]) == 0) {
+                duplicate = 1;
+                break;
+            }
+        }
+        if (!duplicate) {
+            cJSON_AddItemToArray(arr, cJSON_CreateString(list->items[i]));
+        }
+    }
+}
+
+/* Reject a ROM-scope upload whose selection cannot become a discoverable game.
+   Flat (Upload File) files are strict per-file; files under a top-level folder
+   (Upload Folder/ZIP) form a bundle that must contain at least one accepted
+   entrypoint, the rest allowed as companion data. Only scope=roms is validated;
+   custom/empty/unresolvable policies fail open. On rejection writes a 415 with a
+   bounded unsupported list + the effective accepted formats, and returns 1
+   (with the response status in *out_status). Returns 0 when acceptable. */
+static int cs_upload_rom_scope_rejected(cs_upload_request *state,
+                                        struct mg_connection *conn,
+                                        int *out_status) {
+    cs_rom_upload_policy policy;
+    char unsupported[CS_UPLOAD_ROM_REPORT_MAX][CS_PATH_MAX];
+    size_t unsupported_count = 0;
+    size_t unsupported_total = 0;
+    size_t i, j;
+    cJSON *root;
+    cJSON *list_json;
+    cJSON *accepted_json;
+    char *body;
+
+    if (!state || !state->app) {
+        return 0;
+    }
+    if (cs_browser_scope_parse(state->scope) != CS_SCOPE_ROMS) {
+        return 0;
+    }
+    if (cs_platform_resolve_rom_upload_policy(&state->app->paths, state->tag, &policy) != 0
+        || !policy.enforced) {
+        cs_rom_upload_policy_free(&policy);
+        return 0; /* fail open: unknown/custom/empty policy */
+    }
+
+    for (i = 0; i < state->plan_count; ++i) {
+        if (state->relative_dirs[i][0] != '\0') {
+            continue; /* flat only; bundles handled below */
+        }
+        if (cs_rom_upload_policy_classify(&policy, state->file_names[i]) != CS_ROM_ENTRY_ACCEPTED) {
+            unsupported_total += 1;
+            if (unsupported_count < CS_UPLOAD_ROM_REPORT_MAX) {
+                snprintf(unsupported[unsupported_count++], CS_PATH_MAX, "%s", state->file_names[i]);
+            }
+        }
+    }
+
+    for (i = 0; i < state->plan_count; ++i) {
+        char top[CS_PATH_MAX];
+        int already_seen = 0;
+        int has_entrypoint = 0;
+
+        if (state->relative_dirs[i][0] == '\0') {
+            continue;
+        }
+        cs_upload_top_folder(state->relative_dirs[i], top, sizeof(top));
+        for (j = 0; j < i; ++j) {
+            char prev[CS_PATH_MAX];
+            if (state->relative_dirs[j][0] == '\0') {
+                continue;
+            }
+            cs_upload_top_folder(state->relative_dirs[j], prev, sizeof(prev));
+            if (strcmp(prev, top) == 0) {
+                already_seen = 1;
+                break;
+            }
+        }
+        if (already_seen) {
+            continue;
+        }
+        for (j = 0; j < state->plan_count; ++j) {
+            char cur[CS_PATH_MAX];
+            if (state->relative_dirs[j][0] == '\0') {
+                continue;
+            }
+            cs_upload_top_folder(state->relative_dirs[j], cur, sizeof(cur));
+            if (strcmp(cur, top) == 0
+                && cs_rom_upload_policy_classify(&policy, state->file_names[j]) == CS_ROM_ENTRY_ACCEPTED) {
+                has_entrypoint = 1;
+                break;
+            }
+        }
+        if (!has_entrypoint) {
+            unsupported_total += 1;
+            if (unsupported_count < CS_UPLOAD_ROM_REPORT_MAX) {
+                snprintf(unsupported[unsupported_count++], CS_PATH_MAX, "%s/", top);
+            }
+        }
+    }
+
+    if (unsupported_total == 0) {
+        cs_rom_upload_policy_free(&policy);
+        return 0;
+    }
+
+    root = cJSON_CreateObject();
+    list_json = cJSON_CreateArray();
+    accepted_json = cJSON_CreateArray();
+    for (i = 0; i < unsupported_count; ++i) {
+        cJSON_AddItemToArray(list_json, cJSON_CreateString(unsupported[i]));
+    }
+    cs_rom_formats_append(accepted_json, &policy.extensions);
+    cs_rom_formats_append(accepted_json, &policy.playlist_extensions);
+    cs_rom_formats_append(accepted_json, &policy.archive_extensions);
+    cJSON_AddStringToObject(root, "error", "unsupported_rom_format");
+    cJSON_AddItemToObject(root, "unsupported", list_json);
+    cJSON_AddNumberToObject(root, "unsupportedCount", (double) unsupported_total);
+    cJSON_AddItemToObject(root, "accepted", accepted_json);
+    body = cJSON_PrintUnformatted(root);
+    *out_status = cs_write_json(conn, 415, "Unsupported Media Type",
+                                body ? body : "{\"error\":\"unsupported_rom_format\"}");
+    cJSON_free(body);
+    cJSON_Delete(root);
+    cs_rom_upload_policy_free(&policy);
+    return 1;
+}
+
 int cs_route_upload_handler(struct mg_connection *conn, void *cbdata) {
     cs_app *app = (cs_app *) cbdata;
     cs_upload_request request_state;
@@ -964,6 +1119,15 @@ int cs_route_upload_handler(struct mg_connection *conn, void *cbdata) {
         if (request_state.file_sizes[i] > cs_upload_file_limit_bytes(&request_state)) {
             cs_upload_cleanup_temp_files(&request_state);
             return cs_write_json(conn, 413, "Payload Too Large", "{\"error\":\"upload_too_large\"}");
+        }
+    }
+    {
+        /* Catalog-aware ROM format gate: reject a selection the launcher would
+           never index, before promoting any temp file to the destination. */
+        int reject_status = 0;
+        if (cs_upload_rom_scope_rejected(&request_state, conn, &reject_status)) {
+            cs_upload_cleanup_temp_files(&request_state);
+            return reject_status;
         }
     }
 

@@ -128,6 +128,28 @@ static int cs_catalog_load_string_list(cJSON *object,
     return 0;
 }
 
+static int cs_catalog_string_list_dup(const cs_catalog_string_list *src,
+                                      cs_catalog_string_list *out) {
+    size_t i;
+
+    memset(out, 0, sizeof(*out));
+    if (!src || src->count == 0) {
+        return 0;
+    }
+    out->items = (char **) calloc(src->count, sizeof(out->items[0]));
+    if (!out->items) {
+        return -1;
+    }
+    for (i = 0; i < src->count; ++i) {
+        out->items[i] = cs_catalog_strdup(src->items[i]);
+        if (!out->items[i]) {
+            return -1;
+        }
+        out->count += 1;
+    }
+    return 0;
+}
+
 static int cs_catalog_load_system(cJSON *row, cs_catalog_system *out) {
     memset(out, 0, sizeof(*out));
     out->id = cs_catalog_json_string(row, "id");
@@ -135,14 +157,35 @@ static int cs_catalog_load_system(cJSON *row, cs_catalog_system *out) {
     out->default_core = cs_catalog_json_string(row, "default_core");
     out->rom_root = cs_catalog_json_string(row, "rom_root");
     out->image_root = cs_catalog_json_string(row, "image_root");
+    out->archive_mode = cs_catalog_json_string(row, "archive_mode");
     if (!out->id || !out->name || !out->default_core || !out->rom_root
         || cs_catalog_load_string_list(row, "alternate_cores", &out->alternate_cores) != 0
         || cs_catalog_load_string_list(row, "patterns", &out->patterns) != 0
-        || cs_catalog_load_string_list(row, "extensions", &out->extensions) != 0) {
+        || cs_catalog_load_string_list(row, "extensions", &out->extensions) != 0
+        || cs_catalog_load_string_list(row, "archive_extensions", &out->archive_extensions) != 0
+        || cs_catalog_load_string_list(row, "archive_inner_extensions", &out->archive_inner_extensions) != 0
+        || cs_catalog_load_string_list(row, "file_names", &out->file_names) != 0
+        || cs_catalog_load_string_list(row, "ignore_file_names", &out->ignore_file_names) != 0
+        || cs_catalog_load_string_list(row, "playlist_extensions", &out->playlist_extensions) != 0) {
         return -1;
     }
     if (out->id[0] == '\0' || out->name[0] == '\0') {
         return -1;
+    }
+    /* Contract defaults (see systems.json archive-policy contract): archive_mode
+       defaults to "pass_through"; archive_inner_extensions defaults to the direct
+       extensions when omitted. */
+    if (!out->archive_mode || out->archive_mode[0] == '\0') {
+        free(out->archive_mode);
+        out->archive_mode = cs_catalog_strdup("pass_through");
+        if (!out->archive_mode) {
+            return -1;
+        }
+    }
+    if (out->archive_inner_extensions.count == 0 && out->extensions.count > 0) {
+        if (cs_catalog_string_list_dup(&out->extensions, &out->archive_inner_extensions) != 0) {
+            return -1;
+        }
     }
     return 0;
 }
@@ -189,6 +232,12 @@ static void cs_catalog_system_free(cs_catalog_system *system) {
     free(system->image_root);
     cs_catalog_string_list_free(&system->patterns);
     cs_catalog_string_list_free(&system->extensions);
+    cs_catalog_string_list_free(&system->archive_extensions);
+    cs_catalog_string_list_free(&system->archive_inner_extensions);
+    free(system->archive_mode);
+    cs_catalog_string_list_free(&system->file_names);
+    cs_catalog_string_list_free(&system->ignore_file_names);
+    cs_catalog_string_list_free(&system->playlist_extensions);
 }
 
 static void cs_catalog_core_free(cs_catalog_core *core) {

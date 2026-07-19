@@ -44,4 +44,14 @@ cs_rom_entry_status cs_rom_upload_policy_classify(const cs_rom_upload_policy *po
 
 const char *cs_rom_entry_status_name(cs_rom_entry_status status);
 
+/* Resolve the effective ROM-upload policy for a platform tag, folding every
+   catalog row that maps to the platform (same canonical-id / alias model as
+   cs_platform_resolve). Custom platforms, unknown tags, and an unreadable
+   catalog fail open (enforced = 0) so uploads are never blocked by a policy the
+   server could not determine. Returns 0 on success; the caller frees `out` with
+   cs_rom_upload_policy_free. */
+int cs_platform_resolve_rom_upload_policy(const cs_paths *paths,
+                                          const char *tag,
+                                          cs_rom_upload_policy *out);
+
 #endif

@@ -1,5 +1,6 @@
 #include "cs_platforms.h"
 #include "cs_catalog.h"
+#include "cs_rom_policy.h"
 
 #include <dirent.h>
 #include <stdio.h>
@@ -1132,6 +1133,52 @@ int cs_platform_resolve(const cs_paths *paths, const char *tag, cs_platform_info
 cleanup:
     free(platforms);
     return status;
+}
+
+int cs_platform_resolve_rom_upload_policy(const cs_paths *paths,
+                                          const char *tag,
+                                          cs_rom_upload_policy *out) {
+    cs_platform_info info;
+    cs_catalog catalog;
+    size_t i;
+
+    if (!out) {
+        return -1;
+    }
+    cs_rom_upload_policy_init(out);
+    if (!paths || !tag || !tag[0]) {
+        return 0; /* nothing to resolve: fail open */
+    }
+    if (cs_platform_resolve(paths, tag, &info) != 0 || info.is_custom) {
+        return 0; /* unknown or custom platform: fail open */
+    }
+
+    memset(&catalog, 0, sizeof(catalog));
+    if (cs_catalog_load(paths->systems_catalog_path,
+                        paths->cores_catalog_path, &catalog, NULL) != 0) {
+        return 0; /* catalog unreadable: fail open rather than block uploads */
+    }
+
+    /* Fold every catalog row that maps to this platform's tag. A row's platform
+       is its canonical id resolved through the identity table, the same grouping
+       the modeled views use. */
+    for (i = 0; i < catalog.system_count; ++i) {
+        const cs_catalog_system *system = &catalog.systems[i];
+        const char *canonical = cs_platform_canonical_id(system->id);
+        const cs_platform_identity *identity = cs_platform_identity_for_catalog_id(canonical);
+        const char *system_tag = identity ? identity->tag : canonical;
+
+        if (strcasecmp(system_tag, info.tag) == 0) {
+            if (cs_rom_upload_policy_add_system(out, system) != 0) {
+                cs_rom_upload_policy_free(out);
+                cs_catalog_free(&catalog);
+                return -1;
+            }
+        }
+    }
+
+    cs_catalog_free(&catalog);
+    return 0;
 }
 
 int cs_platform_discover_with_error(const cs_paths *paths,

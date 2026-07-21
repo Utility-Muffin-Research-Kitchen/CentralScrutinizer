@@ -29,6 +29,7 @@ static void write_file(const char *path, const char *content) {
 
 static void reset_path_env(void) {
     unsetenv("SDCARD_PATHS");
+    unsetenv("CS_SOURCE_TEST_AVAILABLE");
     unsetenv("ROMS_PATHS");
     unsetenv("STATES_PATHS");
     unsetenv("ROMS_PATH");
@@ -354,6 +355,7 @@ static void test_multi_source_state_paths_use_file_browser_aliases(void) {
     assert(realpath(secondary_root, secondary_resolved) != NULL);
     assert(snprintf(source_list, sizeof(source_list), "%s:%s", primary_resolved, secondary_resolved) > 0);
     assert(setenv("SDCARD_PATHS", source_list, 1) == 0);
+    assert(setenv("CS_SOURCE_TEST_AVAILABLE", "all", 1) == 0);
     assert(setenv("SDCARD_PATH", primary_resolved, 1) == 0);
     assert(cs_paths_init(&paths) == 0);
     assert(cs_states_collect(&paths, gba, entries, CS_STATE_MAX_ENTRIES, &count, &truncated) == 0);

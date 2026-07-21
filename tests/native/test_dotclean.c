@@ -34,6 +34,7 @@ static void set_sdcard_root_realpath(const char *root) {
     assert(realpath(root, resolved) != NULL);
     setenv("SDCARD_PATH", resolved, 1);
     unsetenv("SDCARD_PATHS");
+    unsetenv("CS_SOURCE_TEST_AVAILABLE");
     unsetenv("CS_WEB_ROOT");
 }
 
@@ -46,6 +47,7 @@ static void set_sdcard_roots_realpath(const char *first, const char *second) {
     assert(realpath(second, second_resolved) != NULL);
     assert(snprintf(joined, sizeof(joined), "%s:%s", first_resolved, second_resolved) > 0);
     setenv("SDCARD_PATHS", joined, 1);
+    setenv("CS_SOURCE_TEST_AVAILABLE", "all", 1);
     unsetenv("SDCARD_PATH");
     unsetenv("CS_WEB_ROOT");
 }

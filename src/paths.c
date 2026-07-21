@@ -3,6 +3,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sys/stat.h>
 #include <unistd.h>
 
 static const char *env_first(const char *first_name, const char *second_name) {
@@ -211,22 +212,109 @@ static int populate_source_path(char *dst,
     return write_joined(dst, dst_size, source_root, suffix);
 }
 
-static int add_source(cs_paths *paths, const char *root, size_t index) {
+static int source_fixture_available(size_t index) {
+    const char *fixture = getenv("CS_SOURCE_TEST_AVAILABLE");
+    return fixture && fixture[0]
+           && (strcmp(fixture, "all") == 0
+               || (index == 0 && strstr(fixture, "primary") != NULL)
+               || (index == 1 && strstr(fixture, "secondary_sd") != NULL));
+}
+
+#if defined(__linux__)
+static int unescape_mountpoint(char *out, size_t out_size, const char *raw) {
+    size_t used = 0;
+    size_t i;
+    for (i = 0; raw && raw[i]; ++i) {
+        unsigned char value = (unsigned char) raw[i];
+        if (raw[i] == '\\'
+            && raw[i + 1] >= '0' && raw[i + 1] <= '7'
+            && raw[i + 2] >= '0' && raw[i + 2] <= '7'
+            && raw[i + 3] >= '0' && raw[i + 3] <= '7') {
+            value = (unsigned char) (((raw[i + 1] - '0') << 6)
+                                     | ((raw[i + 2] - '0') << 3)
+                                     | (raw[i + 3] - '0'));
+            i += 3;
+        }
+        if (used + 1 >= out_size) {
+            return 0;
+        }
+        out[used++] = (char) value;
+    }
+    out[used] = '\0';
+    return 1;
+}
+
+static int mountinfo_has_exact_root(const char *root) {
+    const char *fixture = getenv("CS_SOURCE_TEST_MOUNTINFO");
+    FILE *fp = fopen(fixture && fixture[0] ? fixture : "/proc/self/mountinfo", "r");
+    char *line = NULL;
+    size_t capacity = 0;
+    int found = 0;
+    if (!fp) {
+        return 0;
+    }
+    while (getline(&line, &capacity, fp) >= 0) {
+        char *save = NULL;
+        char *field = strtok_r(line, " \n", &save);
+        int field_index;
+        for (field_index = 0; field && field_index < 4; ++field_index) {
+            field = strtok_r(NULL, " \n", &save);
+        }
+        if (field) {
+            char mountpoint[CS_PATH_MAX];
+            if (unescape_mountpoint(mountpoint, sizeof(mountpoint), field)
+                && strcmp(mountpoint, root) == 0) {
+                found = 1;
+                break;
+            }
+        }
+    }
+    free(line);
+    fclose(fp);
+    return found;
+}
+#endif
+
+static int source_root_available(const char *root, size_t index) {
+    struct stat st;
+    char normalized[CS_PATH_MAX];
+    if (source_fixture_available(index)) {
+        return 1;
+    }
+    if (write_sdcard_root(normalized, sizeof(normalized), root, root) != 0
+        || stat(normalized, &st) != 0 || !S_ISDIR(st.st_mode)) {
+        return 0;
+    }
+    if (index == 0) {
+        return 1;
+    }
+#if defined(__linux__)
+    return mountinfo_has_exact_root(normalized);
+#else
+    return 1;
+#endif
+}
+
+static int add_source(cs_paths *paths,
+                      const char *root,
+                      size_t storage_index,
+                      size_t content_index) {
     cs_path_source *source;
 
-    if (!paths || !root || root[0] == '\0' || index >= CS_PATH_SOURCE_MAX) {
+    if (!paths || !root || root[0] == '\0' || storage_index >= CS_PATH_SOURCE_MAX) {
         return -1;
     }
 
-    source = &paths->sources[index];
+    source = &paths->sources[storage_index];
     if (write_sdcard_root(source->root, sizeof(source->root), root, root) != 0
-        || derive_source_alias(source->root, index, source->alias, sizeof(source->alias)) != 0
-        || make_source_alias_unique(paths, index) != 0
+        || derive_source_alias(source->root, storage_index,
+                               source->alias, sizeof(source->alias)) != 0
+        || make_source_alias_unique(paths, storage_index) != 0
         || populate_source_path(source->roms_root,
                                 sizeof(source->roms_root),
                                 getenv("ROMS_PATHS"),
                                 "ROMS_PATH",
-                                index,
+                                content_index,
                                 source->root,
                                 "/Roms")
                != 0
@@ -234,7 +322,7 @@ static int add_source(cs_paths *paths, const char *root, size_t index) {
                                 sizeof(source->images_root),
                                 getenv("IMAGES_PATHS"),
                                 "IMAGES_PATH",
-                                index,
+                                content_index,
                                 source->root,
                                 "/Images")
                != 0
@@ -242,7 +330,7 @@ static int add_source(cs_paths *paths, const char *root, size_t index) {
                                 sizeof(source->apps_root),
                                 getenv("APPS_PATHS"),
                                 "APPS_PATH",
-                                index,
+                                content_index,
                                 source->root,
                                 "/Apps")
                != 0
@@ -250,7 +338,7 @@ static int add_source(cs_paths *paths, const char *root, size_t index) {
                                 sizeof(source->bios_root),
                                 getenv("BIOS_PATHS"),
                                 "BIOS_PATH",
-                                index,
+                                content_index,
                                 source->root,
                                 "/BIOS")
                != 0
@@ -258,7 +346,7 @@ static int add_source(cs_paths *paths, const char *root, size_t index) {
                                 sizeof(source->saves_root),
                                 getenv("SAVES_PATHS"),
                                 "SAVES_PATH",
-                                index,
+                                content_index,
                                 source->root,
                                 "/Saves")
                != 0
@@ -266,7 +354,7 @@ static int add_source(cs_paths *paths, const char *root, size_t index) {
                                 sizeof(source->states_root),
                                 getenv("STATES_PATHS"),
                                 "STATES_PATH",
-                                index,
+                                content_index,
                                 source->root,
                                 "/States")
                != 0
@@ -274,7 +362,7 @@ static int add_source(cs_paths *paths, const char *root, size_t index) {
                                 sizeof(source->cheats_root),
                                 getenv("CHEATS_PATHS"),
                                 "CHEATS_PATH",
-                                index,
+                                content_index,
                                 source->root,
                                 "/Cheats")
                != 0) {
@@ -301,7 +389,10 @@ static int populate_sources(cs_paths *paths, const char *sd) {
             if (value[0] == '\0') {
                 break;
             }
-            if (add_source(paths, value, index) != 0) {
+            if (!source_root_available(value, index)) {
+                continue;
+            }
+            if (add_source(paths, value, paths->source_count, index) != 0) {
                 return -1;
             }
             paths->source_count += 1;
@@ -309,7 +400,8 @@ static int populate_sources(cs_paths *paths, const char *sd) {
     }
 
     if (paths->source_count == 0) {
-        if (add_source(paths, sd && sd[0] != '\0' ? sd : "/mnt/sdcard", 0) != 0) {
+        if (add_source(paths, sd && sd[0] != '\0' ? sd : "/mnt/sdcard",
+                       0, 0) != 0) {
             return -1;
         }
         paths->source_count = 1;

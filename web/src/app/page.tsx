@@ -45,6 +45,7 @@ import {
   formatPlatformDescription,
   platformSupportsBrowserScope,
   platformSupportsResource,
+  romUploadSupportedFormats,
 } from "../lib/platform-display";
 import {
   getDestination,
@@ -218,14 +219,40 @@ function prioritizeBundleEntrypoints(
   };
 }
 
-function unsupportedRomPreviewMessage(preflight: UploadPreviewResponse): string {
+function joinWithAnd(items: string[]): string {
+  if (items.length <= 1) {
+    return items.join("");
+  }
+  if (items.length === 2) {
+    return `${items[0]} and ${items[1]}`;
+  }
+  return `${items.slice(0, -1).join(", ")}, and ${items[items.length - 1]}`;
+}
+
+function unsupportedRomPreviewMessage(
+  preflight: UploadPreviewResponse,
+  context?: { platformName?: string; formats?: string[]; acceptsArchive?: boolean },
+): string {
   const count = preflight.unsupportedCount ?? 0;
   const paths = (preflight.unsupported ?? []).map((item) => item.path);
   const sample = paths.length > 0 ? ` ${paths.join(", ")}${count > paths.length ? ", …" : ""}` : "";
+  const hasFormats = Boolean(context?.formats && context.formats.length > 0);
+  const platform = hasFormats ? context?.platformName : undefined;
 
-  return count === 1
-    ? `1 selection will not be scanned as a game.${sample}`
-    : `${count} selections will not be scanned as games.${sample}`;
+  const lead =
+    count === 1
+      ? `1 selection will not be scanned as a ${platform ? `${platform} game` : "game"}.${sample}`
+      : `${count} selections will not be scanned as ${platform ? `${platform} games` : "games"}.${sample}`;
+
+  if (!hasFormats) {
+    return lead;
+  }
+
+  const parts = [lead, `${context?.platformName ?? "This system"} accepts ${joinWithAnd(context!.formats!)}.`];
+  if (context?.acceptsArchive === false) {
+    parts.push("Use Upload ZIP to extract a supported file.");
+  }
+  return parts.join(" ");
 }
 
 function formatUploadCount(count: number, singular: string): string | null {
@@ -933,7 +960,19 @@ export default function Page() {
         return;
       }
       if (preflight && (preflight.unsupportedCount ?? 0) > 0) {
-        setNotice(unsupportedRomPreviewMessage(preflight));
+        const supported = romUploadSupportedFormats(activePlatform?.romUploadPolicy);
+        setNotice(
+          unsupportedRomPreviewMessage(
+            preflight,
+            supported
+              ? {
+                  platformName: activePlatformDisplayName ?? activePlatform?.name,
+                  formats: supported.formats,
+                  acceptsArchive: supported.acceptsArchive,
+                }
+              : undefined,
+          ),
+        );
         return;
       }
 

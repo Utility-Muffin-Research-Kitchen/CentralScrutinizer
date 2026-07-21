@@ -240,15 +240,41 @@ describe("romUploadSupportedFormats", () => {
     expect(romUploadSupportedFormats(romPolicy())).toBeNull();
   });
 
-  it("dots, lowercases, de-dupes and sorts the direct extensions for a non-archive system", () => {
-    const result = romUploadSupportedFormats(romPolicy({ extensions: ["ISO", "pbp", "chd", "cso", "iso"] }));
+  it("normalizes, de-dupes and sorts direct and playlist extensions", () => {
+    const result = romUploadSupportedFormats(
+      romPolicy({ extensions: ["ISO", "pbp", "chd", "cso", "iso"], playlistExtensions: ["M3U"] }),
+    );
 
-    expect(result).toEqual({ formats: [".chd", ".cso", ".iso", ".pbp"], acceptsArchive: false });
+    expect(result).toEqual({
+      formats: [".chd", ".cso", ".iso", ".m3u", ".pbp"],
+      exactFileNames: [],
+      acceptsArchive: false,
+    });
   });
 
   it("includes the archive extension and flags acceptsArchive for a ZIP-capable system", () => {
     const result = romUploadSupportedFormats(romPolicy({ extensions: ["gba"], archiveExtensions: ["zip"] }));
 
-    expect(result).toEqual({ formats: [".gba", ".zip"], acceptsArchive: true });
+    expect(result).toEqual({ formats: [".gba", ".zip"], exactFileNames: [], acceptsArchive: true });
+  });
+
+  it("returns accepted exact file names when they are the only acceptance field", () => {
+    const result = romUploadSupportedFormats(
+      romPolicy({ exactFileNames: ["RPG_RT.ldb", " rpg_rt.ldb ", "boot.rom"] }),
+    );
+
+    expect(result).toEqual({
+      formats: [],
+      exactFileNames: ["boot.rom", "rpg_rt.ldb"],
+      acceptsArchive: false,
+    });
+  });
+
+  it("does not flag whitespace-only archive entries as accepted archives", () => {
+    const result = romUploadSupportedFormats(
+      romPolicy({ extensions: ["chd"], archiveExtensions: ["", "   "] }),
+    );
+
+    expect(result).toEqual({ formats: [".chd"], exactFileNames: [], acceptsArchive: false });
   });
 });

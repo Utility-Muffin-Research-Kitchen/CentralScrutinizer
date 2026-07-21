@@ -507,7 +507,13 @@ export function BrowserView({
       )}
       {supportedRomFormats ? (
         <p className="text-sm text-[var(--muted)]" data-testid="rom-supported-formats">
-          Supported: {supportedRomFormats.formats.join(", ")}
+          {supportedRomFormats.formats.length > 0
+            ? `Supported: ${supportedRomFormats.formats.join(", ")}`
+            : null}
+          {supportedRomFormats.formats.length > 0 && supportedRomFormats.exactFileNames.length > 0 ? " · " : null}
+          {supportedRomFormats.exactFileNames.length > 0
+            ? `Exact filename${supportedRomFormats.exactFileNames.length === 1 ? "" : "s"}: ${supportedRomFormats.exactFileNames.join(", ")}`
+            : null}
           {supportedRomFormats.acceptsArchive
             ? null
             : " · Use Upload ZIP to extract a supported file from an archive."}

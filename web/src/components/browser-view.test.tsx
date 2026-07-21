@@ -287,6 +287,21 @@ describe("BrowserView", () => {
     expect(guidance.textContent).not.toContain("Use Upload ZIP");
   });
 
+  it("shows playlist extensions and accepted exact file names", () => {
+    renderRomBrowser({
+      enforced: true,
+      extensions: ["cue"],
+      archiveExtensions: [],
+      playlistExtensions: ["m3u"],
+      exactFileNames: ["boot.rom"],
+      ignoredFileNames: [],
+    });
+
+    const guidance = screen.getByTestId("rom-supported-formats");
+    expect(guidance.textContent).toContain("Supported: .cue, .m3u");
+    expect(guidance.textContent).toContain("Exact filename: boot.rom");
+  });
+
   it("hides the supported-formats guidance when the platform has no enforced policy", () => {
     renderRomBrowser(undefined);
 

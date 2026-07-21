@@ -1240,8 +1240,8 @@ describe("Page", () => {
         enforced: true,
         extensions: ["chd", "cso", "iso", "pbp"],
         archiveExtensions: [],
-        playlistExtensions: [],
-        exactFileNames: [],
+        playlistExtensions: ["m3u"],
+        exactFileNames: ["eboot.bin"],
         ignoredFileNames: [],
       },
     };
@@ -1269,7 +1269,8 @@ describe("Page", () => {
     fireEvent.change(uploadInput, { target: { files: createFileList([uploadFile]) } });
 
     const notice = await screen.findByText(/will not be scanned as a PSP game/);
-    expect(notice.textContent).toContain("PSP accepts .chd, .cso, .iso, and .pbp.");
+    expect(notice.textContent).toContain("PSP accepts .chd, .cso, .iso, .m3u, and .pbp.");
+    expect(notice.textContent).toContain("Accepted exact filename: eboot.bin.");
     expect(notice.textContent).toContain("Use Upload ZIP to extract a supported file.");
     expect(mockApi.beginUploadFilesBatched).not.toHaveBeenCalled();
   });

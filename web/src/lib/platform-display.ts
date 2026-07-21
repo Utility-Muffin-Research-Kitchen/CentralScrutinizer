@@ -1,4 +1,4 @@
-import type { BrowserScope, PlatformGroup, PlatformResource, PlatformSummary } from "./types";
+import type { BrowserScope, PlatformGroup, PlatformResource, PlatformSummary, RomUploadPolicy } from "./types";
 
 const platformResourceOrder: PlatformResource[] = ["roms", "saves", "states", "bios", "overlays", "cheats"];
 
@@ -105,4 +105,37 @@ export function createPlatformDisplayNames(platforms: PlatformSummary[]): Map<st
       return [platform.tag, hasDuplicateName ? `${platform.name} (${platform.tag})` : platform.name];
     }),
   );
+}
+
+/**
+ * The accepted ROM upload formats for display in the browser (e.g. ".chd, .cso, .iso, .pbp").
+ * Combines the platform's direct extensions with any pass-through archive extensions (.zip),
+ * dotted, lowercased, de-duplicated and sorted. Returns null when the policy is unenforced or
+ * empty (custom/empty platforms), so callers can hide the guidance entirely.
+ */
+export function romUploadSupportedFormats(
+  policy: RomUploadPolicy | undefined,
+): { formats: string[]; acceptsArchive: boolean } | null {
+  if (!policy || !policy.enforced) {
+    return null;
+  }
+
+  const formats = new Set<string>();
+
+  for (const extension of [...policy.extensions, ...policy.archiveExtensions]) {
+    const normalized = extension.trim().toLowerCase();
+
+    if (normalized) {
+      formats.add(normalized.startsWith(".") ? normalized : `.${normalized}`);
+    }
+  }
+
+  if (formats.size === 0) {
+    return null;
+  }
+
+  return {
+    formats: Array.from(formats).sort(),
+    acceptsArchive: policy.archiveExtensions.length > 0,
+  };
 }

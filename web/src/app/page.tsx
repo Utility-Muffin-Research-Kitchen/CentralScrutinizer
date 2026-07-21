@@ -1736,6 +1736,7 @@ export default function Page() {
         scope={isFileBrowserTool(viewState) ? "files" : viewState.scope}
         search={shellSearchValue}
         tag={activePlatform?.tag}
+        romUploadPolicy={activePlatform?.romUploadPolicy}
         transfer={transfer}
       />
     ) : viewState.view === "browser" || isFileBrowserTool(viewState) ? (

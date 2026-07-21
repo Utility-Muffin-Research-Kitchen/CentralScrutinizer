@@ -5,8 +5,21 @@ import {
   filterPlatformGroups,
   flattenPlatformGroups,
   formatPlatformDescription,
+  romUploadSupportedFormats,
 } from "./platform-display";
-import type { PlatformGroup } from "./types";
+import type { PlatformGroup, RomUploadPolicy } from "./types";
+
+function romPolicy(overrides: Partial<RomUploadPolicy> = {}): RomUploadPolicy {
+  return {
+    enforced: true,
+    extensions: [],
+    archiveExtensions: [],
+    playlistExtensions: [],
+    exactFileNames: [],
+    ignoredFileNames: [],
+    ...overrides,
+  };
+}
 
 function supportedResources(overrides: Partial<Record<"roms" | "saves" | "states" | "bios" | "overlays" | "cheats", boolean>> = {}) {
   return {
@@ -211,5 +224,31 @@ describe("platform-display", () => {
 
     expect(visibleTags).toContain("GB");
     expect(visibleTags).toContain("MGBA");
+  });
+});
+
+describe("romUploadSupportedFormats", () => {
+  it("returns null when there is no policy", () => {
+    expect(romUploadSupportedFormats(undefined)).toBeNull();
+  });
+
+  it("returns null when the policy is not enforced", () => {
+    expect(romUploadSupportedFormats(romPolicy({ enforced: false, extensions: ["chd"] }))).toBeNull();
+  });
+
+  it("returns null when an enforced policy accepts nothing", () => {
+    expect(romUploadSupportedFormats(romPolicy())).toBeNull();
+  });
+
+  it("dots, lowercases, de-dupes and sorts the direct extensions for a non-archive system", () => {
+    const result = romUploadSupportedFormats(romPolicy({ extensions: ["ISO", "pbp", "chd", "cso", "iso"] }));
+
+    expect(result).toEqual({ formats: [".chd", ".cso", ".iso", ".pbp"], acceptsArchive: false });
+  });
+
+  it("includes the archive extension and flags acceptsArchive for a ZIP-capable system", () => {
+    const result = romUploadSupportedFormats(romPolicy({ extensions: ["gba"], archiveExtensions: ["zip"] }));
+
+    expect(result).toEqual({ formats: [".gba", ".zip"], acceptsArchive: true });
   });
 });

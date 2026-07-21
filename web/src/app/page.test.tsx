@@ -1229,6 +1229,52 @@ describe("Page", () => {
     expect(mockApi.beginUploadFilesBatched).not.toHaveBeenCalled();
   });
 
+  it("names the platform and its accepted formats when rejecting an unsupported ROM", async () => {
+    const uploadFile = new File(["notes"], "FIFA 14.zip", { type: "application/zip" });
+    const groups = platformGroups();
+    groups.groups[0].platforms[0] = {
+      ...groups.groups[0].platforms[0],
+      name: "PSP",
+      tag: "PSP",
+      romUploadPolicy: {
+        enforced: true,
+        extensions: ["chd", "cso", "iso", "pbp"],
+        archiveExtensions: [],
+        playlistExtensions: ["m3u"],
+        exactFileNames: ["eboot.bin"],
+        ignoredFileNames: [],
+      },
+    };
+
+    window.history.replaceState(null, "", "/?view=browser&scope=roms&tag=PSP");
+    mockApi.getSession.mockResolvedValue(pairedSession());
+    mockApi.getPlatforms.mockResolvedValue(groups);
+    mockApi.getBrowser.mockResolvedValue(romBrowserResponse());
+    mockApi.previewUploadBatched.mockResolvedValue({
+      overwriteable: [],
+      overwriteableCount: 0,
+      blocking: [],
+      blockingCount: 0,
+      unsupported: [{ path: "FIFA 14.zip", reason: "unsupported_rom_format" }],
+      unsupportedCount: 1,
+      entrypointCount: 0,
+      companionCount: 0,
+      bundleEntrypoints: [],
+    });
+
+    render(<Page />);
+
+    expect(await screen.findByRole("button", { name: "Upload File" })).toBeTruthy();
+    const uploadInput = document.querySelector('input[type="file"]') as HTMLInputElement;
+    fireEvent.change(uploadInput, { target: { files: createFileList([uploadFile]) } });
+
+    const notice = await screen.findByText(/will not be scanned as a PSP game/);
+    expect(notice.textContent).toContain("PSP accepts .chd, .cso, .iso, .m3u, and .pbp.");
+    expect(notice.textContent).toContain("Accepted exact filename: eboot.bin.");
+    expect(notice.textContent).toContain("Use Upload ZIP to extract a supported file.");
+    expect(mockApi.beginUploadFilesBatched).not.toHaveBeenCalled();
+  });
+
   it("uploads a bundle entrypoint before companions in later batches", async () => {
     const companions = Array.from(
       { length: 32 },

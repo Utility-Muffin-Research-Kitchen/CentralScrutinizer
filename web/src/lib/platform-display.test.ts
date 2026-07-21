@@ -5,8 +5,21 @@ import {
   filterPlatformGroups,
   flattenPlatformGroups,
   formatPlatformDescription,
+  romUploadSupportedFormats,
 } from "./platform-display";
-import type { PlatformGroup } from "./types";
+import type { PlatformGroup, RomUploadPolicy } from "./types";
+
+function romPolicy(overrides: Partial<RomUploadPolicy> = {}): RomUploadPolicy {
+  return {
+    enforced: true,
+    extensions: [],
+    archiveExtensions: [],
+    playlistExtensions: [],
+    exactFileNames: [],
+    ignoredFileNames: [],
+    ...overrides,
+  };
+}
 
 function supportedResources(overrides: Partial<Record<"roms" | "saves" | "states" | "bios" | "overlays" | "cheats", boolean>> = {}) {
   return {
@@ -211,5 +224,57 @@ describe("platform-display", () => {
 
     expect(visibleTags).toContain("GB");
     expect(visibleTags).toContain("MGBA");
+  });
+});
+
+describe("romUploadSupportedFormats", () => {
+  it("returns null when there is no policy", () => {
+    expect(romUploadSupportedFormats(undefined)).toBeNull();
+  });
+
+  it("returns null when the policy is not enforced", () => {
+    expect(romUploadSupportedFormats(romPolicy({ enforced: false, extensions: ["chd"] }))).toBeNull();
+  });
+
+  it("returns null when an enforced policy accepts nothing", () => {
+    expect(romUploadSupportedFormats(romPolicy())).toBeNull();
+  });
+
+  it("normalizes, de-dupes and sorts direct and playlist extensions", () => {
+    const result = romUploadSupportedFormats(
+      romPolicy({ extensions: ["ISO", "pbp", "chd", "cso", "iso"], playlistExtensions: ["M3U"] }),
+    );
+
+    expect(result).toEqual({
+      formats: [".chd", ".cso", ".iso", ".m3u", ".pbp"],
+      exactFileNames: [],
+      acceptsArchive: false,
+    });
+  });
+
+  it("includes the archive extension and flags acceptsArchive for a ZIP-capable system", () => {
+    const result = romUploadSupportedFormats(romPolicy({ extensions: ["gba"], archiveExtensions: ["zip"] }));
+
+    expect(result).toEqual({ formats: [".gba", ".zip"], exactFileNames: [], acceptsArchive: true });
+  });
+
+  it("returns accepted exact file names when they are the only acceptance field", () => {
+    const result = romUploadSupportedFormats(
+      romPolicy({ exactFileNames: ["RPG_RT.ldb", " rpg_rt.ldb ", "boot.rom"] }),
+    );
+
+    expect(result).toEqual({
+      formats: [],
+      exactFileNames: ["boot.rom", "rpg_rt.ldb"],
+      acceptsArchive: false,
+    });
+  });
+
+  it("does not flag whitespace-only archive entries as accepted archives", () => {
+    const result = romUploadSupportedFormats(
+      romPolicy({ extensions: ["chd"], archiveExtensions: ["", "   "] }),
+    );
+
+    expect(result).toEqual({ formats: [".chd"], exactFileNames: [], acceptsArchive: false });
   });
 });

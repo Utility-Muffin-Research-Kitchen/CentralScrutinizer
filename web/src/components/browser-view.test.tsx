@@ -225,6 +225,89 @@ describe("BrowserView", () => {
     expect(screen.getByText(/Only the first 4,096 entries are reachable here/i)).toBeTruthy();
   });
 
+  function renderRomBrowser(romUploadPolicy?: Parameters<typeof BrowserView>[0]["romUploadPolicy"]) {
+    render(
+      <BrowserView
+        busy={false}
+        notice={null}
+        onBack={vi.fn()}
+        onCreateFolder={vi.fn()}
+        onDeleteSelection={vi.fn()}
+        onNavigate={vi.fn()}
+        onRefresh={vi.fn()}
+        onRename={vi.fn()}
+        onReplaceArt={vi.fn()}
+        onSearchChange={vi.fn()}
+        onUploadFiles={vi.fn()}
+        response={{
+          scope: "roms",
+          title: "ROMs",
+          rootPath: "Roms/PSP (PSP)",
+          path: "",
+          breadcrumbs: [],
+          totalCount: 0,
+          offset: 0,
+          truncated: false,
+          entries: [],
+        }}
+        romUploadPolicy={romUploadPolicy}
+        scope="roms"
+        transfer={{ active: false, label: "", progress: 0 }}
+      />,
+    );
+  }
+
+  it("shows the supported ROM formats with a ZIP hint for a non-archive platform", () => {
+    renderRomBrowser({
+      enforced: true,
+      extensions: ["pbp", "chd", "iso", "cso"],
+      archiveExtensions: [],
+      playlistExtensions: [],
+      exactFileNames: [],
+      ignoredFileNames: [],
+    });
+
+    const guidance = screen.getByTestId("rom-supported-formats");
+    expect(guidance.textContent).toContain("Supported: .chd, .cso, .iso, .pbp");
+    expect(guidance.textContent).toContain("Use Upload ZIP");
+  });
+
+  it("includes .zip and omits the ZIP hint for an archive-capable platform", () => {
+    renderRomBrowser({
+      enforced: true,
+      extensions: ["gba"],
+      archiveExtensions: ["zip"],
+      playlistExtensions: [],
+      exactFileNames: [],
+      ignoredFileNames: [],
+    });
+
+    const guidance = screen.getByTestId("rom-supported-formats");
+    expect(guidance.textContent).toContain(".zip");
+    expect(guidance.textContent).not.toContain("Use Upload ZIP");
+  });
+
+  it("shows playlist extensions and accepted exact file names", () => {
+    renderRomBrowser({
+      enforced: true,
+      extensions: ["cue"],
+      archiveExtensions: [],
+      playlistExtensions: ["m3u"],
+      exactFileNames: ["boot.rom"],
+      ignoredFileNames: [],
+    });
+
+    const guidance = screen.getByTestId("rom-supported-formats");
+    expect(guidance.textContent).toContain("Supported: .cue, .m3u");
+    expect(guidance.textContent).toContain("Exact filename: boot.rom");
+  });
+
+  it("hides the supported-formats guidance when the platform has no enforced policy", () => {
+    renderRomBrowser(undefined);
+
+    expect(screen.queryByTestId("rom-supported-formats")).toBeNull();
+  });
+
   it("does not duplicate the root path text in the library header at the scope root", () => {
     render(
       <BrowserView

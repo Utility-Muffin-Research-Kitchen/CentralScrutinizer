@@ -4,12 +4,14 @@ import JSZip from "jszip";
 import { buildDownloadUrl, getBrowserAll } from "../lib/api";
 import { DEFAULT_BROWSER_SORT } from "../lib/browser-sort";
 import { BROWSER_MOVE_DRAG_TYPE } from "../lib/drag-types";
+import { romUploadSupportedFormats } from "../lib/platform-display";
 import type {
   BrowserEntry,
   BrowserResponse,
   BrowserScope,
   BrowserSortState,
   FileSearchResult,
+  RomUploadPolicy,
   TransferState,
   UploadSelection,
 } from "../lib/types";
@@ -305,6 +307,7 @@ export function BrowserView({
   onUploadFolder,
   onUploadZip,
   onUploadFiles,
+  romUploadPolicy,
   searchResults,
   transfer,
 }: {
@@ -338,6 +341,7 @@ export function BrowserView({
   onUploadFolder?: () => void;
   onUploadZip?: () => void;
   onUploadFiles: (selection: UploadSelection) => void;
+  romUploadPolicy?: RomUploadPolicy;
   searchResults?: FileSearchResult[] | null;
   transfer: TransferState;
 }) {
@@ -349,6 +353,7 @@ export function BrowserView({
   const [moveSelectionEntries, setMoveSelectionEntries] = useState<BrowserEntry[] | null>(null);
   const isFiles = scope === "files";
   const scopeAllowsFolderUploads = isFiles || scope === "roms";
+  const supportedRomFormats = scope === "roms" ? romUploadSupportedFormats(romUploadPolicy) : null;
   const allowDroppedDirectories = scopeAllowsFolderUploads;
   const fullPath = getFullPath(scope, response);
   const responseTotalCount = Number.isFinite(response.totalCount) ? response.totalCount : 0;
@@ -500,6 +505,20 @@ export function BrowserView({
           title={getWorkspaceTitle(scope, response)}
         />
       )}
+      {supportedRomFormats ? (
+        <p className="text-sm text-[var(--muted)]" data-testid="rom-supported-formats">
+          {supportedRomFormats.formats.length > 0
+            ? `Supported: ${supportedRomFormats.formats.join(", ")}`
+            : null}
+          {supportedRomFormats.formats.length > 0 && supportedRomFormats.exactFileNames.length > 0 ? " · " : null}
+          {supportedRomFormats.exactFileNames.length > 0
+            ? `Exact filename${supportedRomFormats.exactFileNames.length === 1 ? "" : "s"}: ${supportedRomFormats.exactFileNames.join(", ")}`
+            : null}
+          {supportedRomFormats.acceptsArchive
+            ? null
+            : " · Use Upload ZIP to extract a supported file from an archive."}
+        </p>
+      ) : null}
       {isFiles && !searchResults && selectedEntries.length > 0 ? (
         <section className="rounded-[20px] border border-[var(--border)] bg-[var(--panel)] px-4 py-4">
           <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">

@@ -107,6 +107,7 @@ static void write_catalogs(const char *root) {
                "\"version\":2,"
                "\"systems\":["
                "{\"id\":\"ARCADE\",\"name\":\"Arcade\",\"patterns\":[\"ARCADE\"],\"extensions\":[],\"default_core\":\"fbneo\",\"alternate_cores\":[],\"rom_root\":\"Roms/ARCADE\"},"
+               "{\"id\":\"ATOMISWAVE\",\"name\":\"Atomiswave\",\"patterns\":[\"ATOMISWAVE\",\"atomiswave\"],\"extensions\":[\"chd\",\"cdi\",\"gdi\",\"cue\",\"iso\",\"dat\"],\"archive_extensions\":[\"zip\"],\"archive_mode\":\"pass_through\",\"playlist_extensions\":[\"m3u\"],\"default_core\":\"flycast_standalone\",\"alternate_cores\":[\"flycast\"],\"rom_root\":\"Roms/ATOMISWAVE\",\"image_root\":\"Images/ATOMISWAVE\"},"
                "{\"id\":\"FC\",\"name\":\"NES\",\"patterns\":[\"FC\",\"NES\",\"FAMICOM\"],\"extensions\":[],\"default_core\":\"fceumm\",\"alternate_cores\":[],\"rom_root\":\"Roms/FC\"},"
                "{\"id\":\"NES\",\"name\":\"NES\",\"patterns\":[\"NES\",\"FC\"],\"extensions\":[],\"default_core\":\"fceumm\",\"alternate_cores\":[],\"rom_root\":\"Roms/NES\"},"
                "{\"id\":\"GB\",\"name\":\"GB\",\"patterns\":[\"GB\",\"DMG\",\"SGB\"],\"extensions\":[],\"default_core\":\"gambatte\",\"alternate_cores\":[\"mgba\"],\"rom_root\":\"Roms/GB\"},"
@@ -117,7 +118,9 @@ static void write_catalogs(const char *root) {
                "{\"id\":\"GENESIS\",\"name\":\"Genesis\",\"patterns\":[\"GENESIS\",\"MEGADRIVE\"],\"extensions\":[],\"default_core\":\"genesis_plus_gx\",\"alternate_cores\":[],\"rom_root\":\"Roms/GENESIS\"},"
                "{\"id\":\"MS\",\"name\":\"Sega MS\",\"patterns\":[\"MS\",\"SMS\"],\"extensions\":[],\"default_core\":\"genesis_plus_gx\",\"alternate_cores\":[],\"rom_root\":\"Roms/MS\"},"
                "{\"id\":\"N64\",\"name\":\"Nintendo 64\",\"patterns\":[\"N64\"],\"extensions\":[\"n64\",\"v64\",\"z64\"],\"default_core\":\"mupen64plus_standalone\",\"alternate_cores\":[\"mupen64plus_next\"],\"rom_root\":\"Roms/N64\",\"image_root\":\"Images/N64\"},"
+               "{\"id\":\"NAOMI\",\"name\":\"Naomi\",\"patterns\":[\"NAOMI\",\"naomi\"],\"extensions\":[\"chd\",\"cdi\",\"gdi\",\"cue\",\"iso\",\"dat\"],\"archive_extensions\":[\"zip\"],\"archive_mode\":\"pass_through\",\"playlist_extensions\":[\"m3u\"],\"default_core\":\"flycast_standalone\",\"alternate_cores\":[\"flycast\"],\"rom_root\":\"Roms/NAOMI\",\"image_root\":\"Images/NAOMI\"},"
                "{\"id\":\"NDS\",\"name\":\"Nintendo DS\",\"patterns\":[\"NDS\"],\"extensions\":[],\"default_core\":\"drastic\",\"alternate_cores\":[],\"rom_root\":\"Roms/NDS\"},"
+               "{\"id\":\"PC98\",\"name\":\"NEC PC-98\",\"patterns\":[\"PC98\",\"pc98\",\"necpc98\"],\"extensions\":[\"d88\",\"d98\",\"hdi\"],\"archive_extensions\":[\"zip\"],\"archive_mode\":\"pass_through\",\"playlist_extensions\":[],\"default_core\":\"np2kai\",\"alternate_cores\":[],\"rom_root\":\"Roms/PC98\",\"image_root\":\"Images/PC98\"},"
                "{\"id\":\"PICO8\",\"name\":\"Pico-8\",\"patterns\":[\"PICO8\",\"P8\"],\"extensions\":[],\"default_core\":\"fake08\",\"alternate_cores\":[],\"rom_root\":\"Roms/PICO8\"},"
                "{\"id\":\"PORTS\",\"name\":\"Ports\",\"patterns\":[\"PORTS\"],\"extensions\":[],\"default_core\":\"ports\",\"alternate_cores\":[],\"rom_root\":\"Roms/PORTS\"},"
                "{\"id\":\"PS\",\"name\":\"PSX\",\"patterns\":[\"PS\",\"PSX\"],\"extensions\":[],\"default_core\":\"pcsx_rearmed\",\"alternate_cores\":[],\"rom_root\":\"Roms/PS\"},"
@@ -135,12 +138,15 @@ static void write_catalogs(const char *root) {
                "\"version\":2,"
                "\"cores\":["
                "{\"id\":\"fbneo\",\"display_name\":\"FBNeo\",\"type\":\"retroarch\",\"file_name\":\"fbneo_libretro.so\",\"info_name\":\"fbneo_libretro.info\",\"path\":null},"
+               "{\"id\":\"flycast\",\"display_name\":\"Flycast\",\"type\":\"retroarch\",\"file_name\":\"flycast_libretro.so\",\"info_name\":\"flycast_libretro.info\",\"path\":null},"
+               "{\"id\":\"flycast_standalone\",\"display_name\":\"Flycast Standalone\",\"type\":\"path\",\"file_name\":null,\"info_name\":null,\"path\":\"emulators/flycast/launch.sh\"},"
                "{\"id\":\"fceumm\",\"display_name\":\"FCEUmm\",\"type\":\"retroarch\",\"file_name\":\"fceumm_libretro.so\",\"info_name\":\"fceumm_libretro.info\",\"path\":null},"
                "{\"id\":\"fake08\",\"display_name\":\"FAKE-08\",\"type\":\"retroarch\",\"file_name\":\"fake08_libretro.so\",\"info_name\":\"fake08_libretro.info\",\"path\":null},"
                "{\"id\":\"gambatte\",\"display_name\":\"Gambatte\",\"type\":\"retroarch\",\"file_name\":\"gambatte_libretro.so\",\"info_name\":\"gambatte_libretro.info\",\"path\":null},"
                "{\"id\":\"genesis_plus_gx\",\"display_name\":\"Genesis Plus GX\",\"type\":\"retroarch\",\"file_name\":\"genesis_plus_gx_libretro.so\",\"info_name\":\"genesis_plus_gx_libretro.info\",\"path\":null},"
                "{\"id\":\"gpsp\",\"display_name\":\"gpSP\",\"type\":\"retroarch\",\"file_name\":\"gpsp_libretro.so\",\"info_name\":\"gpsp_libretro.info\",\"path\":null},"
                "{\"id\":\"mgba\",\"display_name\":\"mGBA\",\"type\":\"retroarch\",\"file_name\":\"mgba_libretro.so\",\"info_name\":\"mgba_libretro.info\",\"path\":null},"
+               "{\"id\":\"np2kai\",\"display_name\":\"Neko Project II kai\",\"type\":\"retroarch\",\"file_name\":\"np2kai_libretro.so\",\"info_name\":\"np2kai_libretro.info\",\"path\":null},"
                "{\"id\":\"pcsx_rearmed\",\"display_name\":\"PCSX ReARMed\",\"type\":\"retroarch\",\"file_name\":\"pcsx_rearmed_libretro.so\",\"info_name\":\"pcsx_rearmed_libretro.info\",\"path\":null},"
                "{\"id\":\"prosystem\",\"display_name\":\"ProSystem\",\"type\":\"retroarch\",\"file_name\":\"prosystem_libretro.so\",\"info_name\":\"prosystem_libretro.info\",\"path\":null},"
                "{\"id\":\"snes9x\",\"display_name\":\"Snes9x\",\"type\":\"retroarch\",\"file_name\":\"snes9x_libretro.so\",\"info_name\":\"snes9x_libretro.info\",\"path\":null},"
@@ -211,6 +217,68 @@ static void test_static_identity_helpers(void) {
     info = cs_platform_find("SEVENTYEIGHTHUNDRED");
     assert(info != NULL);
     assert(strcmp(info->tag, "A7800") == 0);
+    info = cs_platform_find("PC98");
+    assert(info != NULL);
+    assert(strcmp(info->name, "NEC PC-98") == 0);
+    assert(strcmp(info->group, "NEC") == 0);
+    assert(strcmp(info->icon, "PC98") == 0);
+    info = cs_platform_find("ATOMISWAVE");
+    assert(info != NULL);
+    assert(strcmp(info->group, "Arcade") == 0);
+    assert(strcmp(info->icon, "FBN") == 0);
+    info = cs_platform_find("NAOMI");
+    assert(info != NULL);
+    assert(strcmp(info->name, "Sega Naomi") == 0);
+    assert(strcmp(info->group, "Arcade") == 0);
+    assert(strcmp(info->icon, "DC") == 0);
+}
+
+static void test_new_platform_visibility(void) {
+    char template[] = "/tmp/cs-platforms-pc98-flycast-XXXXXX";
+    char *root = mkdtemp(template);
+    cs_paths paths = {0};
+    cs_platform_info platforms[128];
+    size_t count = 0;
+    const cs_platform_info *pc98;
+    const cs_platform_info *atomiswave;
+    const cs_platform_info *naomi;
+    char flycast_launcher[PATH_MAX];
+
+    assert(root != NULL);
+    write_catalogs(root);
+    set_sdcard_root_realpath(root);
+    assert(cs_paths_init(&paths) == 0);
+
+    assert(cs_platform_discover(&paths, platforms, 128, &count) == 0);
+    assert(find_platform_entry(platforms, count, "PC98") == NULL);
+    assert(find_platform_entry(platforms, count, "ATOMISWAVE") == NULL);
+    assert(find_platform_entry(platforms, count, "NAOMI") == NULL);
+
+    write_core(root, "np2kai_libretro.so");
+    write_launcher_file(root, "emulators/flycast/launch.sh");
+    assert(cs_platform_discover(&paths, platforms, 128, &count) == 0);
+
+    pc98 = find_platform_entry(platforms, count, "PC98");
+    atomiswave = find_platform_entry(platforms, count, "ATOMISWAVE");
+    naomi = find_platform_entry(platforms, count, "NAOMI");
+    assert(pc98 != NULL && atomiswave != NULL && naomi != NULL);
+    assert(strcmp(pc98->canonical_rom_directory, "PC98") == 0);
+    assert(strcmp(pc98->canonical_image_directory, "PC98") == 0);
+    assert(strcmp(atomiswave->canonical_rom_directory, "ATOMISWAVE") == 0);
+    assert(strcmp(naomi->canonical_rom_directory, "NAOMI") == 0);
+
+    snprintf(flycast_launcher, sizeof(flycast_launcher),
+             "%s/.system/leaf/platforms/mlp1/emulators/flycast/launch.sh",
+             root);
+    assert(unlink(flycast_launcher) == 0);
+    assert(cs_platform_discover(&paths, platforms, 128, &count) == 0);
+    assert(find_platform_entry(platforms, count, "ATOMISWAVE") == NULL);
+    assert(find_platform_entry(platforms, count, "NAOMI") == NULL);
+
+    write_core(root, "flycast_libretro.so");
+    assert(cs_platform_discover(&paths, platforms, 128, &count) == 0);
+    assert(find_platform_entry(platforms, count, "ATOMISWAVE") != NULL);
+    assert(find_platform_entry(platforms, count, "NAOMI") != NULL);
 }
 
 static void test_visibility_requires_present_libretro_core(void) {
@@ -608,6 +676,7 @@ static void test_shortcut_directories_are_excluded(void) {
 int main(void) {
     test_path_defaults();
     test_static_identity_helpers();
+    test_new_platform_visibility();
     test_visibility_requires_present_libretro_core();
     test_canonical_alias_rows_collapse_and_match_folders();
     test_uploads_target_canonical_folder();

@@ -18,6 +18,7 @@ describe("platform assets", () => {
       "N64",
       "NDS",
       "PICO8",
+      "PC98",
       "PORTMASTER",
       "PSP",
       "RPGM",

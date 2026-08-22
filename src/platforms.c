@@ -60,7 +60,7 @@ typedef struct cs_modeled_platform {
 static const cs_platform_identity g_platform_identities[] = {
     {.catalog_id = "32X", .tag = "32X", .primary_code = "32X", .group = "Sega", .icon = "32X", .fallback_name = "Sega 32X"},
     {.catalog_id = "ARCADE", .tag = "FBN", .primary_code = "FBN", .group = "Arcade", .icon = "FBN", .fallback_name = "Arcade"},
-    {.catalog_id = "ATOMISWAVE", .tag = "ATOMISWAVE", .primary_code = "ATOMISWAVE", .bios_directory = "dc", .group = "Arcade", .icon = "FBN", .fallback_name = "Atomiswave"},
+    {.catalog_id = "ATOMISWAVE", .tag = "ATOMISWAVE", .primary_code = "ATOMISWAVE", .bios_directory = "dc", .group = "Arcade", .icon = "ATOMISWAVE", .fallback_name = "Atomiswave"},
     {.catalog_id = "ATARI2600", .tag = "A2600", .primary_code = "A2600", .group = "Atari", .icon = "ATARI2600", .fallback_name = "Atari 2600"},
     {.catalog_id = "COLECO", .tag = "COLECO", .primary_code = "COLECO", .group = "Other", .icon = "COLECOVISION", .fallback_name = "Colecovision"},
     {.catalog_id = "DC", .tag = "DC", .primary_code = "DC", .bios_directory = "dc", .group = "Sega", .icon = "DC", .fallback_name = "Dreamcast"},
@@ -81,7 +81,7 @@ static const cs_platform_identity g_platform_identities[] = {
     {.catalog_id = "MD32X", .tag = "MD32X", .primary_code = "MD32X", .group = "Sega", .icon = "32X", .fallback_name = "Sega 32X"},
     {.catalog_id = "MS", .tag = "SMS", .primary_code = "SMS", .group = "Sega", .icon = "SMS", .fallback_name = "Sega Master System"},
     {.catalog_id = "N64", .tag = "N64", .primary_code = "N64", .group = "Nintendo", .icon = "N64", .fallback_name = "Nintendo 64"},
-    {.catalog_id = "NAOMI", .tag = "NAOMI", .primary_code = "NAOMI", .bios_directory = "dc", .group = "Arcade", .icon = "DC", .fallback_name = "Sega Naomi"},
+    {.catalog_id = "NAOMI", .tag = "NAOMI", .primary_code = "NAOMI", .bios_directory = "dc", .group = "Arcade", .icon = "NAOMI", .fallback_name = "Sega Naomi"},
     {.catalog_id = "NDS", .tag = "NDS", .primary_code = "NDS", .group = "Nintendo", .icon = "NDS", .fallback_name = "Nintendo DS"},
     {.catalog_id = "NEOGEO", .tag = "NEOGEO", .primary_code = "NEOGEO", .group = "SNK", .icon = "NEOGEO", .fallback_name = "Neo Geo"},
     {.catalog_id = "NGP", .tag = "NGP", .primary_code = "NGP", .group = "SNK", .icon = "NGP", .fallback_name = "Neo Geo Pocket"},

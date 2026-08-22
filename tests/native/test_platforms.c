@@ -225,7 +225,7 @@ static void test_static_identity_helpers(void) {
     info = cs_platform_find("ATOMISWAVE");
     assert(info != NULL);
     assert(strcmp(info->group, "Arcade") == 0);
-    assert(strcmp(info->icon, "FBN") == 0);
+    assert(strcmp(info->icon, "ATOMISWAVE") == 0);
     assert(strcmp(info->bios_directory, "dc") == 0);
     info = cs_platform_find("DC");
     assert(info != NULL);
@@ -234,7 +234,7 @@ static void test_static_identity_helpers(void) {
     assert(info != NULL);
     assert(strcmp(info->name, "Sega Naomi") == 0);
     assert(strcmp(info->group, "Arcade") == 0);
-    assert(strcmp(info->icon, "DC") == 0);
+    assert(strcmp(info->icon, "NAOMI") == 0);
     assert(strcmp(info->bios_directory, "dc") == 0);
 }
 

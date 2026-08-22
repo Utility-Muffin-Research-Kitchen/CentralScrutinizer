@@ -101,7 +101,9 @@ make test-smoke
 
 ## Credits
 
-Platform icons used by the dashboard are derived from the libretro Systematic theme in RetroArch assets:
+Most platform icons used by the dashboard are derived from the libretro Systematic theme in RetroArch assets:
 https://git.libretro.com/libretro-assets/retroarch-assets/-/tree/e11d6708b49a893f392b238effc713c6c7cfadef/xmb/systematic
+
+The Atomiswave and Naomi cabinet icons are original UMRK artwork covered by this repository's MIT license.
 
 The original app was inspired by earlier handheld web dashboards and `kitchen`; this fork is now Leaf-only.

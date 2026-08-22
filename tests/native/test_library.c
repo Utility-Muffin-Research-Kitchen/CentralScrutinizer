@@ -194,6 +194,21 @@ static cs_platform_info make_test_platform(const char *tag, const char *primary_
     return platform;
 }
 
+static void test_flycast_bios_root(void) {
+    cs_paths paths = {0};
+    cs_platform_info naomi = make_test_platform("NAOMI", "NAOMI", "NAOMI");
+    char root[PATH_MAX];
+
+    assert(snprintf(naomi.bios_directory, sizeof(naomi.bios_directory), "%s", "dc") > 0);
+    setenv("SDCARD_PATH", "fixtures/mock_sdcard", 1);
+    unsetenv("SDCARD_PATHS");
+    assert(cs_paths_init(&paths) == 0);
+    assert(cs_browser_root_for_scope(&paths, CS_SCOPE_BIOS, &naomi, root, sizeof(root)) == 0);
+    assert(strcmp(root, "fixtures/mock_sdcard/BIOS/dc") == 0);
+    assert(cs_browser_write_root_for_scope(&paths, CS_SCOPE_BIOS, &naomi, root, sizeof(root)) == 0);
+    assert(strcmp(root, "fixtures/mock_sdcard/BIOS/dc") == 0);
+}
+
 static void test_fixture_browser_scopes_and_rejection(void) {
     cs_paths paths = {0};
     cs_browser_result result = {0};
@@ -1107,6 +1122,7 @@ static void test_ports_browser_supports_hidden_ports_and_rejects_other_resources
 }
 
 int main(void) {
+    test_flycast_bios_root();
     test_fixture_browser_scopes_and_rejection();
     test_rom_thumbnail_resolution_is_png_only();
     test_library_db_populates_root_rom_listing();

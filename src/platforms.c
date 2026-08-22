@@ -30,6 +30,7 @@ typedef struct cs_platform_identity {
     const char *catalog_id;
     const char *tag;
     const char *primary_code;
+    const char *bios_directory;
     const char *group;
     const char *icon;
     const char *fallback_name;
@@ -59,10 +60,10 @@ typedef struct cs_modeled_platform {
 static const cs_platform_identity g_platform_identities[] = {
     {.catalog_id = "32X", .tag = "32X", .primary_code = "32X", .group = "Sega", .icon = "32X", .fallback_name = "Sega 32X"},
     {.catalog_id = "ARCADE", .tag = "FBN", .primary_code = "FBN", .group = "Arcade", .icon = "FBN", .fallback_name = "Arcade"},
-    {.catalog_id = "ATOMISWAVE", .tag = "ATOMISWAVE", .primary_code = "ATOMISWAVE", .group = "Arcade", .icon = "FBN", .fallback_name = "Atomiswave"},
+    {.catalog_id = "ATOMISWAVE", .tag = "ATOMISWAVE", .primary_code = "ATOMISWAVE", .bios_directory = "dc", .group = "Arcade", .icon = "FBN", .fallback_name = "Atomiswave"},
     {.catalog_id = "ATARI2600", .tag = "A2600", .primary_code = "A2600", .group = "Atari", .icon = "ATARI2600", .fallback_name = "Atari 2600"},
     {.catalog_id = "COLECO", .tag = "COLECO", .primary_code = "COLECO", .group = "Other", .icon = "COLECOVISION", .fallback_name = "Colecovision"},
-    {.catalog_id = "DC", .tag = "DC", .primary_code = "DC", .group = "Sega", .icon = "DC", .fallback_name = "Dreamcast"},
+    {.catalog_id = "DC", .tag = "DC", .primary_code = "DC", .bios_directory = "dc", .group = "Sega", .icon = "DC", .fallback_name = "Dreamcast"},
     {.catalog_id = "DOS", .tag = "DOS", .primary_code = "DOS", .group = "Computer", .icon = "DOS", .fallback_name = "MS-DOS"},
     {.catalog_id = "EASYRPG", .tag = "EASYRPG", .primary_code = "EASYRPG", .group = "Computer", .icon = "RPGM", .fallback_name = "EasyRPG"},
     {.catalog_id = "FC", .tag = "FC", .primary_code = "FC", .group = "Nintendo", .icon = "NES", .fallback_name = "NES/Famicom"},
@@ -80,7 +81,7 @@ static const cs_platform_identity g_platform_identities[] = {
     {.catalog_id = "MD32X", .tag = "MD32X", .primary_code = "MD32X", .group = "Sega", .icon = "32X", .fallback_name = "Sega 32X"},
     {.catalog_id = "MS", .tag = "SMS", .primary_code = "SMS", .group = "Sega", .icon = "SMS", .fallback_name = "Sega Master System"},
     {.catalog_id = "N64", .tag = "N64", .primary_code = "N64", .group = "Nintendo", .icon = "N64", .fallback_name = "Nintendo 64"},
-    {.catalog_id = "NAOMI", .tag = "NAOMI", .primary_code = "NAOMI", .group = "Arcade", .icon = "DC", .fallback_name = "Sega Naomi"},
+    {.catalog_id = "NAOMI", .tag = "NAOMI", .primary_code = "NAOMI", .bios_directory = "dc", .group = "Arcade", .icon = "DC", .fallback_name = "Sega Naomi"},
     {.catalog_id = "NDS", .tag = "NDS", .primary_code = "NDS", .group = "Nintendo", .icon = "NDS", .fallback_name = "Nintendo DS"},
     {.catalog_id = "NEOGEO", .tag = "NEOGEO", .primary_code = "NEOGEO", .group = "SNK", .icon = "NEOGEO", .fallback_name = "Neo Geo"},
     {.catalog_id = "NGP", .tag = "NGP", .primary_code = "NGP", .group = "SNK", .icon = "NGP", .fallback_name = "Neo Geo Pocket"},
@@ -377,6 +378,12 @@ static int cs_platform_init_view_from_catalog(cs_modeled_platform *view,
         || cs_write_string(view->info.canonical_image_directory,
                            sizeof(view->info.canonical_image_directory),
                            image_directory)
+               != 0
+        || cs_write_string(view->info.bios_directory,
+                           sizeof(view->info.bios_directory),
+                           identity && identity->bios_directory
+                               ? identity->bios_directory
+                               : (identity ? identity->primary_code : canonical_id))
                != 0) {
         return -1;
     }
@@ -820,6 +827,10 @@ static int cs_platform_build_custom(const cs_discovered_rom_dir *dir, cs_platfor
         || cs_write_string(target->canonical_image_directory,
                            sizeof(target->canonical_image_directory),
                            dir->system_code)
+               != 0
+        || cs_write_string(target->bios_directory,
+                           sizeof(target->bios_directory),
+                           dir->system_code)
                != 0) {
         return -1;
     }
@@ -857,6 +868,9 @@ static void cs_platform_init_fallbacks(void) {
         (void) cs_write_string(g_fallback_platforms[i].canonical_image_directory,
                                sizeof(g_fallback_platforms[i].canonical_image_directory),
                                identity->primary_code);
+        (void) cs_write_string(g_fallback_platforms[i].bios_directory,
+                               sizeof(g_fallback_platforms[i].bios_directory),
+                               identity->bios_directory ? identity->bios_directory : identity->primary_code);
     }
     g_fallback_platforms_initialized = 1;
 }
@@ -1088,6 +1102,13 @@ int cs_platform_copy(const cs_platform_info *source, cs_platform_info *target) {
 
     *target = *source;
     return 0;
+}
+
+const char *cs_platform_bios_directory(const cs_platform_info *platform) {
+    if (!platform) {
+        return NULL;
+    }
+    return platform->bios_directory[0] ? platform->bios_directory : platform->primary_code;
 }
 
 int cs_platform_resolve(const cs_paths *paths, const char *tag, cs_platform_info *target) {

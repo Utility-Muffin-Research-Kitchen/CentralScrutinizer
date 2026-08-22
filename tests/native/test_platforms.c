@@ -226,11 +226,16 @@ static void test_static_identity_helpers(void) {
     assert(info != NULL);
     assert(strcmp(info->group, "Arcade") == 0);
     assert(strcmp(info->icon, "FBN") == 0);
+    assert(strcmp(info->bios_directory, "dc") == 0);
+    info = cs_platform_find("DC");
+    assert(info != NULL);
+    assert(strcmp(info->bios_directory, "dc") == 0);
     info = cs_platform_find("NAOMI");
     assert(info != NULL);
     assert(strcmp(info->name, "Sega Naomi") == 0);
     assert(strcmp(info->group, "Arcade") == 0);
     assert(strcmp(info->icon, "DC") == 0);
+    assert(strcmp(info->bios_directory, "dc") == 0);
 }
 
 static void test_new_platform_visibility(void) {
@@ -266,6 +271,8 @@ static void test_new_platform_visibility(void) {
     assert(strcmp(pc98->canonical_image_directory, "PC98") == 0);
     assert(strcmp(atomiswave->canonical_rom_directory, "ATOMISWAVE") == 0);
     assert(strcmp(naomi->canonical_rom_directory, "NAOMI") == 0);
+    assert(strcmp(atomiswave->bios_directory, "dc") == 0);
+    assert(strcmp(naomi->bios_directory, "dc") == 0);
 
     snprintf(flycast_launcher, sizeof(flycast_launcher),
              "%s/.system/leaf/platforms/mlp1/emulators/flycast/launch.sh",

@@ -222,6 +222,7 @@ static void test_static_identity_helpers(void) {
     assert(strcmp(info->name, "NEC PC-98") == 0);
     assert(strcmp(info->group, "NEC") == 0);
     assert(strcmp(info->icon, "PC98") == 0);
+    assert(strcmp(info->bios_directory, "np2kai") == 0);
     info = cs_platform_find("ATOMISWAVE");
     assert(info != NULL);
     assert(strcmp(info->group, "Arcade") == 0);
@@ -269,6 +270,7 @@ static void test_new_platform_visibility(void) {
     assert(pc98 != NULL && atomiswave != NULL && naomi != NULL);
     assert(strcmp(pc98->canonical_rom_directory, "PC98") == 0);
     assert(strcmp(pc98->canonical_image_directory, "PC98") == 0);
+    assert(strcmp(pc98->bios_directory, "np2kai") == 0);
     assert(strcmp(atomiswave->canonical_rom_directory, "ATOMISWAVE") == 0);
     assert(strcmp(naomi->canonical_rom_directory, "NAOMI") == 0);
     assert(strcmp(atomiswave->bios_directory, "dc") == 0);

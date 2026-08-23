@@ -88,7 +88,7 @@ static const cs_platform_identity g_platform_identities[] = {
     {.catalog_id = "NGPC", .tag = "NGPC", .primary_code = "NGPC", .group = "SNK", .icon = "NGPC", .fallback_name = "Neo Geo Pocket Color"},
     {.catalog_id = "PCE", .tag = "PCE", .primary_code = "PCE", .group = "NEC", .icon = "PCE", .fallback_name = "PC Engine"},
     {.catalog_id = "PCECD", .tag = "PCECD", .primary_code = "PCECD", .group = "NEC", .icon = "PCE", .fallback_name = "PC Engine CD"},
-    {.catalog_id = "PC98", .tag = "PC98", .primary_code = "PC98", .group = "NEC", .icon = "PC98", .fallback_name = "NEC PC-98"},
+    {.catalog_id = "PC98", .tag = "PC98", .primary_code = "PC98", .bios_directory = "np2kai", .group = "NEC", .icon = "PC98", .fallback_name = "NEC PC-98"},
     {.catalog_id = "PICO8", .tag = "P8", .primary_code = "P8", .group = "Computer", .icon = "PICO8", .fallback_name = "Pico-8"},
     {.catalog_id = "PORTS", .tag = "PORTS", .primary_code = "PORTS", .group = "PortMaster", .icon = "PORTMASTER", .fallback_name = "Ports"},
     {.catalog_id = "PS", .tag = "PS", .primary_code = "PS", .group = "Sony", .icon = "PS", .fallback_name = "Sony PlayStation"},

@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" role="img" aria-label="Atomiswave arcade cabinet">
+  <path fill="#8f2029" d="M58 18h140l18 38-15 39 12 143H43L55 95 40 56z"/>
+  <path fill="#c8323d" d="M58 18h140l18 38H40z"/>
+  <path fill="#2c3036" d="M61 48h134l-8 80H69z"/>
+  <path fill="#11151a" d="M75 60h106l-6 55H81z"/>
+  <path fill="#e8eef2" d="M82 66h92l-5 43H87z"/>
+  <path fill="#20242a" d="M69 128h118l23 31H46z"/>
+  <path fill="#d6dce0" d="M76 137h104l12 14H64z"/>
+  <circle cx="95" cy="144" r="5" fill="#8f2029"/>
+  <circle cx="156" cy="144" r="5" fill="#f2b134"/>
+  <circle cx="171" cy="144" r="5" fill="#3f8fca"/>
+  <path fill="#161a1f" d="M89 175h78v48H89z"/>
+  <path fill="#c8323d" d="M100 188h56v7h-56z"/>
+  <circle cx="128" cy="210" r="5" fill="#d6dce0"/>
+</svg>

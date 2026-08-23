@@ -8,6 +8,7 @@ describe("platform assets", () => {
     const iconNames = [
       "3DO",
       "A800",
+      "ATOMISWAVE",
       "C128",
       "C64",
       "CPC",
@@ -16,8 +17,10 @@ describe("platform assets", () => {
       "JAGUAR",
       "MSX",
       "N64",
+      "NAOMI",
       "NDS",
       "PICO8",
+      "PC98",
       "PORTMASTER",
       "PSP",
       "RPGM",

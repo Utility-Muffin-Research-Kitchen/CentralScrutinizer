@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" role="img" aria-label="Sega Naomi arcade cabinet">
+  <path fill="#d9dde0" d="M67 19h122l18 27-12 80 20 39-14 72H54l-13-72 20-39-12-80z"/>
+  <path fill="#f6f7f7" d="M67 19h122l18 27H49z"/>
+  <path fill="#ef7622" d="M49 46h158l-3 17H52z"/>
+  <path fill="#363b42" d="M61 62h134l-10 71H71z"/>
+  <path fill="#11151a" d="M76 74h104l-7 47H83z"/>
+  <path fill="#dbeaf1" d="M83 80h90l-5 35H88z"/>
+  <path fill="#f6f7f7" d="M71 133h114l25 32H46z"/>
+  <path fill="#ef7622" d="M82 145h92l12 11H70z"/>
+  <circle cx="101" cy="150" r="5" fill="#363b42"/>
+  <circle cx="151" cy="150" r="5" fill="#36a86b"/>
+  <circle cx="167" cy="150" r="5" fill="#e44848"/>
+  <path fill="#b9bec2" d="M65 177h126l-6 46H71z"/>
+  <path fill="#363b42" d="M93 188h70v24H93z"/>
+  <path fill="#ef7622" d="M100 194h56v6h-56z"/>
+</svg>

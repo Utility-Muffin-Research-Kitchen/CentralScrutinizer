@@ -235,10 +235,14 @@ static int cs_browser_write_platform_relative_root(cs_browser_scope scope,
             return CS_SAFE_SNPRINTF(relative, relative_size, "%s", dir);
         }
         case CS_SCOPE_SAVES:
-        case CS_SCOPE_BIOS:
         case CS_SCOPE_CHEATS:
         case CS_SCOPE_OVERLAYS:
             return CS_SAFE_SNPRINTF(relative, relative_size, "%s", platform->primary_code);
+        case CS_SCOPE_BIOS:
+            return CS_SAFE_SNPRINTF(relative,
+                                    relative_size,
+                                    "%s",
+                                    cs_platform_bios_directory(platform));
         default:
             return -1;
     }

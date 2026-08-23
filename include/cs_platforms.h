@@ -24,6 +24,9 @@ typedef struct cs_platform_info {
     /* Canonical public Images/<system> folder basename. This can differ from
        primary_code because primary_code is an internal launch/catalog id. */
     char canonical_image_directory[256];
+    /* BIOS folder basename under BIOS/. Flycast-backed systems share "dc";
+       other systems default to primary_code. */
+    char bios_directory[256];
     int is_custom;
 } cs_platform_info;
 
@@ -45,6 +48,7 @@ int cs_platform_parse_rom_directory(const char *dir_name,
                                     char *system_code,
                                     size_t system_code_size);
 int cs_platform_supports_resource(const cs_platform_info *platform, const char *resource);
+const char *cs_platform_bios_directory(const cs_platform_info *platform);
 int cs_platform_allows_hidden_rom_entries(const cs_platform_info *platform);
 int cs_platform_is_shortcut_directory(const char *name, const char *absolute_path);
 int cs_platform_collect_installed_emulators(const cs_paths *paths,

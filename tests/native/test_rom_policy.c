@@ -108,6 +108,25 @@ static void test_playlist_and_exact_and_pico8(void) {
     assert(classify1(&pico, "cart.p8") == CS_ROM_ENTRY_ACCEPTED);
 }
 
+static void test_pc98_and_flycast_arcade_formats(void) {
+    char *pc98_ext[] = { "d88", "d98", "hdi" };
+    char *flycast_ext[] = { "chd", "cdi", "cue", "dat", "gdi", "iso" };
+    char *zip[] = { "zip" };
+    char *m3u[] = { "m3u" };
+    cs_catalog_system pc98 = make_system(
+        LIST(pc98_ext), LIST(zip), "pass_through", EMPTY, EMPTY, EMPTY);
+    cs_catalog_system arcade = make_system(
+        LIST(flycast_ext), LIST(zip), "pass_through", LIST(m3u), EMPTY, EMPTY);
+
+    assert(classify1(&pc98, "Touhou.d88") == CS_ROM_ENTRY_ACCEPTED);
+    assert(classify1(&pc98, "Touhou.zip") == CS_ROM_ENTRY_ACCEPTED);
+    assert(classify1(&pc98, "Touhou.iso") == CS_ROM_ENTRY_UNSUPPORTED);
+    assert(classify1(&arcade, "ikaruga.chd") == CS_ROM_ENTRY_ACCEPTED);
+    assert(classify1(&arcade, "ikaruga.zip") == CS_ROM_ENTRY_ACCEPTED);
+    assert(classify1(&arcade, "multi.m3u") == CS_ROM_ENTRY_ACCEPTED);
+    assert(classify1(&arcade, "readme.txt") == CS_ROM_ENTRY_UNSUPPORTED);
+}
+
 static void test_archive_mode_variants(void) {
     char *ext[] = { "iso" };
     char *arc[] = { "zip" };
@@ -158,6 +177,7 @@ int main(void) {
     test_zip_capable_cartridge();
     test_ignore_precedence();
     test_playlist_and_exact_and_pico8();
+    test_pc98_and_flycast_arcade_formats();
     test_archive_mode_variants();
     test_folded_no_archive_leakage();
     test_empty_policy_fails_open();

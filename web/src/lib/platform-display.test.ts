@@ -97,14 +97,14 @@ function buildGroups(): PlatformGroup[] {
       name: "Computer",
       platforms: [
         {
-          tag: "PUAE",
+          tag: "AMIGA",
           name: "Amiga",
           group: "Computer",
           icon: "AMIGA",
           isCustom: false,
-          romPath: "Roms/Amiga (PUAE)",
+          romPath: "Roms/AMIGA",
           savePath: "Saves/PUAE",
-          biosPath: "BIOS/PUAE",
+          biosPath: "BIOS/puae",
           supportedResources: supportedResources(),
           counts: { roms: 0, saves: 0, states: 0, bios: 1, overlays: 0, cheats: 0 },
         },
@@ -131,14 +131,14 @@ describe("platform-display", () => {
     expect(displayNames.has("MGBA")).toBe(false);
     expect(displayNames.get("A5200")).toBe("Atari 5200");
     expect(displayNames.get("LYNX")).toBe("Atari Lynx");
-    expect(displayNames.get("PUAE")).toBe("Amiga");
+    expect(displayNames.get("AMIGA")).toBe("Amiga");
   });
 
   it("keeps platforms with plain BIOS files when show empty is off", () => {
     const visibleGroups = filterPlatformGroups(buildGroups(), "", false);
     const visibleTags = flattenPlatformGroups(visibleGroups).map((platform) => platform.tag);
 
-    expect(visibleTags).toContain("PUAE");
+    expect(visibleTags).toContain("AMIGA");
   });
 
   it("matches searches against the visible duplicate label", () => {

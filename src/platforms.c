@@ -59,6 +59,7 @@ typedef struct cs_modeled_platform {
 
 static const cs_platform_identity g_platform_identities[] = {
     {.catalog_id = "32X", .tag = "32X", .primary_code = "32X", .group = "Sega", .icon = "32X", .fallback_name = "Sega 32X"},
+    {.catalog_id = "AMIGA", .tag = "AMIGA", .primary_code = "AMIGA", .bios_directory = "puae", .group = "Computer", .icon = "AMIGA", .fallback_name = "Amiga"},
     {.catalog_id = "ARCADE", .tag = "FBN", .primary_code = "FBN", .group = "Arcade", .icon = "FBN", .fallback_name = "Arcade"},
     {.catalog_id = "ATOMISWAVE", .tag = "ATOMISWAVE", .primary_code = "ATOMISWAVE", .bios_directory = "dc", .group = "Arcade", .icon = "ATOMISWAVE", .fallback_name = "Atomiswave"},
     {.catalog_id = "ATARI2600", .tag = "A2600", .primary_code = "A2600", .group = "Atari", .icon = "ATARI2600", .fallback_name = "Atari 2600"},

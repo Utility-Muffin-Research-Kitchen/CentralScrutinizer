@@ -107,6 +107,7 @@ static void write_catalogs(const char *root) {
                "\"version\":2,"
                "\"systems\":["
                "{\"id\":\"ARCADE\",\"name\":\"Arcade\",\"patterns\":[\"ARCADE\"],\"extensions\":[],\"default_core\":\"fbneo\",\"alternate_cores\":[],\"rom_root\":\"Roms/ARCADE\"},"
+               "{\"id\":\"AMIGA\",\"name\":\"Amiga\",\"patterns\":[\"AMIGA\",\"Amiga\",\"amiga\",\"amiga500\",\"amiga1200\"],\"extensions\":[\"adf\",\"adz\",\"ccd\",\"chd\",\"cue\",\"dms\",\"fdi\",\"hdf\",\"hdz\",\"iso\",\"lha\",\"mds\",\"nrg\",\"raw\",\"rp9\",\"uae\"],\"archive_extensions\":[\"7z\",\"zip\"],\"archive_mode\":\"pass_through\",\"playlist_extensions\":[\"m3u\"],\"default_core\":\"puae\",\"alternate_cores\":[],\"rom_root\":\"Roms/AMIGA\",\"image_root\":\"Images/AMIGA\"},"
                "{\"id\":\"ATOMISWAVE\",\"name\":\"Atomiswave\",\"patterns\":[\"ATOMISWAVE\",\"atomiswave\"],\"extensions\":[\"chd\",\"cdi\",\"gdi\",\"cue\",\"iso\",\"dat\"],\"archive_extensions\":[\"zip\"],\"archive_mode\":\"pass_through\",\"playlist_extensions\":[\"m3u\"],\"default_core\":\"flycast_standalone\",\"alternate_cores\":[\"flycast\"],\"rom_root\":\"Roms/ATOMISWAVE\",\"image_root\":\"Images/ATOMISWAVE\"},"
                "{\"id\":\"FC\",\"name\":\"NES\",\"patterns\":[\"FC\",\"NES\",\"FAMICOM\"],\"extensions\":[],\"default_core\":\"fceumm\",\"alternate_cores\":[],\"rom_root\":\"Roms/FC\"},"
                "{\"id\":\"NES\",\"name\":\"NES\",\"patterns\":[\"NES\",\"FC\"],\"extensions\":[],\"default_core\":\"fceumm\",\"alternate_cores\":[],\"rom_root\":\"Roms/NES\"},"
@@ -147,6 +148,7 @@ static void write_catalogs(const char *root) {
                "{\"id\":\"gpsp\",\"display_name\":\"gpSP\",\"type\":\"retroarch\",\"file_name\":\"gpsp_libretro.so\",\"info_name\":\"gpsp_libretro.info\",\"path\":null},"
                "{\"id\":\"mgba\",\"display_name\":\"mGBA\",\"type\":\"retroarch\",\"file_name\":\"mgba_libretro.so\",\"info_name\":\"mgba_libretro.info\",\"path\":null},"
                "{\"id\":\"np2kai\",\"display_name\":\"Neko Project II kai\",\"type\":\"retroarch\",\"file_name\":\"np2kai_libretro.so\",\"info_name\":\"np2kai_libretro.info\",\"path\":null},"
+               "{\"id\":\"puae\",\"display_name\":\"PUAE\",\"type\":\"retroarch\",\"file_name\":\"puae_libretro.so\",\"info_name\":\"puae_libretro.info\",\"path\":null},"
                "{\"id\":\"pcsx_rearmed\",\"display_name\":\"PCSX ReARMed\",\"type\":\"retroarch\",\"file_name\":\"pcsx_rearmed_libretro.so\",\"info_name\":\"pcsx_rearmed_libretro.info\",\"path\":null},"
                "{\"id\":\"prosystem\",\"display_name\":\"ProSystem\",\"type\":\"retroarch\",\"file_name\":\"prosystem_libretro.so\",\"info_name\":\"prosystem_libretro.info\",\"path\":null},"
                "{\"id\":\"snes9x\",\"display_name\":\"Snes9x\",\"type\":\"retroarch\",\"file_name\":\"snes9x_libretro.so\",\"info_name\":\"snes9x_libretro.info\",\"path\":null},"
@@ -223,6 +225,12 @@ static void test_static_identity_helpers(void) {
     assert(strcmp(info->group, "NEC") == 0);
     assert(strcmp(info->icon, "PC98") == 0);
     assert(strcmp(info->bios_directory, "np2kai") == 0);
+    info = cs_platform_find("AMIGA");
+    assert(info != NULL);
+    assert(strcmp(info->name, "Amiga") == 0);
+    assert(strcmp(info->group, "Computer") == 0);
+    assert(strcmp(info->icon, "AMIGA") == 0);
+    assert(strcmp(info->bios_directory, "puae") == 0);
     info = cs_platform_find("ATOMISWAVE");
     assert(info != NULL);
     assert(strcmp(info->group, "Arcade") == 0);
@@ -246,6 +254,7 @@ static void test_new_platform_visibility(void) {
     cs_platform_info platforms[128];
     size_t count = 0;
     const cs_platform_info *pc98;
+    const cs_platform_info *amiga;
     const cs_platform_info *atomiswave;
     const cs_platform_info *naomi;
     char flycast_launcher[PATH_MAX];
@@ -257,20 +266,26 @@ static void test_new_platform_visibility(void) {
 
     assert(cs_platform_discover(&paths, platforms, 128, &count) == 0);
     assert(find_platform_entry(platforms, count, "PC98") == NULL);
+    assert(find_platform_entry(platforms, count, "AMIGA") == NULL);
     assert(find_platform_entry(platforms, count, "ATOMISWAVE") == NULL);
     assert(find_platform_entry(platforms, count, "NAOMI") == NULL);
 
     write_core(root, "np2kai_libretro.so");
+    write_core(root, "puae_libretro.so");
     write_launcher_file(root, "emulators/flycast/launch.sh");
     assert(cs_platform_discover(&paths, platforms, 128, &count) == 0);
 
     pc98 = find_platform_entry(platforms, count, "PC98");
+    amiga = find_platform_entry(platforms, count, "AMIGA");
     atomiswave = find_platform_entry(platforms, count, "ATOMISWAVE");
     naomi = find_platform_entry(platforms, count, "NAOMI");
-    assert(pc98 != NULL && atomiswave != NULL && naomi != NULL);
+    assert(pc98 != NULL && amiga != NULL && atomiswave != NULL && naomi != NULL);
     assert(strcmp(pc98->canonical_rom_directory, "PC98") == 0);
     assert(strcmp(pc98->canonical_image_directory, "PC98") == 0);
     assert(strcmp(pc98->bios_directory, "np2kai") == 0);
+    assert(strcmp(amiga->canonical_rom_directory, "AMIGA") == 0);
+    assert(strcmp(amiga->canonical_image_directory, "AMIGA") == 0);
+    assert(strcmp(amiga->bios_directory, "puae") == 0);
     assert(strcmp(atomiswave->canonical_rom_directory, "ATOMISWAVE") == 0);
     assert(strcmp(naomi->canonical_rom_directory, "NAOMI") == 0);
     assert(strcmp(atomiswave->bios_directory, "dc") == 0);

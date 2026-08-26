@@ -127,6 +127,28 @@ static void test_pc98_and_flycast_arcade_formats(void) {
     assert(classify1(&arcade, "readme.txt") == CS_ROM_ENTRY_UNSUPPORTED);
 }
 
+static void test_amiga_formats(void) {
+    char *direct[] = {
+        "adf", "adz", "ccd", "chd", "cue", "dms", "fdi", "hdf",
+        "hdz", "iso", "lha", "mds", "nrg", "raw", "rp9", "uae"
+    };
+    char *archives[] = { "7z", "zip" };
+    char *playlists[] = { "m3u" };
+    cs_catalog_system amiga = make_system(
+        LIST(direct), LIST(archives), "pass_through", LIST(playlists), EMPTY, EMPTY);
+
+    assert(classify1(&amiga, "game.adf") == CS_ROM_ENTRY_ACCEPTED);
+    assert(classify1(&amiga, "game.raw") == CS_ROM_ENTRY_ACCEPTED);
+    assert(classify1(&amiga, "game.lha") == CS_ROM_ENTRY_ACCEPTED);
+    assert(classify1(&amiga, "game.zip") == CS_ROM_ENTRY_ACCEPTED);
+    assert(classify1(&amiga, "game.7z") == CS_ROM_ENTRY_ACCEPTED);
+    assert(classify1(&amiga, "game.m3u") == CS_ROM_ENTRY_ACCEPTED);
+    assert(classify1(&amiga, "game.ipf") == CS_ROM_ENTRY_UNSUPPORTED);
+    assert(classify1(&amiga, "game.slave") == CS_ROM_ENTRY_UNSUPPORTED);
+    assert(classify1(&amiga, "game.info") == CS_ROM_ENTRY_UNSUPPORTED);
+    assert(classify1(&amiga, "readme.txt") == CS_ROM_ENTRY_UNSUPPORTED);
+}
+
 static void test_archive_mode_variants(void) {
     char *ext[] = { "iso" };
     char *arc[] = { "zip" };
@@ -178,6 +200,7 @@ int main(void) {
     test_ignore_precedence();
     test_playlist_and_exact_and_pico8();
     test_pc98_and_flycast_arcade_formats();
+    test_amiga_formats();
     test_archive_mode_variants();
     test_folded_no_archive_leakage();
     test_empty_policy_fails_open();

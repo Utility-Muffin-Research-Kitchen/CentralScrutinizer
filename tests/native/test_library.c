@@ -209,6 +209,21 @@ static void test_flycast_bios_root(void) {
     assert(strcmp(root, "fixtures/mock_sdcard/BIOS/dc") == 0);
 }
 
+static void test_puae_bios_root(void) {
+    cs_paths paths = {0};
+    cs_platform_info amiga = make_test_platform("AMIGA", "AMIGA", "AMIGA");
+    char root[PATH_MAX];
+
+    assert(snprintf(amiga.bios_directory, sizeof(amiga.bios_directory), "%s", "puae") > 0);
+    setenv("SDCARD_PATH", "fixtures/mock_sdcard", 1);
+    unsetenv("SDCARD_PATHS");
+    assert(cs_paths_init(&paths) == 0);
+    assert(cs_browser_root_for_scope(&paths, CS_SCOPE_BIOS, &amiga, root, sizeof(root)) == 0);
+    assert(strcmp(root, "fixtures/mock_sdcard/BIOS/puae") == 0);
+    assert(cs_browser_write_root_for_scope(&paths, CS_SCOPE_BIOS, &amiga, root, sizeof(root)) == 0);
+    assert(strcmp(root, "fixtures/mock_sdcard/BIOS/puae") == 0);
+}
+
 static void test_fixture_browser_scopes_and_rejection(void) {
     cs_paths paths = {0};
     cs_browser_result result = {0};
@@ -1123,6 +1138,7 @@ static void test_ports_browser_supports_hidden_ports_and_rejects_other_resources
 
 int main(void) {
     test_flycast_bios_root();
+    test_puae_bios_root();
     test_fixture_browser_scopes_and_rejection();
     test_rom_thumbnail_resolution_is_png_only();
     test_library_db_populates_root_rom_listing();

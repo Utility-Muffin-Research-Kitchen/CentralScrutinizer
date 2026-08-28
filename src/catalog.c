@@ -6,6 +6,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <strings.h>
+#include <sys/stat.h>
 
 #define CS_CATALOG_MAX_BYTES (1024 * 1024)
 
@@ -165,8 +166,13 @@ static int cs_catalog_load_system(cJSON *row, cs_catalog_system *out) {
     out->default_core = cs_catalog_json_string(row, "default_core");
     out->rom_root = cs_catalog_json_string(row, "rom_root");
     out->image_root = cs_catalog_json_string(row, "image_root");
+    out->group = cs_catalog_json_string(row, "group");
+    out->bios_directory = cs_catalog_json_string(row, "bios_directory");
+    out->icon_flat = cs_catalog_json_string(row, "icon_flat");
+    out->provider = cs_catalog_json_string(row, "provider");
     out->archive_mode = cs_catalog_json_string(row, "archive_mode");
     if (!out->id || !out->name || !out->default_core || !out->rom_root
+        || !out->group || !out->bios_directory || !out->icon_flat || !out->provider
         || cs_catalog_load_string_list(row, "alternate_cores", &out->alternate_cores) != 0
         || cs_catalog_load_string_list(row, "patterns", &out->patterns) != 0
         || cs_catalog_load_string_list(row, "extensions", &out->extensions) != 0
@@ -242,6 +248,10 @@ static void cs_catalog_system_free(cs_catalog_system *system) {
     cs_catalog_string_list_free(&system->alternate_cores);
     free(system->rom_root);
     free(system->image_root);
+    free(system->group);
+    free(system->bios_directory);
+    free(system->icon_flat);
+    free(system->provider);
     cs_catalog_string_list_free(&system->patterns);
     cs_catalog_string_list_free(&system->extensions);
     cs_catalog_string_list_free(&system->archive_extensions);
@@ -424,6 +434,190 @@ int cs_catalog_load(const char *systems_path,
     return 0;
 }
 
+static int cs_catalog_is_regular(const char *path) {
+    struct stat st;
+    return path && stat(path, &st) == 0 && S_ISREG(st.st_mode);
+}
+
+static int cs_catalog_is_directory(const char *path) {
+    struct stat st;
+    return path && stat(path, &st) == 0 && S_ISDIR(st.st_mode);
+}
+
+static int cs_catalog_join(char *out, size_t out_size,
+                           const char *left, const char *right) {
+    int written = snprintf(out, out_size, "%s/%s", left, right);
+    return written < 0 || (size_t) written >= out_size ? -1 : 0;
+}
+
+static int cs_catalog_read_json_identity(const char *path,
+                                         const char *key,
+                                         char *out,
+                                         size_t out_size) {
+    cs_catalog_error ignored = {0};
+    char *text = cs_catalog_read_file(path, &ignored);
+    cJSON *json;
+    cJSON *value;
+    if (!text) {
+        return -1;
+    }
+    json = cJSON_Parse(text);
+    free(text);
+    if (!cJSON_IsObject(json)) {
+        cJSON_Delete(json);
+        return -1;
+    }
+    value = cJSON_GetObjectItemCaseSensitive(json, key);
+    if (!cJSON_IsString(value) || !value->valuestring || !value->valuestring[0]
+        || snprintf(out, out_size, "%s", value->valuestring) < 0
+        || strlen(value->valuestring) >= out_size) {
+        cJSON_Delete(json);
+        return -1;
+    }
+    cJSON_Delete(json);
+    return 0;
+}
+
+static int cs_catalog_selector_read(const char *path, char generation[69]) {
+    FILE *file = fopen(path, "rb");
+    char text[70];
+    size_t count;
+    size_t i;
+    if (!file) {
+        return -1;
+    }
+    count = fread(text, 1, sizeof(text), file);
+    if (ferror(file) || !feof(file)) {
+        fclose(file);
+        return -1;
+    }
+    fclose(file);
+    if (count != 69 || memcmp(text, "gen-", 4) != 0 || text[68] != '\n') {
+        return -1;
+    }
+    for (i = 4; i < 68; ++i) {
+        if (!((text[i] >= '0' && text[i] <= '9')
+              || (text[i] >= 'a' && text[i] <= 'f'))) {
+            return -1;
+        }
+    }
+    memcpy(generation, text, 68);
+    generation[68] = '\0';
+    return 0;
+}
+
+static int cs_catalog_stamp_matches(const char *path,
+                                    const char *platform,
+                                    const char *release_id) {
+    cs_catalog_error ignored = {0};
+    char *text = cs_catalog_read_file(path, &ignored);
+    cJSON *json;
+    cJSON *schema;
+    cJSON *stamp_platform;
+    cJSON *stamp_release;
+    int matches;
+    if (!text) {
+        return 0;
+    }
+    json = cJSON_Parse(text);
+    free(text);
+    if (!cJSON_IsObject(json)) {
+        cJSON_Delete(json);
+        return 0;
+    }
+    schema = cJSON_GetObjectItemCaseSensitive(json, "schema");
+    stamp_platform = cJSON_GetObjectItemCaseSensitive(json, "platform");
+    stamp_release = cJSON_GetObjectItemCaseSensitive(json, "release_id");
+    matches = cJSON_IsNumber(schema) && schema->valueint == 1
+        && schema->valuedouble == 1.0
+        && cJSON_IsString(stamp_platform) && stamp_platform->valuestring
+        && strcmp(stamp_platform->valuestring, platform) == 0
+        && cJSON_IsString(stamp_release) && stamp_release->valuestring
+        && strcmp(stamp_release->valuestring, release_id) == 0;
+    cJSON_Delete(json);
+    return matches;
+}
+
+static int cs_catalog_load_release_defaults(const cs_paths *paths,
+                                            cs_catalog *out,
+                                            cs_catalog_error *error_out) {
+    cs_catalog_error underlying = {0};
+    if (cs_catalog_load(paths->systems_catalog_path,
+                        paths->cores_catalog_path,
+                        out,
+                        &underlying) == 0) {
+        return 0;
+    }
+    cs_catalog_set_error(error_out, CS_CATALOG_ERROR_RELEASE_DEFAULTS,
+                         underlying.path,
+                         underlying.message[0]
+                             ? underlying.message
+                             : "release defaults are invalid");
+    return -1;
+}
+
+int cs_catalog_load_for_paths(const cs_paths *paths,
+                              cs_catalog *out,
+                              cs_catalog_error *error_out) {
+    char release_id[128];
+    char generation[69];
+    char catalog_root[CS_PATH_MAX];
+    char generation_root[CS_PATH_MAX];
+    char systems_path[CS_PATH_MAX];
+    char cores_path[CS_PATH_MAX];
+    char info_path[CS_PATH_MAX];
+    char stamp_path[CS_PATH_MAX];
+    cs_catalog_error selected_error = {0};
+
+    if (error_out) {
+        memset(error_out, 0, sizeof(*error_out));
+    }
+    if (!paths || !out) {
+        cs_catalog_set_error(error_out, CS_CATALOG_ERROR_PARSE, "",
+                             "invalid catalog path arguments");
+        return -1;
+    }
+    if (paths->catalog_paths_overridden || !paths->catalog_selector_path[0]
+        || !paths->release_identity_path[0]) {
+        return cs_catalog_load(paths->systems_catalog_path,
+                               paths->cores_catalog_path,
+                               out,
+                               error_out);
+    }
+    if (cs_catalog_read_json_identity(paths->release_identity_path,
+                                      "release_id", release_id,
+                                      sizeof(release_id)) != 0
+        || cs_catalog_selector_read(paths->catalog_selector_path, generation) != 0) {
+        return cs_catalog_load_release_defaults(paths, out, error_out);
+    }
+    if (snprintf(catalog_root, sizeof(catalog_root), "%s/catalog",
+                 paths->internal_data_root) < 0
+        || strlen(paths->internal_data_root) + strlen("/catalog") >= sizeof(catalog_root)
+        || cs_catalog_join(generation_root, sizeof(generation_root),
+                           catalog_root, generation) != 0
+        || cs_catalog_join(systems_path, sizeof(systems_path),
+                           generation_root, "systems.json") != 0
+        || cs_catalog_join(cores_path, sizeof(cores_path),
+                           generation_root, "cores.json") != 0
+        || cs_catalog_join(info_path, sizeof(info_path),
+                           generation_root, "info") != 0
+        || cs_catalog_join(stamp_path, sizeof(stamp_path),
+                           generation_root, "stamp.json") != 0
+        || !cs_catalog_is_directory(generation_root)
+        || !cs_catalog_is_regular(systems_path)
+        || !cs_catalog_is_regular(cores_path)
+        || !cs_catalog_is_directory(info_path)
+        || !cs_catalog_is_regular(stamp_path)
+        || !cs_catalog_stamp_matches(stamp_path, paths->platform_id, release_id)) {
+        return cs_catalog_load_release_defaults(paths, out, error_out);
+    }
+    if (cs_catalog_load(systems_path, cores_path, out, &selected_error) != 0) {
+        return cs_catalog_load_release_defaults(paths, out, error_out);
+    }
+    snprintf(out->generation, sizeof(out->generation), "%s", generation);
+    return 0;
+}
+
 const cs_catalog_system *cs_catalog_find_system(const cs_catalog *catalog, const char *id) {
     size_t i;
 
@@ -464,6 +658,8 @@ const char *cs_catalog_error_kind_name(cs_catalog_error_kind kind) {
             return "version";
         case CS_CATALOG_ERROR_MEMORY:
             return "memory";
+        case CS_CATALOG_ERROR_RELEASE_DEFAULTS:
+            return "release-defaults-invalid";
     }
     return "parse";
 }

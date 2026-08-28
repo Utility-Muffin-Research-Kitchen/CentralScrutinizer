@@ -54,6 +54,7 @@ int cs_route_pair_handler(struct mg_connection *conn, void *cbdata);
 int cs_route_pair_qr_handler(struct mg_connection *conn, void *cbdata);
 int cs_route_revoke_handler(struct mg_connection *conn, void *cbdata);
 int cs_route_platforms_handler(struct mg_connection *conn, void *cbdata);
+int cs_route_platform_icon_handler(struct mg_connection *conn, void *cbdata);
 int cs_route_browser_handler(struct mg_connection *conn, void *cbdata);
 int cs_route_game_favorite_handler(struct mg_connection *conn, void *cbdata);
 int cs_route_states_handler(struct mg_connection *conn, void *cbdata);
@@ -133,6 +134,9 @@ static int cs_server_begin_request(struct mg_connection *conn) {
     }
     if (strcmp(uri, "/api/platforms") == 0) {
         return cs_route_platforms_handler(conn, app);
+    }
+    if (strcmp(uri, "/api/platform-icon") == 0) {
+        return cs_route_platform_icon_handler(conn, app);
     }
     if (strcmp(uri, "/api/browser") == 0) {
         return cs_route_browser_handler(conn, app);

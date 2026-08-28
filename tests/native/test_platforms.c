@@ -649,7 +649,7 @@ static void test_load_errors_are_typed(void) {
     assert(cs_paths_init(&paths) == 0);
     assert(remove(paths.systems_catalog_path) == 0);
     assert(cs_platform_discover_with_error(&paths, platforms, sizeof(platforms) / sizeof(platforms[0]), &count, &error) != 0);
-    assert(error.kind == CS_CATALOG_ERROR_MISSING);
+    assert(error.kind == CS_CATALOG_ERROR_RELEASE_DEFAULTS);
     assert(count == 0);
 
     path_join(defaults_dir, sizeof(defaults_dir), root, ".system/leaf/platforms/mlp1/defaults");
@@ -658,18 +658,18 @@ static void test_load_errors_are_typed(void) {
     write_file(systems_path, "{\"version\":3,\"systems\":[]}");
     error.kind = CS_CATALOG_ERROR_NONE;
     assert(cs_platform_discover_with_error(&paths, platforms, sizeof(platforms) / sizeof(platforms[0]), &count, &error) != 0);
-    assert(error.kind == CS_CATALOG_ERROR_VERSION);
+    assert(error.kind == CS_CATALOG_ERROR_RELEASE_DEFAULTS);
 
     write_file(systems_path, "{not json");
     error.kind = CS_CATALOG_ERROR_NONE;
     assert(cs_platform_discover_with_error(&paths, platforms, sizeof(platforms) / sizeof(platforms[0]), &count, &error) != 0);
-    assert(error.kind == CS_CATALOG_ERROR_PARSE);
+    assert(error.kind == CS_CATALOG_ERROR_RELEASE_DEFAULTS);
 
     write_file(systems_path, "{\"version\":1,\"systems\":[]}");
     write_file(cores_path, "{\"version\":3,\"cores\":[]}");
     error.kind = CS_CATALOG_ERROR_NONE;
     assert(cs_platform_discover_with_error(&paths, platforms, sizeof(platforms) / sizeof(platforms[0]), &count, &error) != 0);
-    assert(error.kind == CS_CATALOG_ERROR_VERSION);
+    assert(error.kind == CS_CATALOG_ERROR_RELEASE_DEFAULTS);
 }
 
 static void test_shortcut_directories_are_excluded(void) {

@@ -16,7 +16,7 @@ function supportedResources() {
 
 describe("PlatformGrid", () => {
   it("renders grouped platform cards", () => {
-    render(
+    const { container } = render(
       <PlatformGrid
         groups={[
           {
@@ -27,6 +27,7 @@ describe("PlatformGrid", () => {
                 name: "Game Boy Advance",
                 group: "Nintendo",
                 icon: "GBA",
+                iconUrl: "/api/platform-icon?system=PAKGBA",
                 isCustom: false,
                 romPath: "Roms/Game Boy Advance (GBA)",
                 savePath: "Saves/GBA",
@@ -44,6 +45,9 @@ describe("PlatformGrid", () => {
     expect(screen.getByText("Nintendo")).toBeTruthy();
     expect(screen.getByText("Game Boy Advance")).toBeTruthy();
     expect(screen.getByText(/3 ROMs/)).toBeTruthy();
+    expect(container.querySelector("img")?.getAttribute("src")).toBe(
+      "/api/platform-icon?system=PAKGBA",
+    );
   });
 
   it("disambiguates duplicate platform names with their tags", () => {

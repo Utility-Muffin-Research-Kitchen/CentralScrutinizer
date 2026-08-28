@@ -32,6 +32,7 @@ export type PlatformSummary = {
   name: string;
   group: string;
   icon: string;
+  iconUrl?: string | null;
   isCustom: boolean;
   romPath: string;
   savePath: string;

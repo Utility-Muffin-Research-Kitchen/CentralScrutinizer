@@ -5,8 +5,8 @@ import { formatPlatformCardSummary } from "../lib/platform-display";
 
 const FALLBACK_ICON_SRC = "/platforms/UNKNOWN.svg";
 
-function platformIconSrc(icon: string): string {
-  return icon ? `/platforms/${icon}.svg` : FALLBACK_ICON_SRC;
+function platformIconSrc(icon: string, iconUrl?: string | null): string {
+  return iconUrl || (icon ? `/platforms/${icon}.svg` : FALLBACK_ICON_SRC);
 }
 
 export function PlatformCard({
@@ -18,11 +18,11 @@ export function PlatformCard({
   platform: PlatformSummary;
   onSelect: (tag: string) => void;
 }) {
-  const [iconSrc, setIconSrc] = useState(() => platformIconSrc(platform.icon));
+  const [iconSrc, setIconSrc] = useState(() => platformIconSrc(platform.icon, platform.iconUrl));
 
   useEffect(() => {
-    setIconSrc(platformIconSrc(platform.icon));
-  }, [platform.icon]);
+    setIconSrc(platformIconSrc(platform.icon, platform.iconUrl));
+  }, [platform.icon, platform.iconUrl]);
 
   return (
     <button

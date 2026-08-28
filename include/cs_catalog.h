@@ -17,6 +17,10 @@ typedef struct cs_catalog_system {
     cs_catalog_string_list alternate_cores;
     char *rom_root;
     char *image_root;
+    char *group;
+    char *bios_directory;
+    char *icon_flat;
+    char *provider;
     cs_catalog_string_list patterns;
     cs_catalog_string_list extensions;
     /* ROM metadata acceptance policy (systems.json v2). Mirrors the fields
@@ -45,6 +49,7 @@ typedef struct cs_catalog {
     size_t system_count;
     cs_catalog_core *cores;
     size_t core_count;
+    char generation[69];
 } cs_catalog;
 
 typedef enum cs_catalog_error_kind {
@@ -52,7 +57,8 @@ typedef enum cs_catalog_error_kind {
     CS_CATALOG_ERROR_MISSING,
     CS_CATALOG_ERROR_PARSE,
     CS_CATALOG_ERROR_VERSION,
-    CS_CATALOG_ERROR_MEMORY
+    CS_CATALOG_ERROR_MEMORY,
+    CS_CATALOG_ERROR_RELEASE_DEFAULTS
 } cs_catalog_error_kind;
 
 typedef struct cs_catalog_error {
@@ -65,6 +71,13 @@ int cs_catalog_load(const char *systems_path,
                     const char *cores_path,
                     cs_catalog *out,
                     cs_catalog_error *error_out);
+/* Resolve current -> generation and validate CAT-1 structure for this request.
+   Structural failures use release defaults; invalid release defaults return an
+   explicit release-defaults-invalid error. Explicit catalog path overrides keep
+   their direct-load behavior for tests and diagnostics. */
+int cs_catalog_load_for_paths(const cs_paths *paths,
+                              cs_catalog *out,
+                              cs_catalog_error *error_out);
 void cs_catalog_free(cs_catalog *catalog);
 
 const cs_catalog_system *cs_catalog_find_system(const cs_catalog *catalog, const char *id);

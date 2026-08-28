@@ -130,7 +130,7 @@ printf '%s' "$PLATFORMS_RESPONSE" | grep -F '"tag":"SMS"' | grep -Fq '"counts":{
 printf '%s' "$PLATFORMS_RESPONSE" | grep -Fq '"type":"platform"'
 printf '%s' "$PLATFORMS_RESPONSE" | grep -Fq '{"type":"done"}'
 printf '%s' "$PLATFORMS_RESPONSE" | grep -Fq '"tag":"PORTS"'
-printf '%s' "$PLATFORMS_RESPONSE" | grep -Fq '"tag":"PORTS","name":"Ports","group":"PortMaster","icon":"PORTMASTER","isCustom":false'
+printf '%s' "$PLATFORMS_RESPONSE" | grep -Fq '"tag":"PORTS","name":"Ports","group":"PortMaster","icon":"PORTMASTER","iconUrl":null,"isCustom":false'
 if printf '%s' "$PLATFORMS_RESPONSE" | grep -Fq '"requiresEmulator"'; then
     echo "platform response unexpectedly includes requiresEmulator" >&2
     exit 1
@@ -145,7 +145,7 @@ if printf '%s' "$PLATFORMS_RESPONSE" | grep -Fq '"catalog_error"'; then
 fi
 # User-added core: FOO_libretro.so is installed, so Roms/Awesome System (FOO) should surface as a custom platform.
 printf '%s' "$PLATFORMS_RESPONSE" | grep -Fq '"type":"platform","group":"Custom","platform":{"tag":"FOO"'
-printf '%s' "$PLATFORMS_RESPONSE" | grep -Fq '"tag":"FOO","name":"Awesome System","group":"Custom","icon":"FOO","isCustom":true'
+printf '%s' "$PLATFORMS_RESPONSE" | grep -Fq '"tag":"FOO","name":"Awesome System","group":"Custom","icon":"FOO","iconUrl":null,"isCustom":true'
 # FLYCAST has no matching Leaf core/info file, so it must stay hidden.
 if printf '%s' "$PLATFORMS_RESPONSE" | grep -Fq '"tag":"FLYCAST"'; then
     echo "custom platform unexpectedly exposed in library response" >&2
@@ -157,7 +157,7 @@ mv "$SYSTEMS_CATALOG" "$SYSTEMS_CATALOG.missing"
 CATALOG_ERROR_RESPONSE="$(curl -sf -b "$COOKIE_JAR" -H "X-CS-CSRF: $CSRF_TOKEN" http://127.0.0.1:8877/api/platforms)"
 mv "$SYSTEMS_CATALOG.missing" "$SYSTEMS_CATALOG"
 printf '%s' "$CATALOG_ERROR_RESPONSE" | grep -Fq '"type":"catalog_error"'
-printf '%s' "$CATALOG_ERROR_RESPONSE" | grep -Fq '"kind":"missing"'
+printf '%s' "$CATALOG_ERROR_RESPONSE" | grep -Fq '"kind":"release-defaults-invalid"'
 printf '%s' "$CATALOG_ERROR_RESPONSE" | grep -Fq '{"type":"done"}'
 
 curl -sf -b "$COOKIE_JAR" -H "X-CS-CSRF: $CSRF_TOKEN" 'http://127.0.0.1:8877/api/browser?scope=roms&tag=FOO' | grep -Fq '"name":"sample.rom"'

@@ -216,7 +216,9 @@ static int cs_catalog_load_core(cJSON *row, cs_catalog_core *out) {
     out->info_name = cs_catalog_json_string(row, "info_name");
     out->path = cs_catalog_json_string(row, "path");
     out->display_name = cs_catalog_json_string(row, "display_name");
-    if (!out->id || !out->type || !out->file_name || !out->info_name || !out->path || !out->display_name) {
+    out->provider = cs_catalog_json_string(row, "provider");
+    if (!out->id || !out->type || !out->file_name || !out->info_name
+        || !out->path || !out->display_name || !out->provider) {
         return -1;
     }
     if (out->id[0] == '\0' || out->type[0] == '\0') {
@@ -272,6 +274,7 @@ static void cs_catalog_core_free(cs_catalog_core *core) {
     free(core->info_name);
     free(core->path);
     free(core->display_name);
+    free(core->provider);
 }
 
 void cs_catalog_free(cs_catalog *catalog) {

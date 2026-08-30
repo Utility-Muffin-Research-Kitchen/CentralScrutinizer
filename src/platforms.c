@@ -583,6 +583,7 @@ static int cs_platform_core_present(const cs_paths *paths,
                                     const char *core_id) {
     const cs_catalog_core *core;
     char path[CS_PATH_MAX];
+    size_t source_index;
 
     if (!paths || !catalog || !core_id || core_id[0] == '\0') {
         return 0;
@@ -607,6 +608,21 @@ static int cs_platform_core_present(const cs_paths *paths,
         return cs_platform_is_regular_file_not_symlink(path);
     }
     if (!core->file_name || core->file_name[0] == '\0') {
+        return 0;
+    }
+    if (core->provider && core->provider[0]) {
+        for (source_index = 0; source_index < paths->source_count; ++source_index) {
+            char provider_root[CS_PATH_MAX];
+
+            if (cs_platform_join_path(provider_root, sizeof(provider_root),
+                                      paths->sources[source_index].apps_root,
+                                      core->provider) == 0
+                && cs_platform_join_path(path, sizeof(path), provider_root,
+                                         core->file_name) == 0
+                && cs_platform_is_regular_file_not_symlink(path)) {
+                return 1;
+            }
+        }
         return 0;
     }
     if (cs_platform_join_path(path, sizeof(path), paths->cores_root, core->file_name) != 0) {

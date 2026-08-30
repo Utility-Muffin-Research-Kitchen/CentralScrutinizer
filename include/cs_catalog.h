@@ -42,6 +42,7 @@ typedef struct cs_catalog_core {
     char *info_name;
     char *path;
     char *display_name;
+    char *provider;
 } cs_catalog_core;
 
 typedef struct cs_catalog {

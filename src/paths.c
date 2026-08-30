@@ -558,6 +558,20 @@ int cs_paths_init(cs_paths *paths) {
         != 0) {
         return -1;
     }
+    if (write_joined_component(temp.catalog_selector_path,
+                               sizeof(temp.catalog_selector_path),
+                               temp.internal_data_root,
+                               "catalog/current") != 0
+        || write_joined_component(temp.release_identity_path,
+                                  sizeof(temp.release_identity_path),
+                                  temp.internal_data_root,
+                                  "release.json") != 0
+        || write_value(temp.platform_id, sizeof(temp.platform_id), platform, "mlp1") != 0) {
+        return -1;
+    }
+    temp.catalog_paths_overridden =
+        (getenv("SYSTEMS_CATALOG_PATH") && getenv("SYSTEMS_CATALOG_PATH")[0])
+        || (getenv("CORES_CATALOG_PATH") && getenv("CORES_CATALOG_PATH")[0]);
     if (write_value(temp.web_root, sizeof(temp.web_root), web, default_web_root) != 0) {
         return -1;
     }

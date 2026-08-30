@@ -30,6 +30,18 @@ static int cs_route_guard_get(struct mg_connection *conn, void *cbdata) {
     return 0;
 }
 
+static int cs_route_guard_image_get(struct mg_connection *conn, void *cbdata) {
+    const char *cookie = mg_get_header(conn, "Cookie");
+    if (!cbdata) {
+        return cs_write_json(conn, 500, "Internal Server Error",
+                             "{\"error\":\"missing_app\"}");
+    }
+    if (!cs_server_cookie_is_valid(cookie)) {
+        return cs_write_json(conn, 403, "Forbidden", "{\"ok\":false}");
+    }
+    return 0;
+}
+
 static int cs_route_guard_post(struct mg_connection *conn, void *cbdata) {
     const char *cookie = mg_get_header(conn, "Cookie");
     const char *csrf = mg_get_header(conn, "X-CS-CSRF");
@@ -582,7 +594,13 @@ static int cs_stream_platform_object(struct mg_connection *conn,
         || cs_stream_escaped_string(conn, platform->group) != 0
         || cs_stream_literal(conn, "\",\"icon\":\"") != 0
         || cs_stream_escaped_string(conn, platform->icon) != 0
-        || cs_stream_literal(conn, "\",\"isCustom\":") != 0
+        || cs_stream_literal(conn, "\",\"iconUrl\":") != 0
+        || (platform->icon_url[0]
+                ? (cs_stream_literal(conn, "\"") != 0
+                   || cs_stream_escaped_string(conn, platform->icon_url) != 0
+                   || cs_stream_literal(conn, "\"") != 0)
+                : cs_stream_literal(conn, "null") != 0)
+        || cs_stream_literal(conn, ",\"isCustom\":") != 0
         || cs_stream_literal(conn, platform->is_custom ? "true" : "false") != 0
         || cs_stream_literal(conn, ",\"romPath\":\"Roms/") != 0
         || cs_stream_escaped_string(conn, platform->rom_directory) != 0
@@ -678,12 +696,7 @@ int cs_route_platforms_handler(struct mg_connection *conn, void *cbdata) {
         return 1;
     }
 
-    if (cs_platform_discover_with_error(&app->paths,
-                                        platforms,
-                                        sizeof(platforms) / sizeof(platforms[0]),
-                                        &platform_count,
-                                        &catalog_error)
-        != 0) {
+    if (cs_catalog_load_for_paths(&app->paths, &catalog, &catalog_error) != 0) {
         if (catalog_error.kind != CS_CATALOG_ERROR_NONE) {
             if (cs_stream_catalog_error_event(conn, &catalog_error) != 0
                 || cs_stream_literal(conn, "{\"type\":\"done\"}\n") != 0
@@ -694,12 +707,11 @@ int cs_route_platforms_handler(struct mg_connection *conn, void *cbdata) {
         }
         goto stream_fail;
     }
-
-    /* Load the catalog once so each platform's ROM-upload policy folds without
-       re-running discovery. A load failure leaves an empty catalog, which folds
-       to enforced:false (fail open). */
-    (void) cs_catalog_load(app->paths.systems_catalog_path,
-                           app->paths.cores_catalog_path, &catalog, NULL);
+    if (cs_platform_discover_from_catalog(
+            &app->paths, &catalog, platforms,
+            sizeof(platforms) / sizeof(platforms[0]), &platform_count) != 0) {
+        goto stream_fail;
+    }
 
     /* Emit one NDJSON line per platform, flushed as the counts finish so the browser
        can render cards incrementally instead of waiting for all platforms to scan. */
@@ -720,6 +732,73 @@ int cs_route_platforms_handler(struct mg_connection *conn, void *cbdata) {
 stream_fail:
     cs_catalog_free(&catalog);
     (void) mg_send_chunk(conn, "", 0);
+    return 1;
+}
+
+int cs_route_platform_icon_handler(struct mg_connection *conn, void *cbdata) {
+    const struct mg_request_info *request = mg_get_request_info(conn);
+    cs_app *app = (cs_app *) cbdata;
+    cs_catalog catalog = {0};
+    const cs_catalog_system *system;
+    char system_id[128];
+    char candidate[CS_PATH_MAX];
+    char apps_root[CS_PATH_MAX];
+    char resolved[CS_PATH_MAX];
+    struct stat st;
+    FILE *file;
+    char buffer[8192];
+    size_t nread;
+    size_t root_len;
+    int guard_status;
+
+    if (!cs_method_is(conn, "GET")) {
+        return cs_write_json(conn, 405, "Method Not Allowed",
+                             "{\"error\":\"method_not_allowed\"}");
+    }
+    guard_status = cs_route_guard_image_get(conn, cbdata);
+    if (guard_status != 0) {
+        return guard_status;
+    }
+    if (!request || !request->query_string
+        || mg_get_var(request->query_string, strlen(request->query_string),
+                      "system", system_id, sizeof(system_id)) <= 0
+        || cs_catalog_load_for_paths(&app->paths, &catalog, NULL) != 0) {
+        return cs_write_json(conn, 404, "Not Found", "{\"ok\":false}");
+    }
+    system = cs_catalog_find_system(&catalog, system_id);
+    if (!system || !system->provider[0] || !system->icon_flat[0]
+        || snprintf(candidate, sizeof(candidate), "%s/%s/%s",
+                    app->paths.apps_root, system->provider,
+                    system->icon_flat) < 0
+        || strlen(app->paths.apps_root) + strlen(system->provider)
+               + strlen(system->icon_flat) + 2 >= sizeof(candidate)
+        || !realpath(app->paths.apps_root, apps_root)
+        || !realpath(candidate, resolved)) {
+        cs_catalog_free(&catalog);
+        return cs_write_json(conn, 404, "Not Found", "{\"ok\":false}");
+    }
+    root_len = strlen(apps_root);
+    if (strncmp(resolved, apps_root, root_len) != 0 || resolved[root_len] != '/'
+        || lstat(resolved, &st) != 0 || !S_ISREG(st.st_mode)
+        || !(file = fopen(resolved, "rb"))) {
+        cs_catalog_free(&catalog);
+        return cs_write_json(conn, 404, "Not Found", "{\"ok\":false}");
+    }
+    cs_catalog_free(&catalog);
+    mg_printf(conn,
+              "HTTP/1.1 200 OK\r\n"
+              "Content-Type: image/png\r\n"
+              CS_SERVER_SECURITY_HEADERS_HTTP
+              "Cache-Control: no-store\r\n"
+              "Content-Length: %lld\r\n"
+              "\r\n",
+              (long long) st.st_size);
+    while ((nread = fread(buffer, 1, sizeof(buffer), file)) > 0) {
+        if (mg_write(conn, buffer, nread) < 0) {
+            break;
+        }
+    }
+    fclose(file);
     return 1;
 }
 

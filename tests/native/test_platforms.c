@@ -332,6 +332,62 @@ static void test_visibility_requires_present_libretro_core(void) {
     assert(find_platform_entry(platforms, count, "MGBA") == NULL);
 }
 
+static void test_content_pak_core_is_visible(void) {
+    char template[] = "/tmp/cs-platforms-content-pak-XXXXXX";
+    char *root = mkdtemp(template);
+    char systems_path[PATH_MAX];
+    char cores_path[PATH_MAX];
+    char apps_root[PATH_MAX];
+    char roms_root[PATH_MAX];
+    char pak_core_dir[PATH_MAX];
+    char pak_core[PATH_MAX];
+    cs_paths paths = {0};
+    cs_catalog catalog = {0};
+    cs_platform_info platforms[8];
+    size_t count = 0;
+
+    assert(root != NULL);
+    path_join(systems_path, sizeof(systems_path), root, "systems.json");
+    path_join(cores_path, sizeof(cores_path), root, "cores.json");
+    path_join(apps_root, sizeof(apps_root), root, "Apps");
+    path_join(roms_root, sizeof(roms_root), root, "Roms");
+    path_join(pak_core_dir, sizeof(pak_core_dir), apps_root,
+              "mlp1/ScummVM.pak/cores");
+    path_join(pak_core, sizeof(pak_core), pak_core_dir,
+              "scummvm_libretro.so");
+    make_dir(apps_root);
+    make_dir(roms_root);
+    make_dir(pak_core_dir);
+    write_file(systems_path,
+               "{\"version\":2,\"systems\":[{\"id\":\"SCUMMVM\","
+               "\"name\":\"ScummVM\",\"default_core\":\"scummvm\","
+               "\"rom_root\":\"Roms/SCUMMVM\",\"image_root\":\"Images/SCUMMVM\","
+               "\"provider\":\"mlp1/ScummVM.pak\"}]}");
+    write_file(cores_path,
+               "{\"version\":2,\"cores\":[{\"id\":\"scummvm\","
+               "\"display_name\":\"ScummVM\",\"type\":\"retroarch\","
+               "\"file_name\":\"cores/scummvm_libretro.so\","
+               "\"info_name\":\"info/scummvm_libretro.info\","
+               "\"provider\":\"mlp1/ScummVM.pak\"}]}");
+    assert(cs_catalog_load(systems_path, cores_path, &catalog, NULL) == 0);
+    paths.source_count = 1;
+    assert(snprintf(paths.sources[0].apps_root,
+                    sizeof(paths.sources[0].apps_root), "%s", apps_root) > 0);
+    assert(snprintf(paths.sources[0].roms_root,
+                    sizeof(paths.sources[0].roms_root), "%s", roms_root) > 0);
+
+    assert(cs_platform_discover_from_catalog(&paths, &catalog, platforms,
+                                             sizeof(platforms) / sizeof(platforms[0]),
+                                             &count) == 0);
+    assert(find_platform_entry(platforms, count, "SCUMMVM") == NULL);
+    write_file(pak_core, "core");
+    assert(cs_platform_discover_from_catalog(&paths, &catalog, platforms,
+                                             sizeof(platforms) / sizeof(platforms[0]),
+                                             &count) == 0);
+    assert(find_platform_entry(platforms, count, "SCUMMVM") != NULL);
+    cs_catalog_free(&catalog);
+}
+
 static void test_canonical_alias_rows_collapse_and_match_folders(void) {
     char template[] = "/tmp/cs-platforms-canonical-XXXXXX";
     char *root = mkdtemp(template);
@@ -649,7 +705,7 @@ static void test_load_errors_are_typed(void) {
     assert(cs_paths_init(&paths) == 0);
     assert(remove(paths.systems_catalog_path) == 0);
     assert(cs_platform_discover_with_error(&paths, platforms, sizeof(platforms) / sizeof(platforms[0]), &count, &error) != 0);
-    assert(error.kind == CS_CATALOG_ERROR_MISSING);
+    assert(error.kind == CS_CATALOG_ERROR_RELEASE_DEFAULTS);
     assert(count == 0);
 
     path_join(defaults_dir, sizeof(defaults_dir), root, ".system/leaf/platforms/mlp1/defaults");
@@ -658,18 +714,18 @@ static void test_load_errors_are_typed(void) {
     write_file(systems_path, "{\"version\":3,\"systems\":[]}");
     error.kind = CS_CATALOG_ERROR_NONE;
     assert(cs_platform_discover_with_error(&paths, platforms, sizeof(platforms) / sizeof(platforms[0]), &count, &error) != 0);
-    assert(error.kind == CS_CATALOG_ERROR_VERSION);
+    assert(error.kind == CS_CATALOG_ERROR_RELEASE_DEFAULTS);
 
     write_file(systems_path, "{not json");
     error.kind = CS_CATALOG_ERROR_NONE;
     assert(cs_platform_discover_with_error(&paths, platforms, sizeof(platforms) / sizeof(platforms[0]), &count, &error) != 0);
-    assert(error.kind == CS_CATALOG_ERROR_PARSE);
+    assert(error.kind == CS_CATALOG_ERROR_RELEASE_DEFAULTS);
 
     write_file(systems_path, "{\"version\":1,\"systems\":[]}");
     write_file(cores_path, "{\"version\":3,\"cores\":[]}");
     error.kind = CS_CATALOG_ERROR_NONE;
     assert(cs_platform_discover_with_error(&paths, platforms, sizeof(platforms) / sizeof(platforms[0]), &count, &error) != 0);
-    assert(error.kind == CS_CATALOG_ERROR_VERSION);
+    assert(error.kind == CS_CATALOG_ERROR_RELEASE_DEFAULTS);
 }
 
 static void test_shortcut_directories_are_excluded(void) {
@@ -702,6 +758,7 @@ int main(void) {
     test_static_identity_helpers();
     test_new_platform_visibility();
     test_visibility_requires_present_libretro_core();
+    test_content_pak_core_is_visible();
     test_canonical_alias_rows_collapse_and_match_folders();
     test_uploads_target_canonical_folder();
     test_uploads_target_primary_source_when_folder_exists_on_secondary();

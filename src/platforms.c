@@ -335,6 +335,7 @@ static int cs_platform_init_view_from_catalog(cs_modeled_platform *view,
     const cs_platform_identity *identity = cs_platform_identity_for_catalog_id(canonical_id);
     char rom_directory[256];
     char image_directory[256];
+    char icon_url[sizeof(view->info.icon_url)] = "";
 
     if (!view || !canonical_id || !system) {
         return -1;
@@ -350,6 +351,14 @@ static int cs_platform_init_view_from_catalog(cs_modeled_platform *view,
     } else if (cs_write_string(image_directory, sizeof(image_directory), rom_directory) != 0) {
         return -1;
     }
+    if (system->provider && system->provider[0]
+        && system->icon_flat && system->icon_flat[0]) {
+        int written = snprintf(icon_url, sizeof(icon_url),
+                               "/api/platform-icon?system=%s", system->id);
+        if (written < 0 || (size_t) written >= sizeof(icon_url)) {
+            return -1;
+        }
+    }
 
     if (cs_write_string(view->catalog_id, sizeof(view->catalog_id), canonical_id) != 0
         || cs_write_string(view->info.tag,
@@ -363,12 +372,16 @@ static int cs_platform_init_view_from_catalog(cs_modeled_platform *view,
                != 0
         || cs_write_string(view->info.group,
                            sizeof(view->info.group),
-                           identity ? identity->group : "Other")
+                           system->group && system->group[0]
+                               ? system->group
+                               : (identity ? identity->group : "Other"))
                != 0
         || cs_write_string(view->info.icon,
                            sizeof(view->info.icon),
                            identity ? identity->icon : "UNKNOWN")
                != 0
+        || cs_write_string(view->info.icon_url,
+                           sizeof(view->info.icon_url), icon_url) != 0
         || cs_write_string(view->info.primary_code,
                            sizeof(view->info.primary_code),
                            identity ? identity->primary_code : canonical_id)
@@ -382,9 +395,11 @@ static int cs_platform_init_view_from_catalog(cs_modeled_platform *view,
                != 0
         || cs_write_string(view->info.bios_directory,
                            sizeof(view->info.bios_directory),
-                           identity && identity->bios_directory
-                               ? identity->bios_directory
-                               : (identity ? identity->primary_code : canonical_id))
+                           system->bios_directory && system->bios_directory[0]
+                               ? system->bios_directory
+                               : (identity && identity->bios_directory
+                                      ? identity->bios_directory
+                                      : (identity ? identity->primary_code : "")))
                != 0) {
         return -1;
     }
@@ -568,6 +583,7 @@ static int cs_platform_core_present(const cs_paths *paths,
                                     const char *core_id) {
     const cs_catalog_core *core;
     char path[CS_PATH_MAX];
+    size_t source_index;
 
     if (!paths || !catalog || !core_id || core_id[0] == '\0') {
         return 0;
@@ -592,6 +608,21 @@ static int cs_platform_core_present(const cs_paths *paths,
         return cs_platform_is_regular_file_not_symlink(path);
     }
     if (!core->file_name || core->file_name[0] == '\0') {
+        return 0;
+    }
+    if (core->provider && core->provider[0]) {
+        for (source_index = 0; source_index < paths->source_count; ++source_index) {
+            char provider_root[CS_PATH_MAX];
+
+            if (cs_platform_join_path(provider_root, sizeof(provider_root),
+                                      paths->sources[source_index].apps_root,
+                                      core->provider) == 0
+                && cs_platform_join_path(path, sizeof(path), provider_root,
+                                         core->file_name) == 0
+                && cs_platform_is_regular_file_not_symlink(path)) {
+                return 1;
+            }
+        }
         return 0;
     }
     if (cs_platform_join_path(path, sizeof(path), paths->cores_root, core->file_name) != 0) {
@@ -965,29 +996,21 @@ static int cs_platform_collect_core_codes_from_dir(const char *dir_path,
 }
 
 static int cs_platform_runtime_views(const cs_paths *paths,
+                                     const cs_catalog *catalog,
                                      cs_modeled_platform *views,
                                      size_t capacity,
-                                     size_t *count_out,
-                                     cs_catalog_error *error_out) {
-    cs_catalog catalog = {0};
-    int status;
-
+                                     size_t *count_out) {
     if (count_out) {
         *count_out = 0;
     }
     if (!paths || !views || capacity == 0) {
         return -1;
     }
-    status = cs_catalog_load(paths->systems_catalog_path, paths->cores_catalog_path, &catalog, error_out);
-    if (status != 0) {
-        return -1;
-    }
-    status = cs_platform_build_visible_views(paths, &catalog, views, capacity, count_out);
-    cs_catalog_free(&catalog);
-    return status;
+    return cs_platform_build_visible_views(paths, catalog, views, capacity, count_out);
 }
 
 static int cs_platform_discover_internal(const cs_paths *paths,
+                                         const cs_catalog *provided_catalog,
                                          cs_platform_info *platforms,
                                          size_t capacity,
                                          size_t *count_out,
@@ -1002,6 +1025,8 @@ static int cs_platform_discover_internal(const cs_paths *paths,
     size_t custom_start;
     size_t i;
     int status = -1;
+    cs_catalog loaded_catalog = {0};
+    const cs_catalog *catalog = provided_catalog;
 
     if (count_out) {
         *count_out = 0;
@@ -1009,13 +1034,20 @@ static int cs_platform_discover_internal(const cs_paths *paths,
     if (!paths || !platforms || capacity == 0) {
         return -1;
     }
+    if (!catalog) {
+        if (cs_catalog_load_for_paths(paths, &loaded_catalog, error_out) != 0) {
+            return -1;
+        }
+        catalog = &loaded_catalog;
+    }
     dirs = (cs_discovered_rom_dir *) calloc(CS_DISCOVERED_PLATFORM_MAX, sizeof(dirs[0]));
     views = (cs_modeled_platform *) calloc(CS_MODELED_PLATFORM_MAX, sizeof(views[0]));
     emulator_codes = (char (*)[CS_PLATFORM_CODE_MAX]) calloc(CS_DISCOVERED_PLATFORM_MAX, sizeof(emulator_codes[0]));
     if (!dirs || !views || !emulator_codes) {
         goto cleanup;
     }
-    if (cs_platform_runtime_views(paths, views, CS_MODELED_PLATFORM_MAX, &view_count, error_out) != 0) {
+    if (cs_platform_runtime_views(paths, catalog, views,
+                                  CS_MODELED_PLATFORM_MAX, &view_count) != 0) {
         goto cleanup;
     }
     if (cs_platform_scan_rom_dirs(paths, dirs, CS_DISCOVERED_PLATFORM_MAX, &dir_count) != 0) {
@@ -1086,6 +1118,7 @@ static int cs_platform_discover_internal(const cs_paths *paths,
     status = 0;
 
 cleanup:
+    cs_catalog_free(&loaded_catalog);
     free(emulator_codes);
     free(views);
     free(dirs);
@@ -1109,7 +1142,7 @@ const char *cs_platform_bios_directory(const cs_platform_info *platform) {
     if (!platform) {
         return NULL;
     }
-    return platform->bios_directory[0] ? platform->bios_directory : platform->primary_code;
+    return platform->bios_directory;
 }
 
 int cs_platform_resolve(const cs_paths *paths, const char *tag, cs_platform_info *target) {
@@ -1137,6 +1170,7 @@ int cs_platform_resolve(const cs_paths *paths, const char *tag, cs_platform_info
     }
 
     if (cs_platform_discover_internal(paths,
+                                      NULL,
                                       platforms,
                                       CS_MODELED_PLATFORM_MAX,
                                       &platform_count,
@@ -1212,8 +1246,7 @@ int cs_platform_resolve_rom_upload_policy(const cs_paths *paths,
     }
 
     memset(&catalog, 0, sizeof(catalog));
-    if (cs_catalog_load(paths->systems_catalog_path,
-                        paths->cores_catalog_path, &catalog, NULL) != 0) {
+    if (cs_catalog_load_for_paths(paths, &catalog, NULL) != 0) {
         return 0; /* catalog unreadable: fail open rather than block uploads */
     }
     rc = cs_rom_upload_policy_from_catalog(&catalog, info.tag, 0, out);
@@ -1226,14 +1259,25 @@ int cs_platform_discover_with_error(const cs_paths *paths,
                                     size_t capacity,
                                     size_t *count_out,
                                     cs_catalog_error *error_out) {
-    return cs_platform_discover_internal(paths, platforms, capacity, count_out, error_out);
+    return cs_platform_discover_internal(paths, NULL, platforms, capacity,
+                                         count_out, error_out);
+}
+
+int cs_platform_discover_from_catalog(const cs_paths *paths,
+                                      const cs_catalog *catalog,
+                                      cs_platform_info *platforms,
+                                      size_t capacity,
+                                      size_t *count_out) {
+    return cs_platform_discover_internal(paths, catalog, platforms, capacity,
+                                         count_out, NULL);
 }
 
 int cs_platform_discover(const cs_paths *paths,
                          cs_platform_info *platforms,
                          size_t capacity,
                          size_t *count_out) {
-    return cs_platform_discover_internal(paths, platforms, capacity, count_out, NULL);
+    return cs_platform_discover_internal(paths, NULL, platforms, capacity,
+                                         count_out, NULL);
 }
 
 int cs_platform_parse_rom_directory(const char *dir_name,
@@ -1290,8 +1334,11 @@ int cs_platform_supports_resource(const cs_platform_info *platform, const char *
     if (cs_platform_build_is_leaf() && strcmp(resource, "overlays") == 0) {
         return 0;
     }
+    if (strcmp(resource, "bios") == 0) {
+        return platform->bios_directory[0] != '\0';
+    }
 
-    return strcmp(resource, "saves") == 0 || strcmp(resource, "states") == 0 || strcmp(resource, "bios") == 0
+    return strcmp(resource, "saves") == 0 || strcmp(resource, "states") == 0
            || strcmp(resource, "overlays") == 0 || strcmp(resource, "cheats") == 0;
 }
 

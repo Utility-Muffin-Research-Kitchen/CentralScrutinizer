@@ -1,9 +1,17 @@
 #ifndef CS_PATHS_H
 #define CS_PATHS_H
 
+#include <limits.h>
 #include <stddef.h>
 
-#define CS_PATH_MAX 1024
+#ifndef PATH_MAX
+#define PATH_MAX 4096
+#endif
+
+/* realpath(3) requires a PATH_MAX-sized destination when the caller supplies
+ * the buffer. Keep every stored path at that same platform limit: 1024 on
+ * macOS, 4096 on the MLP1's Linux userspace. */
+#define CS_PATH_MAX PATH_MAX
 #define CS_PATH_SOURCE_MAX 4
 
 typedef struct cs_path_source {
@@ -37,6 +45,10 @@ typedef struct cs_paths {
     char info_root[CS_PATH_MAX];
     char systems_catalog_path[CS_PATH_MAX];
     char cores_catalog_path[CS_PATH_MAX];
+    char catalog_selector_path[CS_PATH_MAX];
+    char release_identity_path[CS_PATH_MAX];
+    char platform_id[64];
+    int catalog_paths_overridden;
     char logs_root[CS_PATH_MAX];
     char internal_data_root[CS_PATH_MAX];
     cs_path_source sources[CS_PATH_SOURCE_MAX];

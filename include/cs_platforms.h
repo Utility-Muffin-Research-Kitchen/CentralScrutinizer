@@ -13,6 +13,7 @@ typedef struct cs_platform_info {
     char name[128];
     char group[64];
     char icon[32];
+    char icon_url[256];
     char primary_code[CS_PLATFORM_CODE_MAX];
     char rom_directory[256];
     /* Canonical public ROM folder for this system (from the catalog rom_root).
@@ -42,6 +43,11 @@ int cs_platform_discover_with_error(const cs_paths *paths,
                                     size_t capacity,
                                     size_t *count_out,
                                     cs_catalog_error *error_out);
+int cs_platform_discover_from_catalog(const cs_paths *paths,
+                                      const cs_catalog *catalog,
+                                      cs_platform_info *platforms,
+                                      size_t capacity,
+                                      size_t *count_out);
 int cs_platform_parse_rom_directory(const char *dir_name,
                                     char *system_name,
                                     size_t system_name_size,

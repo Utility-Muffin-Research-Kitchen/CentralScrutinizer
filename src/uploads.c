@@ -370,9 +370,13 @@ static int cs_upload_atomic_promote_no_replace(int temp_dir_fd,
     force_fallback = 1;
 #endif
 
-    /* Some target filesystems, including stock FUSE/exFAT SD mounts, do not
-     * support hard links. Reserve the destination name with O_EXCL and then
-     * rename over the empty placeholder as the cross-filesystem fallback. */
+    /* Stand-in for RENAME_NOREPLACE when the platform or the target filesystem
+     * has no atomic no-replace primitive. The usual link()/unlink() emulation
+     * needs hard links, which stock FUSE/exFAT SD mounts do not support, so
+     * reserve the destination name with O_EXCL -- which fails if it already
+     * exists -- and rename over the empty placeholder. This substitutes for the
+     * no-replace flag only: the rename still cannot cross a mount boundary, so
+     * the caller must stage on the destination's own filesystem. */
     {
         int placeholder_fd = openat(final_dir_fd, final_name, O_CREAT | O_EXCL | O_WRONLY | O_NOFOLLOW, 0600);
 

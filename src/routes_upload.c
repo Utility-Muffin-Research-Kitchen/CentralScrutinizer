@@ -208,6 +208,15 @@ static int cs_write_upload_errno_response(struct mg_connection *conn, const char
     if (errno == EISDIR || errno == ENOTDIR || errno == EINVAL || errno == ENOTEMPTY) {
         return cs_write_upload_conflict_response(conn, "upload_type_conflict", path);
     }
+    /* A staged file could not be renamed onto the destination's filesystem.
+     * Uploads stage per source precisely to avoid this, so surface it as its
+     * own error rather than a bare 500. */
+    if (errno == EXDEV) {
+        return cs_write_json(conn,
+                             500,
+                             "Internal Server Error",
+                             "{\"ok\":false,\"error\":\"upload_cross_device\"}");
+    }
 
     return cs_write_json(conn, 500, "Internal Server Error", "{\"ok\":false}");
 }
@@ -421,6 +430,9 @@ static int cs_prepare_upload_metadata(cs_upload_request *state) {
     if (state->metadata_ready) {
         return 0;
     }
+    /* Reported only when this attempt fails, so it must not survive an earlier
+     * attempt made before the whole form had arrived. */
+    state->source_required = 0;
 
     scope = cs_browser_scope_parse(state->scope);
     if (scope == CS_SCOPE_INVALID) {
@@ -542,6 +554,7 @@ static int cs_upload_field_found(const char *key,
                                  void *user_data) {
     cs_upload_request *state = (cs_upload_request *) user_data;
     cs_upload_plan *plan;
+    const char *staging_root;
     int written;
 
     if (!state || !state->app || !path || pathlen == 0) {
@@ -560,6 +573,14 @@ static int cs_upload_field_found(const char *key,
         state->failed = 1;
         return MG_FORM_FIELD_STORAGE_ABORT;
     }
+    /* The destination decides which filesystem we stage on, because the promote
+     * is a rename(2). The client sends scope/tag/path ahead of the file parts,
+     * so resolve the metadata now; if it is not resolvable yet we stage on the
+     * primary source and let the post-parse pass report the real error. */
+    staging_root = (state->scope[0] != '\0' && cs_prepare_upload_metadata(state) == 0)
+                       ? state->final_guard_root
+                       : NULL;
+
     plan = &state->plans[state->plan_count];
     if (cs_upload_split_client_path(filename,
                                     state->relative_dirs[state->plan_count],
@@ -567,10 +588,11 @@ static int cs_upload_field_found(const char *key,
                                     state->file_names[state->plan_count],
                                     sizeof(state->file_names[state->plan_count]))
             != 0
-        || cs_upload_reserve_temp_path(&state->app->paths,
-                                       state->file_names[state->plan_count],
-                                       plan->temp_path,
-                                       sizeof(plan->temp_path))
+        || cs_upload_reserve_temp_path_for(&state->app->paths,
+                                           staging_root,
+                                           state->file_names[state->plan_count],
+                                           plan->temp_path,
+                                           sizeof(plan->temp_path))
                != 0) {
         if (plan->temp_path[0] != '\0') {
             (void) remove(plan->temp_path);

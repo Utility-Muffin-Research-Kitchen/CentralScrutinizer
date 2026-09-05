@@ -515,12 +515,45 @@ static int cs_replace_art_field_get(const char *key, const char *value, size_t v
     return MG_FORM_FIELD_HANDLE_NEXT;
 }
 
+/* Source that will receive the replaced art, or NULL when it cannot be
+ * resolved from the fields seen so far. Used only to pick the staging
+ * filesystem; the main handler repeats this resolution and reports the real
+ * error, so failing here simply falls back to the primary source. */
+static const char *cs_replace_art_staging_root(cs_replace_art_request *state) {
+    cs_platform_info resolved_platform = {0};
+    const cs_path_source *rom_source = NULL;
+    char rom_root[CS_PATH_MAX];
+    char rom_relative[CS_PATH_MAX];
+
+    if (!state || !state->app || state->tag[0] == '\0' || state->rom_path[0] == '\0') {
+        return NULL;
+    }
+    if (cs_platform_resolve(&state->app->paths, state->tag, &resolved_platform) != 0) {
+        return NULL;
+    }
+    if (cs_browser_resolve_rom_entry_path(&state->app->paths,
+                                          &resolved_platform,
+                                          state->rom_path,
+                                          rom_root,
+                                          sizeof(rom_root),
+                                          rom_relative,
+                                          sizeof(rom_relative),
+                                          &rom_source)
+        != 0) {
+        return NULL;
+    }
+
+    return rom_source ? rom_source->root : NULL;
+}
+
 static int cs_replace_art_field_found(const char *key,
                                       const char *filename,
                                       char *path,
                                       size_t pathlen,
                                       void *user_data) {
     cs_replace_art_request *state = (cs_replace_art_request *) user_data;
+    const char *staging_root;
+    const char *temp_upload_root;
     int written;
 
     if (!state || !state->app || !path || pathlen == 0) {
@@ -545,10 +578,19 @@ static int cs_replace_art_field_found(const char *key,
         return MG_FORM_FIELD_STORAGE_ABORT;
     }
 
+    /* Stage on the destination's own filesystem so the promote stays a rename
+     * within one mount. */
+    staging_root = cs_replace_art_staging_root(state);
+    temp_upload_root = cs_paths_temp_upload_root_for(&state->app->paths, staging_root);
+    if (!temp_upload_root || cs_upload_prepare_temp_root_for(&state->app->paths, staging_root) != 0) {
+        state->failed = 1;
+        return MG_FORM_FIELD_STORAGE_ABORT;
+    }
+
     written = snprintf(state->temp_path,
                        sizeof(state->temp_path),
                        "%s/.incoming-art-%ld-%lu.png",
-                       state->app->paths.temp_upload_root,
+                       temp_upload_root,
                        (long) getpid(),
                        cs_replace_art_next_nonce());
     if (written < 0 || (size_t) written >= sizeof(state->temp_path)

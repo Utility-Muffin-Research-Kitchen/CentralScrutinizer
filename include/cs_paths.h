@@ -24,6 +24,10 @@ typedef struct cs_path_source {
     char saves_root[CS_PATH_MAX];
     char states_root[CS_PATH_MAX];
     char cheats_root[CS_PATH_MAX];
+    /* Staging directory on this source's own filesystem. Uploads must be
+     * promoted with rename(2), which cannot cross a mount boundary, so every
+     * source stages on the card it writes to. */
+    char temp_upload_root[CS_PATH_MAX];
 } cs_path_source;
 
 typedef struct cs_paths {
@@ -57,6 +61,9 @@ typedef struct cs_paths {
 
 int cs_paths_init(cs_paths *paths);
 int cs_paths_source_index_for_alias(const cs_paths *paths, const char *alias);
+/* Staging root for uploads destined for source_root. Falls back to the primary
+ * temp root when source_root does not name a configured source. */
+const char *cs_paths_temp_upload_root_for(const cs_paths *paths, const char *source_root);
 int cs_paths_resolve_files_path(const cs_paths *paths,
                                 const char *virtual_path,
                                 char *root,

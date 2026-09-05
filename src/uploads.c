@@ -66,6 +66,15 @@ int cs_upload_reserve_temp_path(const cs_paths *paths,
                                 const char *filename,
                                 char *buffer,
                                 size_t buffer_len) {
+    return cs_upload_reserve_temp_path_for(paths, NULL, filename, buffer, buffer_len);
+}
+
+int cs_upload_reserve_temp_path_for(const cs_paths *paths,
+                                    const char *source_root,
+                                    const char *filename,
+                                    char *buffer,
+                                    size_t buffer_len) {
+    const char *temp_upload_root;
     size_t attempt;
 
     if (!paths || !filename || !buffer || buffer_len == 0) {
@@ -74,7 +83,11 @@ int cs_upload_reserve_temp_path(const cs_paths *paths,
     if (!cs_upload_component_is_safe(filename)) {
         return -1;
     }
-    if (cs_upload_prepare_temp_root(paths) != 0) {
+    temp_upload_root = cs_paths_temp_upload_root_for(paths, source_root);
+    if (!temp_upload_root) {
+        return -1;
+    }
+    if (cs_upload_prepare_temp_root_for(paths, source_root) != 0) {
         return -1;
     }
 
@@ -84,7 +97,7 @@ int cs_upload_reserve_temp_path(const cs_paths *paths,
         if (cs_upload_write_path(buffer,
                                  buffer_len,
                                  "%s/.incoming-%ld-%lu-%s",
-                                 paths->temp_upload_root,
+                                 temp_upload_root,
                                  (long) getpid(),
                                  cs_upload_nonce(),
                                  filename)
@@ -409,12 +422,19 @@ int cs_upload_plan_make(const cs_paths *paths,
     struct stat st;
     cs_upload_plan temp = {0};
     const char *final_dir = relative_dir ? relative_dir : "";
+    const char *temp_upload_root;
     const char *temp_guard_root;
 
     if (!paths || !final_root || !final_guard_root || !filename || !plan) {
         return -1;
     }
-    temp_guard_root = cs_upload_guard_root_for_path(paths, paths->temp_upload_root);
+    /* Stage on the destination's own filesystem: the promote below is a
+     * rename(2), which fails with EXDEV across a mount boundary. */
+    temp_upload_root = cs_paths_temp_upload_root_for(paths, final_guard_root);
+    if (!temp_upload_root) {
+        return -1;
+    }
+    temp_guard_root = cs_upload_guard_root_for_path(paths, temp_upload_root);
     if (!temp_guard_root) {
         return -1;
     }
@@ -424,7 +444,7 @@ int cs_upload_plan_make(const cs_paths *paths,
     if (cs_validate_relative_path_with_flags(final_dir, path_flags | CS_PATH_FLAG_ALLOW_EMPTY) != 0) {
         return -1;
     }
-    if (lstat(paths->temp_upload_root, &st) == 0 && S_ISLNK(st.st_mode)) {
+    if (lstat(temp_upload_root, &st) == 0 && S_ISLNK(st.st_mode)) {
         return -1;
     }
     if (lstat(final_root, &st) == 0 && S_ISLNK(st.st_mode)) {
@@ -454,14 +474,14 @@ int cs_upload_plan_make(const cs_paths *paths,
     if (cs_upload_write_path(temp.temp_path,
                              sizeof(temp.temp_path),
                              "%s/.incoming-%ld-%lu-%s",
-                             paths->temp_upload_root,
+                             temp_upload_root,
                              (long) getpid(),
                              cs_upload_nonce(),
                              filename)
         != 0) {
         return -1;
     }
-    if (cs_upload_write_path(temp.temp_root, sizeof(temp.temp_root), "%s", paths->temp_upload_root)
+    if (cs_upload_write_path(temp.temp_root, sizeof(temp.temp_root), "%s", temp_upload_root)
         != 0) {
         return -1;
     }
@@ -488,17 +508,26 @@ int cs_upload_plan_make(const cs_paths *paths,
 }
 
 int cs_upload_prepare_temp_root(const cs_paths *paths) {
+    return cs_upload_prepare_temp_root_for(paths, NULL);
+}
+
+int cs_upload_prepare_temp_root_for(const cs_paths *paths, const char *source_root) {
+    const char *temp_upload_root;
     const char *temp_guard_root;
 
     if (!paths) {
         return -1;
     }
-    temp_guard_root = cs_upload_guard_root_for_path(paths, paths->temp_upload_root);
+    temp_upload_root = cs_paths_temp_upload_root_for(paths, source_root);
+    if (!temp_upload_root) {
+        return -1;
+    }
+    temp_guard_root = cs_upload_guard_root_for_path(paths, temp_upload_root);
     if (!temp_guard_root) {
         return -1;
     }
 
-    return cs_upload_prepare_directory_within_root(temp_guard_root, paths->temp_upload_root);
+    return cs_upload_prepare_directory_within_root(temp_guard_root, temp_upload_root);
 }
 
 int cs_upload_prepare_final_directory(const char *final_root,

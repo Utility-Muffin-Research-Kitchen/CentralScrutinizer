@@ -28,6 +28,14 @@ static void read_file(const char *path, char *buffer, size_t size) {
     assert(fclose(file) == 0);
 }
 
+static void remove_tree(const char *path) {
+    char command[CS_PATH_MAX + 16];
+
+    assert(path != NULL && strncmp(path, "/tmp/", 5) == 0);
+    assert(snprintf(command, sizeof(command), "rm -rf '%s'", path) > 0);
+    assert(system(command) == 0);
+}
+
 static void path_join(char *dst, size_t size, const char *left, const char *right) {
     assert(snprintf(dst, size, "%s/%s", left, right) > 0);
 }
@@ -561,6 +569,93 @@ static void test_temp_upload_root_can_live_on_secondary_source(void) {
     assert(rmdir(sandbox_template) == 0);
 }
 
+/* Uploads are promoted with rename(2), which cannot cross a mount boundary, so
+ * a destination on the second source must stage on that source rather than on
+ * the primary one. */
+static void test_uploads_stage_on_the_destination_source(void) {
+    char sandbox_template[] = "/tmp/cs-upload-per-source-XXXXXX";
+    cs_paths paths;
+    cs_upload_plan plan;
+    char first_root[CS_PATH_MAX];
+    char second_root[CS_PATH_MAX];
+    char first_resolved[CS_PATH_MAX];
+    char second_resolved[CS_PATH_MAX];
+    char source_list[CS_PATH_MAX * 2];
+    char userdata_list[CS_PATH_MAX * 2];
+    char first_userdata[CS_PATH_MAX];
+    char second_userdata[CS_PATH_MAX];
+    char first_tmp[CS_PATH_MAX];
+    char second_tmp[CS_PATH_MAX];
+    char first_roms[CS_PATH_MAX];
+    char second_roms[CS_PATH_MAX];
+    char reserved[CS_PATH_MAX];
+
+    assert(mkdtemp(sandbox_template) != NULL);
+    path_join(first_root, sizeof(first_root), sandbox_template, "card-a");
+    path_join(second_root, sizeof(second_root), sandbox_template, "card-b");
+    assert(mkdir(first_root, 0775) == 0);
+    assert(mkdir(second_root, 0775) == 0);
+    assert(realpath(first_root, first_resolved) != NULL);
+    assert(realpath(second_root, second_resolved) != NULL);
+
+    path_join(first_userdata, sizeof(first_userdata), first_resolved, ".userdata/mlp1");
+    path_join(second_userdata, sizeof(second_userdata), second_resolved, ".userdata/mlp1");
+    path_join(first_tmp, sizeof(first_tmp), first_userdata, "CentralScrutinizer/uploads/tmp");
+    path_join(second_tmp, sizeof(second_tmp), second_userdata, "CentralScrutinizer/uploads/tmp");
+    path_join(first_roms, sizeof(first_roms), first_resolved, "Roms");
+    path_join(second_roms, sizeof(second_roms), second_resolved, "Roms");
+
+    assert(snprintf(source_list, sizeof(source_list), "%s:%s", first_resolved, second_resolved) > 0);
+    assert(snprintf(userdata_list, sizeof(userdata_list), "%s:%s", first_userdata, second_userdata) > 0);
+
+    setenv("SDCARD_PATHS", source_list, 1);
+    setenv("USERDATA_PATHS", userdata_list, 1);
+    setenv("CS_SOURCE_TEST_AVAILABLE", "all", 1);
+    unsetenv("SDCARD_PATH");
+    unsetenv("USERDATA_PATH");
+    unsetenv("CS_WEB_ROOT");
+
+    assert(cs_paths_init(&paths) == 0);
+    assert(paths.source_count == 2);
+
+    /* Each source stages on its own filesystem, and the primary keeps the
+     * historical location. */
+    assert(strcmp(paths.temp_upload_root, first_tmp) == 0);
+    assert(strcmp(paths.sources[0].temp_upload_root, first_tmp) == 0);
+    assert(strcmp(paths.sources[1].temp_upload_root, second_tmp) == 0);
+    assert(strcmp(cs_paths_temp_upload_root_for(&paths, paths.sources[1].root), second_tmp) == 0);
+    /* An unknown root falls back to the primary. */
+    assert(strcmp(cs_paths_temp_upload_root_for(&paths, "/nowhere"), first_tmp) == 0);
+
+    /* A plan for the second source stages there, not on the primary. */
+    assert(cs_upload_prepare_temp_root_for(&paths, paths.sources[1].root) == 0);
+    assert(access(second_tmp, F_OK) == 0);
+    assert(cs_upload_plan_make(&paths, second_roms, paths.sources[1].root, "GB", "red.gb", 0, &plan) == 0);
+    assert(strcmp(plan.temp_root, second_tmp) == 0);
+    assert(strncmp(plan.temp_path, second_tmp, strlen(second_tmp)) == 0);
+    assert(strncmp(plan.final_path, second_resolved, strlen(second_resolved)) == 0);
+
+    /* And the promote succeeds, which is what EXDEV used to prevent. */
+    write_file(plan.temp_path, "rom");
+    assert(cs_upload_promote(&plan) == 0);
+    assert(access(plan.final_path, F_OK) == 0);
+    assert(access(plan.temp_path, F_OK) != 0);
+
+    /* The primary still stages on the primary. */
+    assert(cs_upload_plan_make(&paths, first_roms, paths.sources[0].root, "GB", "blue.gb", 0, &plan) == 0);
+    assert(strcmp(plan.temp_root, first_tmp) == 0);
+
+    assert(cs_upload_reserve_temp_path_for(&paths, paths.sources[1].root, "red.gb", reserved, sizeof(reserved))
+           == 0);
+    assert(strncmp(reserved, second_tmp, strlen(second_tmp)) == 0);
+    assert(unlink(reserved) == 0);
+
+    unsetenv("SDCARD_PATHS");
+    unsetenv("USERDATA_PATHS");
+    unsetenv("CS_SOURCE_TEST_AVAILABLE");
+    remove_tree(sandbox_template);
+}
+
 int main(void) {
     cs_paths paths;
     cs_upload_plan plan;
@@ -633,6 +728,7 @@ int main(void) {
     test_prepare_final_directory_merges_existing_directories();
     test_promote_into_missing_final_root();
     test_temp_upload_root_can_live_on_secondary_source();
+    test_uploads_stage_on_the_destination_source();
 
     return 0;
 }

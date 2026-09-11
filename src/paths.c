@@ -295,13 +295,44 @@ static int source_root_available(const char *root, size_t index) {
 #endif
 }
 
+/* Mirror the primary shared_state_root derivation for an arbitrary source so
+ * source 0's staging root stays byte-identical to the pre-existing one. */
+static int populate_source_temp_upload_root(cs_path_source *source,
+                                            size_t content_index,
+                                            const char *platform) {
+    char userdata_base[CS_PATH_MAX];
+    char userdata_suffix[CS_PATH_MAX];
+    int written;
+
+    written = snprintf(userdata_suffix, sizeof(userdata_suffix), "/.userdata/%s", platform);
+    if (written < 0 || (size_t) written >= sizeof(userdata_suffix)) {
+        return -1;
+    }
+    if (populate_source_path(userdata_base,
+                             sizeof(userdata_base),
+                             getenv("USERDATA_PATHS"),
+                             "USERDATA_PATH",
+                             content_index,
+                             source->root,
+                             userdata_suffix)
+        != 0) {
+        return -1;
+    }
+
+    return write_joined(source->temp_upload_root,
+                        sizeof(source->temp_upload_root),
+                        userdata_base,
+                        "/CentralScrutinizer/uploads/tmp");
+}
+
 static int add_source(cs_paths *paths,
                       const char *root,
                       size_t storage_index,
-                      size_t content_index) {
+                      size_t content_index,
+                      const char *platform) {
     cs_path_source *source;
 
-    if (!paths || !root || root[0] == '\0' || storage_index >= CS_PATH_SOURCE_MAX) {
+    if (!paths || !root || root[0] == '\0' || storage_index >= CS_PATH_SOURCE_MAX || !platform) {
         return -1;
     }
 
@@ -365,19 +396,20 @@ static int add_source(cs_paths *paths,
                                 content_index,
                                 source->root,
                                 "/Cheats")
-               != 0) {
+               != 0
+        || populate_source_temp_upload_root(source, content_index, platform) != 0) {
         return -1;
     }
 
     return 0;
 }
 
-static int populate_sources(cs_paths *paths, const char *sd) {
+static int populate_sources(cs_paths *paths, const char *sd, const char *platform) {
     const char *source_list = getenv("SDCARD_PATHS");
     char value[CS_PATH_MAX];
     size_t index;
 
-    if (!paths) {
+    if (!paths || !platform) {
         return -1;
     }
 
@@ -392,7 +424,7 @@ static int populate_sources(cs_paths *paths, const char *sd) {
             if (!source_root_available(value, index)) {
                 continue;
             }
-            if (add_source(paths, value, paths->source_count, index) != 0) {
+            if (add_source(paths, value, paths->source_count, index, platform) != 0) {
                 return -1;
             }
             paths->source_count += 1;
@@ -401,7 +433,7 @@ static int populate_sources(cs_paths *paths, const char *sd) {
 
     if (paths->source_count == 0) {
         if (add_source(paths, sd && sd[0] != '\0' ? sd : "/mnt/sdcard",
-                       0, 0) != 0) {
+                       0, 0, platform) != 0) {
             return -1;
         }
         paths->source_count = 1;
@@ -440,7 +472,7 @@ int cs_paths_init(cs_paths *paths) {
         default_web_root = "resources/web";
     }
 
-    if (populate_sources(&temp, sd) != 0) {
+    if (populate_sources(&temp, sd, platform) != 0) {
         return -1;
     }
     if (write_value(temp.sdcard_root, sizeof(temp.sdcard_root), temp.sources[0].root, "/mnt/sdcard") != 0) {
@@ -592,6 +624,24 @@ int cs_paths_source_index_for_alias(const cs_paths *paths, const char *alias) {
         }
     }
     return -1;
+}
+
+const char *cs_paths_temp_upload_root_for(const cs_paths *paths, const char *source_root) {
+    size_t i;
+
+    if (!paths) {
+        return NULL;
+    }
+    if (source_root && source_root[0] != '\0') {
+        for (i = 0; i < paths->source_count; ++i) {
+            if (strcmp(paths->sources[i].root, source_root) == 0
+                && paths->sources[i].temp_upload_root[0] != '\0') {
+                return paths->sources[i].temp_upload_root;
+            }
+        }
+    }
+
+    return paths->temp_upload_root;
 }
 
 int cs_paths_resolve_files_path(const cs_paths *paths,

@@ -44,13 +44,79 @@
       "ignore_file_names": [],
       "playlist_extensions": [],
       "m3u_generation": "none",
-      "default_core": "genesis_plus_gx",
-      "alternate_cores": [
-        "picodrive"
-      ],
+      "default_core": "picodrive",
+      "alternate_cores": [],
       "rom_root": "Roms/32X",
       "image_root": "Images/32X",
-      "bios_notes": []
+      "bios_notes": [],
+      "legacy_flat_core": "genesis_plus_gx"
+    },
+    {
+      "id": "AMIGA",
+      "name": "Amiga",
+      "patterns": [
+        "AMIGA",
+        "Amiga",
+        "amiga",
+        "amiga500",
+        "amiga1200"
+      ],
+      "extensions": [
+        "adf",
+        "adz",
+        "ccd",
+        "chd",
+        "cue",
+        "dms",
+        "fdi",
+        "hdf",
+        "hdz",
+        "iso",
+        "lha",
+        "mds",
+        "nrg",
+        "raw",
+        "rp9",
+        "uae"
+      ],
+      "archive_extensions": [
+        "7z",
+        "zip"
+      ],
+      "archive_inner_extensions": [
+        "adf",
+        "adz",
+        "ccd",
+        "chd",
+        "cue",
+        "dms",
+        "fdi",
+        "hdf",
+        "hdz",
+        "iso",
+        "lha",
+        "mds",
+        "nrg",
+        "raw",
+        "rp9",
+        "uae"
+      ],
+      "archive_mode": "pass_through",
+      "file_names": [],
+      "ignore_file_names": [],
+      "playlist_extensions": [
+        "m3u"
+      ],
+      "m3u_generation": "manual",
+      "default_core": "puae2021",
+      "alternate_cores": [
+        "puae"
+      ],
+      "rom_root": "Roms/AMIGA",
+      "image_root": "Images/AMIGA",
+      "bios_notes": [
+        "puae/Kickstart ROMs and rom.key when required (user-supplied, place under BIOS)"
+      ]
     },
     {
       "id": "ARCADE",
@@ -74,6 +140,7 @@
       ],
       "playlist_extensions": [],
       "m3u_generation": "none",
+      "name_map": true,
       "default_core": "fbneo",
       "alternate_cores": [
         "mame2003_plus",
@@ -126,7 +193,53 @@
       "alternate_cores": [],
       "rom_root": "Roms/ATARI2600",
       "image_root": "Images/ATARI2600",
-      "bios_notes": []
+      "bios_notes": [],
+      "legacy_flat_core": "stella2014"
+    },
+    {
+      "id": "ATOMISWAVE",
+      "name": "Atomiswave",
+      "patterns": [
+        "ATOMISWAVE",
+        "atomiswave"
+      ],
+      "extensions": [
+        "cdi",
+        "chd",
+        "cue",
+        "dat",
+        "gdi",
+        "iso"
+      ],
+      "archive_extensions": [
+        "zip"
+      ],
+      "archive_inner_extensions": [
+        "cdi",
+        "chd",
+        "cue",
+        "dat",
+        "gdi",
+        "iso"
+      ],
+      "archive_mode": "pass_through",
+      "file_names": [],
+      "ignore_file_names": [],
+      "playlist_extensions": [
+        "m3u"
+      ],
+      "m3u_generation": "manual",
+      "name_map": true,
+      "default_core": "flycast_standalone",
+      "alternate_cores": [
+        "flycast",
+        "km_flycast_xtreme"
+      ],
+      "rom_root": "Roms/ATOMISWAVE",
+      "image_root": "Images/ATOMISWAVE",
+      "bios_notes": [
+        "dc/awbios.zip (user-supplied, place under BIOS)"
+      ]
     },
     {
       "id": "COLECO",
@@ -197,13 +310,17 @@
         "m3u"
       ],
       "m3u_generation": "manual",
-      "default_core": "flycast",
+      "default_core": "flycast_standalone",
       "alternate_cores": [
+        "flycast",
         "km_flycast_xtreme"
       ],
       "rom_root": "Roms/DC",
       "image_root": "Images/DC",
-      "bios_notes": []
+      "bios_notes": [
+        "dc/dc_boot.bin (optional/recommended, user-supplied, place under BIOS)"
+      ],
+      "legacy_flat_core": "flycast"
     },
     {
       "id": "DOS",
@@ -259,7 +376,8 @@
       "alternate_cores": [],
       "rom_root": "Roms/DOS",
       "image_root": "Images/DOS",
-      "bios_notes": []
+      "bios_notes": [],
+      "legacy_flat_core": "dosbox_pure"
     },
     {
       "id": "EASYRPG",
@@ -292,11 +410,12 @@
       "alternate_cores": [],
       "rom_root": "Roms/EASYRPG",
       "image_root": "Images/EASYRPG",
-      "bios_notes": []
+      "bios_notes": [],
+      "legacy_flat_core": "easyrpg"
     },
     {
       "id": "FC",
-      "name": "NES",
+      "name": "Nintendo Entertainment System / Famicom",
       "patterns": [
         "FC",
         "FAMICOM",
@@ -331,9 +450,10 @@
         "nestopia",
         "quicknes"
       ],
-      "rom_root": "Roms/FC",
-      "image_root": "Images/FC",
-      "bios_notes": []
+      "rom_root": "Roms/NES",
+      "image_root": "Images/NES",
+      "bios_notes": [],
+      "legacy_flat_core": "fceumm"
     },
     {
       "id": "FDS",
@@ -369,11 +489,12 @@
       "image_root": "Images/FDS",
       "bios_notes": [
         "disksys.rom (required)"
-      ]
+      ],
+      "legacy_flat_core": "fceumm"
     },
     {
       "id": "GB",
-      "name": "GB",
+      "name": "Game Boy",
       "patterns": [
         "GB",
         "DMG",
@@ -381,7 +502,8 @@
         "GAMEBOY",
         "gameboy",
         "gb",
-        "TGB_Dual"
+        "TGB_Dual",
+        "SGB"
       ],
       "extensions": [
         "bin",
@@ -418,14 +540,15 @@
     },
     {
       "id": "GBA",
-      "name": "GBA",
+      "name": "Game Boy Advance",
       "patterns": [
         "GBA",
         "AGB",
         "agb",
         "GAMEBOYADVANCE",
         "gameboyadvance",
-        "gba"
+        "gba",
+        "MGBA"
       ],
       "extensions": [
         "bin",
@@ -452,7 +575,8 @@
       ],
       "rom_root": "Roms/GBA",
       "image_root": "Images/GBA",
-      "bios_notes": []
+      "bios_notes": [],
+      "legacy_flat_core": "mgba"
     },
     {
       "id": "GBC",
@@ -499,10 +623,141 @@
       "bios_notes": []
     },
     {
-      "id": "GEN",
-      "name": "GEN",
+      "id": "GG",
+      "name": "Game Gear",
       "patterns": [
-        "GEN"
+        "GG",
+        "GAMEGEAR",
+        "gamegear",
+        "gg"
+      ],
+      "extensions": [
+        "bin",
+        "gg"
+      ],
+      "archive_extensions": [
+        "7z",
+        "zip"
+      ],
+      "archive_inner_extensions": [
+        "bin",
+        "gg"
+      ],
+      "archive_mode": "pass_through",
+      "file_names": [],
+      "ignore_file_names": [],
+      "playlist_extensions": [],
+      "m3u_generation": "none",
+      "default_core": "genesis_plus_gx",
+      "alternate_cores": [
+        "picodrive",
+        "gearsystem"
+      ],
+      "rom_root": "Roms/GG",
+      "image_root": "Images/GG",
+      "bios_notes": [],
+      "legacy_flat_core": "genesis_plus_gx"
+    },
+    {
+      "id": "GW",
+      "name": "Game & Watch",
+      "patterns": [
+        "GW",
+        "gw",
+        "GAMEANDWATCH",
+        "gameandwatch"
+      ],
+      "extensions": [
+        "mgw"
+      ],
+      "archive_extensions": [
+        "7z",
+        "zip"
+      ],
+      "archive_inner_extensions": [
+        "mgw"
+      ],
+      "archive_mode": "pass_through",
+      "file_names": [],
+      "ignore_file_names": [],
+      "playlist_extensions": [],
+      "m3u_generation": "none",
+      "default_core": "gw",
+      "alternate_cores": [],
+      "rom_root": "Roms/GW",
+      "image_root": "Images/GW",
+      "bios_notes": [],
+      "legacy_flat_core": "gw"
+    },
+    {
+      "id": "LYNX",
+      "name": "Atari Lynx",
+      "patterns": [
+        "LYNX",
+        "ATARILYNX",
+        "atarilynx",
+        "lynx"
+      ],
+      "extensions": [
+        "lnx"
+      ],
+      "archive_extensions": [
+        "zip"
+      ],
+      "archive_inner_extensions": [
+        "lnx"
+      ],
+      "archive_mode": "pass_through",
+      "file_names": [],
+      "ignore_file_names": [],
+      "playlist_extensions": [],
+      "m3u_generation": "none",
+      "default_core": "handy",
+      "alternate_cores": [
+        "mednafen_lynx"
+      ],
+      "rom_root": "Roms/LYNX",
+      "image_root": "Images/LYNX",
+      "bios_notes": [],
+      "legacy_flat_core": "handy"
+    },
+    {
+      "id": "MAME",
+      "name": "MAME 03+",
+      "patterns": [
+        "MAME",
+        "mame",
+        "MAME2003PLUS",
+        "mame2003plus"
+      ],
+      "extensions": [],
+      "archive_extensions": [
+        "zip"
+      ],
+      "archive_inner_extensions": [],
+      "archive_mode": "pass_through",
+      "file_names": [],
+      "ignore_file_names": [
+        "neocd.zip",
+        "neocdz.zip",
+        "neogeo.zip"
+      ],
+      "playlist_extensions": [],
+      "m3u_generation": "none",
+      "name_map": true,
+      "default_core": "mame",
+      "alternate_cores": [
+        "mame2003_plus"
+      ],
+      "rom_root": "Roms/MAME",
+      "image_root": "Images/MAME",
+      "bios_notes": []
+    },
+    {
+      "id": "MAME2003",
+      "name": "MAME2003",
+      "patterns": [
+        "MAME2003"
       ],
       "extensions": [],
       "archive_extensions": [],
@@ -512,21 +767,46 @@
       "ignore_file_names": [],
       "playlist_extensions": [],
       "m3u_generation": "none",
-      "default_core": "genesis_plus_gx",
+      "name_map": true,
+      "default_core": "mame2003_plus",
       "alternate_cores": [],
-      "rom_root": "Roms/GEN",
-      "image_root": "Images/GEN",
-      "bios_notes": []
+      "rom_root": "Roms/MAME2003",
+      "image_root": "Images/MAME2003",
+      "bios_notes": [],
+      "legacy_flat_core": "mame2003_plus"
     },
     {
-      "id": "GENESIS",
-      "name": "Genesis",
+      "id": "MAME2010",
+      "name": "MAME2010",
       "patterns": [
-        "GENESIS",
+        "MAME2010"
+      ],
+      "extensions": [],
+      "archive_extensions": [],
+      "archive_inner_extensions": [],
+      "archive_mode": "pass_through",
+      "file_names": [],
+      "ignore_file_names": [],
+      "playlist_extensions": [],
+      "m3u_generation": "none",
+      "name_map": true,
+      "default_core": "mame2010",
+      "alternate_cores": [],
+      "rom_root": "Roms/MAME2010",
+      "image_root": "Images/MAME2010",
+      "bios_notes": [],
+      "legacy_flat_core": "mame2010"
+    },
+    {
+      "id": "MD",
+      "name": "Genesis / Mega Drive",
+      "patterns": [
         "MD",
+        "GENESIS",
         "md",
         "MEGADRIVE",
-        "megadrive"
+        "megadrive",
+        "GEN"
       ],
       "extensions": [
         "32x",
@@ -565,223 +845,8 @@
       ],
       "rom_root": "Roms/GENESIS",
       "image_root": "Images/GENESIS",
-      "bios_notes": []
-    },
-    {
-      "id": "GG",
-      "name": "Game Gear",
-      "patterns": [
-        "GG",
-        "GAMEGEAR",
-        "gamegear",
-        "gg"
-      ],
-      "extensions": [
-        "bin",
-        "gg"
-      ],
-      "archive_extensions": [
-        "7z",
-        "zip"
-      ],
-      "archive_inner_extensions": [
-        "bin",
-        "gg"
-      ],
-      "archive_mode": "pass_through",
-      "file_names": [],
-      "ignore_file_names": [],
-      "playlist_extensions": [],
-      "m3u_generation": "none",
-      "default_core": "genesis_plus_gx",
-      "alternate_cores": [
-        "picodrive",
-        "gearsystem"
-      ],
-      "rom_root": "Roms/GG",
-      "image_root": "Images/GG",
-      "bios_notes": []
-    },
-    {
-      "id": "GW",
-      "name": "Game & Watch",
-      "patterns": [
-        "GW",
-        "gw",
-        "GAMEANDWATCH",
-        "gameandwatch"
-      ],
-      "extensions": [
-        "mgw"
-      ],
-      "archive_extensions": [
-        "7z",
-        "zip"
-      ],
-      "archive_inner_extensions": [
-        "mgw"
-      ],
-      "archive_mode": "pass_through",
-      "file_names": [],
-      "ignore_file_names": [],
-      "playlist_extensions": [],
-      "m3u_generation": "none",
-      "default_core": "gw",
-      "alternate_cores": [],
-      "rom_root": "Roms/GW",
-      "image_root": "Images/GW",
-      "bios_notes": []
-    },
-    {
-      "id": "LYNX",
-      "name": "Atari Lynx",
-      "patterns": [
-        "LYNX",
-        "ATARILYNX",
-        "atarilynx",
-        "lynx"
-      ],
-      "extensions": [
-        "lnx"
-      ],
-      "archive_extensions": [
-        "zip"
-      ],
-      "archive_inner_extensions": [
-        "lnx"
-      ],
-      "archive_mode": "pass_through",
-      "file_names": [],
-      "ignore_file_names": [],
-      "playlist_extensions": [],
-      "m3u_generation": "none",
-      "default_core": "handy",
-      "alternate_cores": [
-        "mednafen_lynx"
-      ],
-      "rom_root": "Roms/LYNX",
-      "image_root": "Images/LYNX",
-      "bios_notes": []
-    },
-    {
-      "id": "MAME",
-      "name": "MAME 03+",
-      "patterns": [
-        "MAME",
-        "mame",
-        "MAME2003PLUS",
-        "mame2003plus"
-      ],
-      "extensions": [],
-      "archive_extensions": [
-        "zip"
-      ],
-      "archive_inner_extensions": [],
-      "archive_mode": "pass_through",
-      "file_names": [],
-      "ignore_file_names": [
-        "neocd.zip",
-        "neocdz.zip",
-        "neogeo.zip"
-      ],
-      "playlist_extensions": [],
-      "m3u_generation": "none",
-      "default_core": "mame",
-      "alternate_cores": [
-        "mame2003_plus"
-      ],
-      "rom_root": "Roms/MAME",
-      "image_root": "Images/MAME",
-      "bios_notes": []
-    },
-    {
-      "id": "MAME2003",
-      "name": "MAME2003",
-      "patterns": [
-        "MAME2003"
-      ],
-      "extensions": [],
-      "archive_extensions": [],
-      "archive_inner_extensions": [],
-      "archive_mode": "pass_through",
-      "file_names": [],
-      "ignore_file_names": [],
-      "playlist_extensions": [],
-      "m3u_generation": "none",
-      "default_core": "mame2003_plus",
-      "alternate_cores": [],
-      "rom_root": "Roms/MAME2003",
-      "image_root": "Images/MAME2003",
-      "bios_notes": []
-    },
-    {
-      "id": "MAME2010",
-      "name": "MAME2010",
-      "patterns": [
-        "MAME2010"
-      ],
-      "extensions": [],
-      "archive_extensions": [],
-      "archive_inner_extensions": [],
-      "archive_mode": "pass_through",
-      "file_names": [],
-      "ignore_file_names": [],
-      "playlist_extensions": [],
-      "m3u_generation": "none",
-      "default_core": "mame2010",
-      "alternate_cores": [],
-      "rom_root": "Roms/MAME2010",
-      "image_root": "Images/MAME2010",
-      "bios_notes": []
-    },
-    {
-      "id": "MD",
-      "name": "Genesis",
-      "patterns": [
-        "MD",
-        "GENESIS",
-        "md",
-        "MEGADRIVE",
-        "megadrive"
-      ],
-      "extensions": [
-        "32x",
-        "68k",
-        "bin",
-        "chd",
-        "gen",
-        "iso",
-        "md",
-        "smd",
-        "sms"
-      ],
-      "archive_extensions": [
-        "7z",
-        "zip"
-      ],
-      "archive_inner_extensions": [
-        "32x",
-        "68k",
-        "bin",
-        "chd",
-        "gen",
-        "iso",
-        "md",
-        "smd",
-        "sms"
-      ],
-      "archive_mode": "pass_through",
-      "file_names": [],
-      "ignore_file_names": [],
-      "playlist_extensions": [],
-      "m3u_generation": "none",
-      "default_core": "genesis_plus_gx",
-      "alternate_cores": [
-        "picodrive"
-      ],
-      "rom_root": "Roms/MD",
-      "image_root": "Images/MD",
-      "bios_notes": []
+      "bios_notes": [],
+      "legacy_flat_core": "genesis_plus_gx"
     },
     {
       "id": "MD32X",
@@ -797,11 +862,12 @@
       "ignore_file_names": [],
       "playlist_extensions": [],
       "m3u_generation": "none",
-      "default_core": "genesis_plus_gx",
+      "default_core": "picodrive",
       "alternate_cores": [],
       "rom_root": "Roms/MD32X",
       "image_root": "Images/MD32X",
-      "bios_notes": []
+      "bios_notes": [],
+      "legacy_flat_core": "genesis_plus_gx"
     },
     {
       "id": "MS",
@@ -851,11 +917,12 @@
       ],
       "rom_root": "Roms/MS",
       "image_root": "Images/MS",
-      "bios_notes": []
+      "bios_notes": [],
+      "legacy_flat_core": "genesis_plus_gx"
     },
     {
       "id": "N64",
-      "name": "N64",
+      "name": "Nintendo 64",
       "patterns": [
         "N64",
         "n64",
@@ -881,8 +948,9 @@
       "ignore_file_names": [],
       "playlist_extensions": [],
       "m3u_generation": "none",
-      "default_core": "mupen64plus_next",
+      "default_core": "mupen64plus_standalone",
       "alternate_cores": [
+        "mupen64plus_next",
         "km_ludicrousn64_2k22_xtreme_amped",
         "parallel_n64",
         "km_parallel_n64_xtreme_amped_turbo",
@@ -890,7 +958,55 @@
       ],
       "rom_root": "Roms/N64",
       "image_root": "Images/N64",
-      "bios_notes": []
+      "bios_notes": [],
+      "legacy_flat_core": "mupen64plus_next"
+    },
+    {
+      "id": "NAOMI",
+      "name": "Sega Naomi",
+      "patterns": [
+        "NAOMI",
+        "naomi"
+      ],
+      "extensions": [
+        "cdi",
+        "chd",
+        "cue",
+        "dat",
+        "gdi",
+        "iso"
+      ],
+      "archive_extensions": [
+        "zip"
+      ],
+      "archive_inner_extensions": [
+        "cdi",
+        "chd",
+        "cue",
+        "dat",
+        "gdi",
+        "iso"
+      ],
+      "archive_mode": "pass_through",
+      "file_names": [],
+      "ignore_file_names": [],
+      "playlist_extensions": [
+        "m3u"
+      ],
+      "m3u_generation": "manual",
+      "name_map": true,
+      "default_core": "flycast_standalone",
+      "alternate_cores": [
+        "flycast",
+        "km_flycast_xtreme"
+      ],
+      "rom_root": "Roms/NAOMI",
+      "image_root": "Images/NAOMI",
+      "bios_notes": [
+        "dc/naomi.zip for Naomi and Naomi GD-ROM (user-supplied, place under BIOS)",
+        "dc/naomi2.zip for Naomi 2 (user-supplied, place under BIOS)",
+        "dc/airlbios.zip, dc/f355bios.zip, dc/f355dlx.zip, or dc/hod2bios.zip when required by a game"
+      ]
     },
     {
       "id": "NDS",
@@ -917,10 +1033,15 @@
       "playlist_extensions": [],
       "m3u_generation": "none",
       "default_core": "drastic",
-      "alternate_cores": [],
+      "alternate_cores": [
+        "fun_drastic"
+      ],
       "rom_root": "Roms/NDS",
       "image_root": "Images/NDS",
-      "bios_notes": []
+      "bios_notes": [
+        "Both Nintendo DS emulators bundle DraStic's own free replacement BIOS, so no BIOS file of your own is needed to play.",
+        "A few games refuse to start without the original Nintendo BIOS, and the DS firmware settings need the firmware dump. Put nds_bios_arm7.bin (16 KB), nds_bios_arm9.bin (4 KB) and nds_firmware.bin in BIOS/NDS."
+      ]
     },
     {
       "id": "NEOGEO",
@@ -948,6 +1069,7 @@
       ],
       "playlist_extensions": [],
       "m3u_generation": "none",
+      "name_map": true,
       "default_core": "fbneo",
       "alternate_cores": [
         "fbalpha2012"
@@ -957,47 +1079,6 @@
       "bios_notes": [
         "neogeo.zip (required, place in BIOS folder)"
       ]
-    },
-    {
-      "id": "NES",
-      "name": "NES",
-      "patterns": [
-        "NES",
-        "FAMICOM",
-        "famicom",
-        "FC",
-        "fc",
-        "nes"
-      ],
-      "extensions": [
-        "fds",
-        "nes",
-        "unf",
-        "unif"
-      ],
-      "archive_extensions": [
-        "7z",
-        "zip"
-      ],
-      "archive_inner_extensions": [
-        "fds",
-        "nes",
-        "unf",
-        "unif"
-      ],
-      "archive_mode": "pass_through",
-      "file_names": [],
-      "ignore_file_names": [],
-      "playlist_extensions": [],
-      "m3u_generation": "none",
-      "default_core": "fceumm",
-      "alternate_cores": [
-        "nestopia",
-        "quicknes"
-      ],
-      "rom_root": "Roms/NES",
-      "image_root": "Images/NES",
-      "bios_notes": []
     },
     {
       "id": "NGP",
@@ -1032,7 +1113,8 @@
       ],
       "rom_root": "Roms/NGP",
       "image_root": "Images/NGP",
-      "bios_notes": []
+      "bios_notes": [],
+      "legacy_flat_core": "mednafen_ngp"
     },
     {
       "id": "NGPC",
@@ -1066,11 +1148,75 @@
       ],
       "rom_root": "Roms/NGPC",
       "image_root": "Images/NGPC",
-      "bios_notes": []
+      "bios_notes": [],
+      "legacy_flat_core": "mednafen_ngp"
+    },
+    {
+      "id": "PC98",
+      "name": "NEC PC-98",
+      "patterns": [
+        "PC98",
+        "pc98",
+        "necpc98",
+        "NECPC98"
+      ],
+      "extensions": [
+        "2hd",
+        "88d",
+        "98d",
+        "cmd",
+        "d88",
+        "d98",
+        "dup",
+        "fdd",
+        "fdi",
+        "hdd",
+        "hdi",
+        "hdm",
+        "hdn",
+        "nhd",
+        "tfd",
+        "thd",
+        "xdf"
+      ],
+      "archive_extensions": [
+        "zip"
+      ],
+      "archive_inner_extensions": [
+        "2hd",
+        "88d",
+        "98d",
+        "cmd",
+        "d88",
+        "d98",
+        "dup",
+        "fdd",
+        "fdi",
+        "hdd",
+        "hdi",
+        "hdm",
+        "hdn",
+        "nhd",
+        "tfd",
+        "thd",
+        "xdf"
+      ],
+      "archive_mode": "pass_through",
+      "file_names": [],
+      "ignore_file_names": [],
+      "playlist_extensions": [],
+      "m3u_generation": "none",
+      "default_core": "np2kai",
+      "alternate_cores": [],
+      "rom_root": "Roms/PC98",
+      "image_root": "Images/PC98",
+      "bios_notes": [
+        "np2kai/font.bmp or np2kai/FONT.ROM (needed for text, place under BIOS)"
+      ]
     },
     {
       "id": "PCE",
-      "name": "TG-16",
+      "name": "PC Engine / TurboGrafx-16",
       "patterns": [
         "PCE",
         "pce",
@@ -1079,7 +1225,8 @@
         "TURBOGRAFX",
         "turbografx",
         "TURBOGRAFX16",
-        "turbografx16"
+        "turbografx16",
+        "TG16"
       ],
       "extensions": [
         "ccd",
@@ -1110,7 +1257,8 @@
       "alternate_cores": [],
       "rom_root": "Roms/PCE",
       "image_root": "Images/PCE",
-      "bios_notes": []
+      "bios_notes": [],
+      "legacy_flat_core": "mednafen_pce_fast"
     },
     {
       "id": "PCECD",
@@ -1151,7 +1299,8 @@
       "image_root": "Images/PCECD",
       "bios_notes": [
         "syscard3.pce (required)"
-      ]
+      ],
+      "legacy_flat_core": "mednafen_pce_fast"
     },
     {
       "id": "PICO8",
@@ -1184,7 +1333,8 @@
       "alternate_cores": [],
       "rom_root": "Roms/PICO8",
       "image_root": "Images/PICO8",
-      "bios_notes": []
+      "bios_notes": [],
+      "legacy_flat_core": "fake08"
     },
     {
       "id": "PORTS",
@@ -1210,28 +1360,8 @@
       "bios_notes": []
     },
     {
-      "id": "PROSYSTEM",
-      "name": "PROSYSTEM",
-      "patterns": [
-        "PROSYSTEM"
-      ],
-      "extensions": [],
-      "archive_extensions": [],
-      "archive_inner_extensions": [],
-      "archive_mode": "pass_through",
-      "file_names": [],
-      "ignore_file_names": [],
-      "playlist_extensions": [],
-      "m3u_generation": "none",
-      "default_core": "prosystem",
-      "alternate_cores": [],
-      "rom_root": "Roms/PROSYSTEM",
-      "image_root": "Images/PROSYSTEM",
-      "bios_notes": []
-    },
-    {
       "id": "PS",
-      "name": "PSX",
+      "name": "Sony PlayStation",
       "patterns": [
         "PS",
         "PLAYSTATION",
@@ -1241,90 +1371,6 @@
         "PSONE",
         "psone",
         "PSX",
-        "psx"
-      ],
-      "extensions": [
-        "cbn",
-        "chd",
-        "cue",
-        "img",
-        "iso",
-        "mdf",
-        "pbp",
-        "toc"
-      ],
-      "archive_extensions": [],
-      "archive_inner_extensions": [
-        "cbn",
-        "chd",
-        "cue",
-        "img",
-        "iso",
-        "mdf",
-        "pbp",
-        "toc"
-      ],
-      "archive_mode": "pass_through",
-      "file_names": [],
-      "ignore_file_names": [],
-      "playlist_extensions": [
-        "m3u"
-      ],
-      "m3u_generation": "manual",
-      "default_core": "pcsx_rearmed",
-      "alternate_cores": [
-        "swanstation",
-        "km_duckswanstation_xtreme_amped"
-      ],
-      "rom_root": "Roms/PS",
-      "image_root": "Images/PS",
-      "bios_notes": []
-    },
-    {
-      "id": "PSP",
-      "name": "PSP",
-      "patterns": [
-        "PSP",
-        "psp",
-        "PLAYSTATIONPORTABLE",
-        "playstationportable"
-      ],
-      "extensions": [
-        "chd",
-        "cso",
-        "iso",
-        "pbp"
-      ],
-      "archive_extensions": [],
-      "archive_inner_extensions": [
-        "chd",
-        "cso",
-        "iso",
-        "pbp"
-      ],
-      "archive_mode": "pass_through",
-      "file_names": [],
-      "ignore_file_names": [],
-      "playlist_extensions": [],
-      "m3u_generation": "none",
-      "default_core": "ppsspp",
-      "alternate_cores": [],
-      "rom_root": "Roms/PSP",
-      "image_root": "Images/PSP",
-      "bios_notes": []
-    },
-    {
-      "id": "PSX",
-      "name": "PSX",
-      "patterns": [
-        "PSX",
-        "PLAYSTATION",
-        "playstation",
-        "PS",
-        "ps",
-        "PS1",
-        "PSONE",
-        "psone",
         "psx"
       ],
       "extensions": [
@@ -1365,6 +1411,41 @@
       "bios_notes": []
     },
     {
+      "id": "PSP",
+      "name": "PSP",
+      "patterns": [
+        "PSP",
+        "psp",
+        "PLAYSTATIONPORTABLE",
+        "playstationportable"
+      ],
+      "extensions": [
+        "chd",
+        "cso",
+        "iso",
+        "pbp"
+      ],
+      "archive_extensions": [],
+      "archive_inner_extensions": [
+        "chd",
+        "cso",
+        "iso",
+        "pbp"
+      ],
+      "archive_mode": "pass_through",
+      "file_names": [],
+      "ignore_file_names": [],
+      "playlist_extensions": [],
+      "m3u_generation": "none",
+      "default_core": "ppsspp",
+      "alternate_cores": [
+        "ppsspp_gles"
+      ],
+      "rom_root": "Roms/PSP",
+      "image_root": "Images/PSP",
+      "bios_notes": []
+    },
+    {
       "id": "SATURN",
       "name": "Saturn",
       "patterns": [
@@ -1401,12 +1482,14 @@
       "m3u_generation": "manual",
       "default_core": "yabasanshiro",
       "alternate_cores": [
+        "yabasanshiro_standalone",
         "yabasanshiro_a133p",
         "yabasanshiro_smartpros"
       ],
       "rom_root": "Roms/SATURN",
       "image_root": "Images/SATURN",
-      "bios_notes": []
+      "bios_notes": [],
+      "legacy_flat_core": "yabasanshiro"
     },
     {
       "id": "SEGACD",
@@ -1451,7 +1534,8 @@
         "bios_CD_U.bin (US)",
         "bios_CD_E.bin (Europe)",
         "bios_CD_J.bin (Japan)"
-      ]
+      ],
+      "legacy_flat_core": "genesis_plus_gx"
     },
     {
       "id": "SEVENTYEIGHTHUNDRED",
@@ -1462,7 +1546,8 @@
         "ATARI7800",
         "atari7800",
         "A7800",
-        "a7800"
+        "a7800",
+        "PROSYSTEM"
       ],
       "extensions": [
         "a78",
@@ -1483,13 +1568,14 @@
       "m3u_generation": "none",
       "default_core": "prosystem",
       "alternate_cores": [],
-      "rom_root": "Roms/SEVENTYEIGHTHUNDRED",
-      "image_root": "Images/SEVENTYEIGHTHUNDRED",
-      "bios_notes": []
+      "rom_root": "Roms/A7800",
+      "image_root": "Images/A7800",
+      "bios_notes": [],
+      "legacy_flat_core": "prosystem"
     },
     {
       "id": "SFC",
-      "name": "SNES",
+      "name": "Super Nintendo / Super Famicom",
       "patterns": [
         "SFC",
         "sfc",
@@ -1498,113 +1584,11 @@
         "SUPERFAMICOM",
         "superfamicom",
         "SUPERNES",
-        "supernes"
-      ],
-      "extensions": [
-        "bs",
-        "bsx",
-        "dx2",
-        "fig",
-        "gd3",
-        "gd7",
-        "sfc",
-        "smc",
-        "st",
-        "swc"
-      ],
-      "archive_extensions": [
-        "7z",
-        "zip"
-      ],
-      "archive_inner_extensions": [
-        "bs",
-        "bsx",
-        "dx2",
-        "fig",
-        "gd3",
-        "gd7",
-        "sfc",
-        "smc",
-        "st",
-        "swc"
-      ],
-      "archive_mode": "pass_through",
-      "file_names": [],
-      "ignore_file_names": [],
-      "playlist_extensions": [],
-      "m3u_generation": "none",
-      "default_core": "snes9x",
-      "alternate_cores": [
-        "mednafen_supafaust",
-        "snes9x2010",
-        "snes9x2005",
-        "snes9x2005_plus",
-        "snes9x2002",
-        "chimerasnes"
-      ],
-      "rom_root": "Roms/SFC",
-      "image_root": "Images/SFC",
-      "bios_notes": []
-    },
-    {
-      "id": "SFC_JP",
-      "name": "Super Famicom",
-      "patterns": [
+        "supernes",
         "SFC_JP",
         "sfc_jp",
-        "SUPERFAMICOM_JP"
-      ],
-      "extensions": [
-        "bs",
-        "bsx",
-        "dx2",
-        "fig",
-        "gd3",
-        "gd7",
-        "sfc",
-        "smc",
-        "st",
-        "swc"
-      ],
-      "archive_extensions": [
-        "7z",
-        "zip"
-      ],
-      "archive_inner_extensions": [
-        "bs",
-        "bsx",
-        "dx2",
-        "fig",
-        "gd3",
-        "gd7",
-        "sfc",
-        "smc",
-        "st",
-        "swc"
-      ],
-      "archive_mode": "pass_through",
-      "file_names": [],
-      "ignore_file_names": [],
-      "playlist_extensions": [],
-      "m3u_generation": "none",
-      "default_core": "snes9x",
-      "alternate_cores": [],
-      "rom_root": "Roms/SFC_JP",
-      "image_root": "Images/SFC_JP",
-      "bios_notes": []
-    },
-    {
-      "id": "SNES",
-      "name": "SNES",
-      "patterns": [
-        "SNES",
-        "SFC",
-        "sfc",
-        "snes",
-        "SUPERFAMICOM",
-        "superfamicom",
-        "SUPERNES",
-        "supernes"
+        "SUPERFAMICOM_JP",
+        "SUPA"
       ],
       "extensions": [
         "bs",
@@ -1650,52 +1634,8 @@
       ],
       "rom_root": "Roms/SNES",
       "image_root": "Images/SNES",
-      "bios_notes": []
-    },
-    {
-      "id": "TG16",
-      "name": "TurboGrafx-16",
-      "patterns": [
-        "TG16",
-        "PCE",
-        "pce",
-        "PCENGINE",
-        "pcengine",
-        "TURBOGRAFX",
-        "turbografx",
-        "TURBOGRAFX16",
-        "turbografx16"
-      ],
-      "extensions": [
-        "ccd",
-        "chd",
-        "cue",
-        "img",
-        "iso",
-        "pce"
-      ],
-      "archive_extensions": [
-        "7z",
-        "zip"
-      ],
-      "archive_inner_extensions": [
-        "ccd",
-        "chd",
-        "cue",
-        "img",
-        "iso",
-        "pce"
-      ],
-      "archive_mode": "pass_through",
-      "file_names": [],
-      "ignore_file_names": [],
-      "playlist_extensions": [],
-      "m3u_generation": "none",
-      "default_core": "mednafen_pce_fast",
-      "alternate_cores": [],
-      "rom_root": "Roms/TG16",
-      "image_root": "Images/TG16",
-      "bios_notes": []
+      "bios_notes": [],
+      "legacy_flat_core": "snes9x"
     },
     {
       "id": "VB",
@@ -1791,7 +1731,8 @@
       "alternate_cores": [],
       "rom_root": "Roms/WS",
       "image_root": "Images/WS",
-      "bios_notes": []
+      "bios_notes": [],
+      "legacy_flat_core": "mednafen_wswan"
     },
     {
       "id": "WSC",
@@ -1827,7 +1768,8 @@
       "alternate_cores": [],
       "rom_root": "Roms/WSC",
       "image_root": "Images/WSC",
-      "bios_notes": []
+      "bios_notes": [],
+      "legacy_flat_core": "mednafen_wswan"
     }
   ]
 }

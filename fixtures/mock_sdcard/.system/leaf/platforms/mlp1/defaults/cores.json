@@ -18,7 +18,8 @@
       "platforms": [
         "mlp1"
       ],
-      "status": "missing"
+      "status": "missing",
+      "requires_direct_drm": false
     },
     {
       "id": "chimerasnes",
@@ -33,6 +34,7 @@
       "supports_savestate": true,
       "supports_disk_control": false,
       "needs_swap": false,
+      "requires_direct_drm": false,
       "platforms": [
         "mlp1"
       ],
@@ -44,13 +46,14 @@
       "type": "retroarch",
       "libretro_name": "dosbox_pure",
       "file_name": "dosbox_pure_libretro.so",
-      "config_folder": "DOSBox",
+      "config_folder": "DOSBox-pure",
       "info_name": "dosbox_pure_libretro.info",
       "path": null,
       "supports_menu": true,
       "supports_savestate": true,
       "supports_disk_control": false,
       "needs_swap": false,
+      "requires_direct_drm": false,
       "platforms": [
         "mlp1"
       ],
@@ -72,7 +75,8 @@
       "platforms": [
         "mlp1"
       ],
-      "status": "packaged"
+      "status": "packaged",
+      "requires_direct_drm": false
     },
     {
       "id": "easyrpg",
@@ -87,6 +91,7 @@
       "supports_savestate": true,
       "supports_disk_control": false,
       "needs_swap": false,
+      "requires_direct_drm": false,
       "platforms": [
         "mlp1"
       ],
@@ -98,13 +103,14 @@
       "type": "retroarch",
       "libretro_name": "fake08",
       "file_name": "fake08_libretro.so",
-      "config_folder": "fake-08-64",
+      "config_folder": "fake-08",
       "info_name": "fake08_libretro.info",
       "path": null,
       "supports_menu": true,
       "supports_savestate": true,
       "supports_disk_control": false,
       "needs_swap": false,
+      "requires_direct_drm": false,
       "platforms": [
         "mlp1"
       ],
@@ -123,6 +129,7 @@
       "supports_savestate": true,
       "supports_disk_control": false,
       "needs_swap": true,
+      "requires_direct_drm": false,
       "platforms": [
         "mlp1"
       ],
@@ -141,6 +148,7 @@
       "supports_savestate": true,
       "supports_disk_control": false,
       "needs_swap": true,
+      "requires_direct_drm": false,
       "platforms": [
         "mlp1"
       ],
@@ -159,6 +167,7 @@
       "supports_savestate": true,
       "supports_disk_control": false,
       "needs_swap": true,
+      "requires_direct_drm": false,
       "platforms": [
         "mlp1"
       ],
@@ -177,6 +186,7 @@
       "supports_savestate": true,
       "supports_disk_control": false,
       "needs_swap": true,
+      "requires_direct_drm": false,
       "platforms": [
         "mlp1"
       ],
@@ -195,6 +205,7 @@
       "supports_savestate": true,
       "supports_disk_control": false,
       "needs_swap": true,
+      "requires_direct_drm": false,
       "platforms": [
         "mlp1"
       ],
@@ -213,6 +224,7 @@
       "supports_savestate": true,
       "supports_disk_control": false,
       "needs_swap": false,
+      "requires_direct_drm": false,
       "platforms": [
         "mlp1"
       ],
@@ -231,10 +243,49 @@
       "supports_savestate": true,
       "supports_disk_control": true,
       "needs_swap": false,
+      "requires_direct_drm": false,
       "platforms": [
         "mlp1"
       ],
       "status": "packaged"
+    },
+    {
+      "id": "flycast_standalone",
+      "display_name": "Flycast Standalone",
+      "type": "path",
+      "libretro_name": null,
+      "file_name": null,
+      "config_folder": "Flycast Standalone",
+      "info_name": null,
+      "path": "emulators/flycast/launch.sh",
+      "supports_menu": true,
+      "supports_savestate": false,
+      "supports_disk_control": false,
+      "needs_swap": false,
+      "requires_direct_drm": true,
+      "platforms": [
+        "mlp1"
+      ],
+      "status": "packaged"
+    },
+    {
+      "id": "fun_drastic",
+      "display_name": "Fun DraStic",
+      "type": "path",
+      "libretro_name": null,
+      "file_name": null,
+      "config_folder": null,
+      "info_name": null,
+      "path": "emulators/fun-drastic/launch.sh",
+      "supports_menu": true,
+      "supports_savestate": false,
+      "supports_disk_control": false,
+      "needs_swap": false,
+      "platforms": [
+        "mlp1"
+      ],
+      "status": "packaged",
+      "requires_direct_drm": false
     },
     {
       "id": "gambatte",
@@ -249,6 +300,7 @@
       "supports_savestate": true,
       "supports_disk_control": false,
       "needs_swap": false,
+      "requires_direct_drm": false,
       "platforms": [
         "mlp1"
       ],
@@ -267,6 +319,7 @@
       "supports_savestate": true,
       "supports_disk_control": false,
       "needs_swap": false,
+      "requires_direct_drm": false,
       "platforms": [
         "mlp1"
       ],
@@ -285,6 +338,7 @@
       "supports_savestate": true,
       "supports_disk_control": false,
       "needs_swap": false,
+      "requires_direct_drm": false,
       "platforms": [
         "mlp1"
       ],
@@ -303,6 +357,7 @@
       "supports_savestate": true,
       "supports_disk_control": true,
       "needs_swap": false,
+      "requires_direct_drm": false,
       "platforms": [
         "mlp1"
       ],
@@ -321,10 +376,11 @@
       "supports_savestate": true,
       "supports_disk_control": false,
       "needs_swap": false,
+      "requires_direct_drm": false,
       "platforms": [
         "mlp1"
       ],
-      "status": "missing"
+      "status": "packaged"
     },
     {
       "id": "gw",
@@ -332,13 +388,14 @@
       "type": "retroarch",
       "libretro_name": "gw",
       "file_name": "gw_libretro.so",
-      "config_folder": "GW",
+      "config_folder": "Game & Watch",
       "info_name": "gw_libretro.info",
       "path": null,
       "supports_menu": true,
       "supports_savestate": true,
       "supports_disk_control": false,
       "needs_swap": false,
+      "requires_direct_drm": false,
       "platforms": [
         "mlp1"
       ],
@@ -357,6 +414,7 @@
       "supports_savestate": true,
       "supports_disk_control": false,
       "needs_swap": false,
+      "requires_direct_drm": false,
       "platforms": [
         "mlp1"
       ],
@@ -375,6 +433,7 @@
       "supports_savestate": true,
       "supports_disk_control": false,
       "needs_swap": false,
+      "requires_direct_drm": false,
       "platforms": [
         "mlp1"
       ],
@@ -393,6 +452,7 @@
       "supports_savestate": true,
       "supports_disk_control": false,
       "needs_swap": false,
+      "requires_direct_drm": false,
       "platforms": [
         "mlp1"
       ],
@@ -411,6 +471,7 @@
       "supports_savestate": true,
       "supports_disk_control": false,
       "needs_swap": false,
+      "requires_direct_drm": false,
       "platforms": [
         "mlp1"
       ],
@@ -429,6 +490,7 @@
       "supports_savestate": true,
       "supports_disk_control": false,
       "needs_swap": false,
+      "requires_direct_drm": false,
       "platforms": [
         "mlp1"
       ],
@@ -447,6 +509,7 @@
       "supports_savestate": true,
       "supports_disk_control": false,
       "needs_swap": false,
+      "requires_direct_drm": false,
       "platforms": [
         "mlp1"
       ],
@@ -458,13 +521,14 @@
       "type": "retroarch",
       "libretro_name": "mame",
       "file_name": "mame_libretro.so",
-      "config_folder": "Mame",
+      "config_folder": "MAME",
       "info_name": "mame_libretro.info",
       "path": null,
       "supports_menu": true,
       "supports_savestate": true,
       "supports_disk_control": false,
       "needs_swap": false,
+      "requires_direct_drm": false,
       "platforms": [
         "mlp1"
       ],
@@ -483,6 +547,7 @@
       "supports_savestate": true,
       "supports_disk_control": false,
       "needs_swap": false,
+      "requires_direct_drm": false,
       "platforms": [
         "mlp1"
       ],
@@ -501,6 +566,7 @@
       "supports_savestate": true,
       "supports_disk_control": false,
       "needs_swap": false,
+      "requires_direct_drm": false,
       "platforms": [
         "mlp1"
       ],
@@ -519,6 +585,7 @@
       "supports_savestate": true,
       "supports_disk_control": false,
       "needs_swap": false,
+      "requires_direct_drm": false,
       "platforms": [
         "mlp1"
       ],
@@ -537,6 +604,7 @@
       "supports_savestate": true,
       "supports_disk_control": false,
       "needs_swap": false,
+      "requires_direct_drm": false,
       "platforms": [
         "mlp1"
       ],
@@ -548,13 +616,14 @@
       "type": "retroarch",
       "libretro_name": "mame2010",
       "file_name": "mame2010_libretro.so",
-      "config_folder": "Mame2010",
+      "config_folder": "MAME 2010",
       "info_name": "mame2010_libretro.info",
       "path": null,
       "supports_menu": true,
       "supports_savestate": true,
       "supports_disk_control": false,
       "needs_swap": false,
+      "requires_direct_drm": false,
       "platforms": [
         "mlp1"
       ],
@@ -573,6 +642,7 @@
       "supports_savestate": true,
       "supports_disk_control": false,
       "needs_swap": false,
+      "requires_direct_drm": false,
       "platforms": [
         "mlp1"
       ],
@@ -591,6 +661,7 @@
       "supports_savestate": true,
       "supports_disk_control": false,
       "needs_swap": false,
+      "requires_direct_drm": false,
       "platforms": [
         "mlp1"
       ],
@@ -609,6 +680,7 @@
       "supports_savestate": true,
       "supports_disk_control": false,
       "needs_swap": false,
+      "requires_direct_drm": false,
       "platforms": [
         "mlp1"
       ],
@@ -627,6 +699,7 @@
       "supports_savestate": true,
       "supports_disk_control": true,
       "needs_swap": false,
+      "requires_direct_drm": false,
       "platforms": [
         "mlp1"
       ],
@@ -645,6 +718,7 @@
       "supports_savestate": true,
       "supports_disk_control": false,
       "needs_swap": false,
+      "requires_direct_drm": false,
       "platforms": [
         "mlp1"
       ],
@@ -666,7 +740,8 @@
       "platforms": [
         "mlp1"
       ],
-      "status": "missing"
+      "status": "missing",
+      "requires_direct_drm": false
     },
     {
       "id": "mednafen_wswan",
@@ -681,6 +756,7 @@
       "supports_savestate": true,
       "supports_disk_control": false,
       "needs_swap": false,
+      "requires_direct_drm": false,
       "platforms": [
         "mlp1"
       ],
@@ -699,6 +775,7 @@
       "supports_savestate": true,
       "supports_disk_control": false,
       "needs_swap": true,
+      "requires_direct_drm": false,
       "platforms": [
         "mlp1"
       ],
@@ -717,6 +794,7 @@
       "supports_savestate": true,
       "supports_disk_control": false,
       "needs_swap": false,
+      "requires_direct_drm": false,
       "platforms": [
         "mlp1"
       ],
@@ -728,9 +806,28 @@
       "type": "retroarch",
       "libretro_name": "mupen64plus_next",
       "file_name": "mupen64plus_next_libretro.so",
-      "config_folder": "Mupen64Plus Next",
+      "config_folder": "Mupen64Plus-Next",
       "info_name": "mupen64plus_next_libretro.info",
       "path": null,
+      "supports_menu": true,
+      "supports_savestate": true,
+      "supports_disk_control": false,
+      "needs_swap": false,
+      "requires_direct_drm": false,
+      "platforms": [
+        "mlp1"
+      ],
+      "status": "packaged"
+    },
+    {
+      "id": "mupen64plus_standalone",
+      "display_name": "Mupen64Plus Standalone",
+      "type": "path",
+      "libretro_name": null,
+      "file_name": null,
+      "config_folder": "Mupen64Plus Standalone",
+      "info_name": null,
+      "path": "emulators/mupen64plus/launch.sh",
       "supports_menu": true,
       "supports_savestate": true,
       "supports_disk_control": false,
@@ -738,7 +835,8 @@
       "platforms": [
         "mlp1"
       ],
-      "status": "packaged"
+      "status": "packaged",
+      "requires_direct_drm": false
     },
     {
       "id": "nestopia",
@@ -753,10 +851,30 @@
       "supports_savestate": true,
       "supports_disk_control": false,
       "needs_swap": false,
+      "requires_direct_drm": false,
       "platforms": [
         "mlp1"
       ],
       "status": "missing"
+    },
+    {
+      "id": "np2kai",
+      "display_name": "Neko Project II Kai",
+      "type": "retroarch",
+      "libretro_name": "np2kai",
+      "file_name": "np2kai_libretro.so",
+      "config_folder": "Neko Project II kai",
+      "info_name": "np2kai_libretro.info",
+      "path": null,
+      "supports_menu": true,
+      "supports_savestate": true,
+      "supports_disk_control": true,
+      "needs_swap": false,
+      "requires_direct_drm": false,
+      "platforms": [
+        "mlp1"
+      ],
+      "status": "packaged"
     },
     {
       "id": "parallel_n64",
@@ -771,6 +889,7 @@
       "supports_savestate": true,
       "supports_disk_control": false,
       "needs_swap": false,
+      "requires_direct_drm": false,
       "platforms": [
         "mlp1"
       ],
@@ -782,13 +901,14 @@
       "type": "retroarch",
       "libretro_name": "pcsx_rearmed",
       "file_name": "pcsx_rearmed_libretro.so",
-      "config_folder": "PCSX-ReARMed-64",
+      "config_folder": "PCSX-ReARMed",
       "info_name": "pcsx_rearmed_libretro.info",
       "path": null,
       "supports_menu": true,
       "supports_savestate": true,
       "supports_disk_control": true,
       "needs_swap": true,
+      "requires_direct_drm": false,
       "platforms": [
         "mlp1"
       ],
@@ -807,10 +927,11 @@
       "supports_savestate": true,
       "supports_disk_control": false,
       "needs_swap": false,
+      "requires_direct_drm": false,
       "platforms": [
         "mlp1"
       ],
-      "status": "missing"
+      "status": "packaged"
     },
     {
       "id": "ports",
@@ -820,7 +941,7 @@
       "file_name": null,
       "config_folder": null,
       "info_name": null,
-      "path": "/mnt/SDCARD/Roms/PORTS",
+      "path": "emulators/ports/launch.sh",
       "supports_menu": false,
       "supports_savestate": false,
       "supports_disk_control": false,
@@ -828,11 +949,12 @@
       "platforms": [
         "mlp1"
       ],
-      "status": "defer"
+      "status": "packaged",
+      "requires_direct_drm": false
     },
     {
       "id": "ppsspp",
-      "display_name": "PPSSPP",
+      "display_name": "PPSSPP (Vulkan)",
       "type": "path",
       "libretro_name": null,
       "file_name": null,
@@ -843,6 +965,26 @@
       "supports_savestate": false,
       "supports_disk_control": false,
       "needs_swap": false,
+      "requires_direct_drm": true,
+      "platforms": [
+        "mlp1"
+      ],
+      "status": "packaged"
+    },
+    {
+      "id": "ppsspp_gles",
+      "display_name": "PPSSPP (GLES)",
+      "type": "path",
+      "libretro_name": null,
+      "file_name": null,
+      "config_folder": null,
+      "info_name": null,
+      "path": "emulators/ppsspp/launch-gles.sh",
+      "supports_menu": false,
+      "supports_savestate": false,
+      "supports_disk_control": false,
+      "needs_swap": false,
+      "requires_direct_drm": false,
       "platforms": [
         "mlp1"
       ],
@@ -861,6 +1003,45 @@
       "supports_savestate": true,
       "supports_disk_control": false,
       "needs_swap": false,
+      "requires_direct_drm": false,
+      "platforms": [
+        "mlp1"
+      ],
+      "status": "packaged"
+    },
+    {
+      "id": "puae",
+      "display_name": "PUAE",
+      "type": "retroarch",
+      "libretro_name": "puae",
+      "file_name": "puae_libretro.so",
+      "config_folder": "PUAE",
+      "info_name": "puae_libretro.info",
+      "path": null,
+      "supports_menu": true,
+      "supports_savestate": true,
+      "supports_disk_control": true,
+      "needs_swap": false,
+      "requires_direct_drm": false,
+      "platforms": [
+        "mlp1"
+      ],
+      "status": "packaged"
+    },
+    {
+      "id": "puae2021",
+      "display_name": "PUAE 2021",
+      "type": "retroarch",
+      "libretro_name": "puae2021",
+      "file_name": "puae2021_libretro.so",
+      "config_folder": "PUAE 2021",
+      "info_name": "puae2021_libretro.info",
+      "path": null,
+      "supports_menu": true,
+      "supports_savestate": true,
+      "supports_disk_control": true,
+      "needs_swap": false,
+      "requires_direct_drm": false,
       "platforms": [
         "mlp1"
       ],
@@ -879,6 +1060,7 @@
       "supports_savestate": true,
       "supports_disk_control": false,
       "needs_swap": false,
+      "requires_direct_drm": false,
       "platforms": [
         "mlp1"
       ],
@@ -897,6 +1079,7 @@
       "supports_savestate": true,
       "supports_disk_control": false,
       "needs_swap": false,
+      "requires_direct_drm": false,
       "platforms": [
         "mlp1"
       ],
@@ -915,6 +1098,7 @@
       "supports_savestate": true,
       "supports_disk_control": false,
       "needs_swap": false,
+      "requires_direct_drm": false,
       "platforms": [
         "mlp1"
       ],
@@ -933,6 +1117,7 @@
       "supports_savestate": true,
       "supports_disk_control": false,
       "needs_swap": false,
+      "requires_direct_drm": false,
       "platforms": [
         "mlp1"
       ],
@@ -951,6 +1136,7 @@
       "supports_savestate": true,
       "supports_disk_control": false,
       "needs_swap": false,
+      "requires_direct_drm": false,
       "platforms": [
         "mlp1"
       ],
@@ -969,6 +1155,7 @@
       "supports_savestate": true,
       "supports_disk_control": false,
       "needs_swap": false,
+      "requires_direct_drm": false,
       "platforms": [
         "mlp1"
       ],
@@ -987,6 +1174,7 @@
       "supports_savestate": true,
       "supports_disk_control": false,
       "needs_swap": false,
+      "requires_direct_drm": false,
       "platforms": [
         "mlp1"
       ],
@@ -1005,6 +1193,7 @@
       "supports_savestate": true,
       "supports_disk_control": false,
       "needs_swap": false,
+      "requires_direct_drm": false,
       "platforms": [
         "mlp1"
       ],
@@ -1023,6 +1212,7 @@
       "supports_savestate": true,
       "supports_disk_control": true,
       "needs_swap": false,
+      "requires_direct_drm": false,
       "platforms": [
         "mlp1"
       ],
@@ -1041,6 +1231,7 @@
       "supports_savestate": true,
       "supports_disk_control": false,
       "needs_swap": false,
+      "requires_direct_drm": false,
       "platforms": [
         "mlp1"
       ],
@@ -1059,6 +1250,7 @@
       "supports_savestate": true,
       "supports_disk_control": false,
       "needs_swap": false,
+      "requires_direct_drm": false,
       "platforms": [
         "mlp1"
       ],
@@ -1077,6 +1269,7 @@
       "supports_savestate": true,
       "supports_disk_control": false,
       "needs_swap": false,
+      "requires_direct_drm": false,
       "platforms": [
         "mlp1"
       ],
@@ -1098,7 +1291,8 @@
       "platforms": [
         "mlp1"
       ],
-      "status": "missing"
+      "status": "missing",
+      "requires_direct_drm": false
     },
     {
       "id": "yabasanshiro",
@@ -1113,6 +1307,26 @@
       "supports_savestate": true,
       "supports_disk_control": true,
       "needs_swap": false,
+      "requires_direct_drm": false,
+      "platforms": [
+        "mlp1"
+      ],
+      "status": "packaged"
+    },
+    {
+      "id": "yabasanshiro_standalone",
+      "display_name": "YabaSanshiro Standalone",
+      "type": "path",
+      "libretro_name": null,
+      "file_name": null,
+      "config_folder": "YabaSanshiro Standalone",
+      "info_name": null,
+      "path": "emulators/yabasanshiro/launch.sh",
+      "supports_menu": true,
+      "supports_savestate": false,
+      "supports_disk_control": false,
+      "needs_swap": false,
+      "requires_direct_drm": true,
       "platforms": [
         "mlp1"
       ],
@@ -1131,6 +1345,7 @@
       "supports_savestate": true,
       "supports_disk_control": false,
       "needs_swap": false,
+      "requires_direct_drm": false,
       "platforms": [
         "mlp1"
       ],
@@ -1149,6 +1364,7 @@
       "supports_savestate": true,
       "supports_disk_control": false,
       "needs_swap": false,
+      "requires_direct_drm": false,
       "platforms": [
         "mlp1"
       ],

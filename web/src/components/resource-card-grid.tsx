@@ -1,4 +1,5 @@
 import type { PlatformResource, PlatformSummary } from "../lib/types";
+import { useT } from "../lib/i18n";
 
 type Card = { key: PlatformResource; label: string; glyph: string; count: number };
 
@@ -9,13 +10,14 @@ export function ResourceCardGrid({
   platform: PlatformSummary;
   onSelect: (resource: PlatformResource) => void;
 }) {
+  const t = useT();
   const cards = ([
-    { key: "roms", label: "ROMs", glyph: "ROM", count: platform.counts.roms },
-    { key: "saves", label: "Saves", glyph: "SAV", count: platform.counts.saves },
-    { key: "states", label: "Save States", glyph: "STA", count: platform.counts.states },
-    { key: "bios", label: "BIOS", glyph: "BIO", count: platform.counts.bios },
-    { key: "overlays", label: "Overlays", glyph: "OVR", count: platform.counts.overlays },
-    { key: "cheats", label: "Cheats", glyph: "CHT", count: platform.counts.cheats },
+    { key: "roms", label: t("ROMs"), glyph: "ROM", count: platform.counts.roms },
+    { key: "saves", label: t("Saves"), glyph: "SAV", count: platform.counts.saves },
+    { key: "states", label: t("Save States"), glyph: "STA", count: platform.counts.states },
+    { key: "bios", label: t("BIOS"), glyph: "BIO", count: platform.counts.bios },
+    { key: "overlays", label: t("Overlays"), glyph: "OVR", count: platform.counts.overlays },
+    { key: "cheats", label: t("Cheats"), glyph: "CHT", count: platform.counts.cheats },
   ] satisfies Card[]).filter((card) => platform.supportedResources[card.key]);
 
   return (
@@ -35,7 +37,7 @@ export function ResourceCardGrid({
               {card.glyph}
             </div>
             <span className="text-lg font-semibold group-hover:text-[var(--accent)]">{card.label}</span>
-            <span className="-mt-2 text-xs text-[var(--muted)]">{card.count} items</span>
+            <span className="-mt-2 text-xs text-[var(--muted)]">{card.count} {t("items")}</span>
           </button>
         );
       })}

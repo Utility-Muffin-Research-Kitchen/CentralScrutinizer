@@ -1,5 +1,6 @@
 import type { BrowserResponse } from "../lib/types";
 import { Breadcrumbs } from "./breadcrumbs";
+import { useT } from "../lib/i18n";
 
 export function BrowserFilesToolbar({
   canRunSearch = false,
@@ -34,11 +35,12 @@ export function BrowserFilesToolbar({
   searchResultsActive?: boolean;
   search: string;
 }) {
+  const t = useT();
   return (
     <section className="rounded-[20px] border border-[var(--border)] bg-[var(--panel)] px-4 py-4">
       <div className="flex flex-col gap-4">
         <div className="flex flex-wrap items-center justify-between gap-4">
-          <Breadcrumbs ariaLabel="Files path" items={response.breadcrumbs} onSelect={onNavigate} rootLabel="SD Card" />
+          <Breadcrumbs ariaLabel={t("Files path")} items={response.breadcrumbs} onSelect={onNavigate} rootLabel={t("SD Card")} />
           <div className="flex flex-wrap items-center gap-2">
             <button
               className="rounded-md bg-[var(--accent)] px-4 py-2 text-sm font-semibold text-white transition hover:bg-[var(--accent-strong)] disabled:cursor-not-allowed disabled:opacity-50"
@@ -46,7 +48,7 @@ export function BrowserFilesToolbar({
               onClick={onUploadFile}
               type="button"
             >
-              Upload File
+              {t("Upload File")}
             </button>
             {canUploadFolder && onUploadFolder ? (
               <button
@@ -55,7 +57,7 @@ export function BrowserFilesToolbar({
                 onClick={onUploadFolder}
                 type="button"
               >
-                Upload Folder
+                {t("Upload Folder")}
               </button>
             ) : null}
             {onUploadZip ? (
@@ -65,7 +67,7 @@ export function BrowserFilesToolbar({
                 onClick={onUploadZip}
                 type="button"
               >
-                Upload ZIP
+                {t("Upload ZIP")}
               </button>
             ) : null}
             <button
@@ -74,7 +76,7 @@ export function BrowserFilesToolbar({
               onClick={onCreateFolder}
               type="button"
             >
-              New Folder
+              {t("New Folder")}
             </button>
             <button
               className="rounded-md border border-[var(--border)] bg-[var(--panel-alt)] px-4 py-2 text-sm font-medium text-[var(--text)] transition hover:border-[var(--accent)]/50 disabled:cursor-not-allowed disabled:opacity-50"
@@ -82,7 +84,7 @@ export function BrowserFilesToolbar({
               onClick={onRefresh}
               type="button"
             >
-              Refresh
+              {t("Refresh")}
             </button>
             {onRunSearch ? (
               <button
@@ -91,7 +93,7 @@ export function BrowserFilesToolbar({
                 onClick={onRunSearch}
                 type="button"
               >
-                Search Tree
+                {t("Search Tree")}
               </button>
             ) : null}
             {searchResultsActive && onClearSearch ? (
@@ -100,19 +102,19 @@ export function BrowserFilesToolbar({
                 onClick={onClearSearch}
                 type="button"
               >
-                Clear Results
+                {t("Clear Results")}
               </button>
             ) : null}
           </div>
         </div>
         <div>
           <input
-            aria-label="Search current folder"
+            aria-label={t("Search current folder")}
             className="h-11 w-full rounded-xl border border-[var(--border)] bg-[var(--bg)] px-4 text-sm text-[var(--text)] outline-none focus:border-[var(--accent)]"
             onChange={(event) => {
               onSearchChange(event.target.value);
             }}
-            placeholder="Search in current folder"
+            placeholder={t("Search in current folder")}
             value={search}
           />
         </div>

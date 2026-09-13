@@ -1,18 +1,22 @@
 import type { Breadcrumb } from "../lib/types";
+import { useT } from "../lib/i18n";
 
 export function Breadcrumbs({
-  ariaLabel = "Current path",
+  ariaLabel,
   items,
   onSelect,
-  rootLabel = "Root",
+  rootLabel,
 }: {
   ariaLabel?: string;
   items: Breadcrumb[];
   onSelect: (path?: string) => void;
   rootLabel?: string;
 }) {
+  const t = useT();
+  const resolvedAriaLabel = ariaLabel ?? t("Current path");
+  const resolvedRootLabel = rootLabel ?? t("Root");
   return (
-    <nav aria-label={ariaLabel} className="flex flex-wrap items-center gap-2 text-sm text-[var(--muted)]">
+    <nav aria-label={resolvedAriaLabel} className="flex flex-wrap items-center gap-2 text-sm text-[var(--muted)]">
       <button
         className="transition hover:text-white"
         onClick={() => {
@@ -20,7 +24,7 @@ export function Breadcrumbs({
         }}
         type="button"
       >
-        {rootLabel}
+        {resolvedRootLabel}
       </button>
       {items.map((item) => (
         <span key={item.path} className="flex items-center gap-2">

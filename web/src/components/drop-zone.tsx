@@ -1,6 +1,7 @@
 import { useCallback, useRef, useState, type ReactNode } from "react";
 
 import type { UploadSelection } from "../lib/types";
+import { useT } from "../lib/i18n";
 
 const EMPTY_IGNORED_DRAG_TYPES: readonly string[] = [];
 
@@ -143,6 +144,7 @@ export function DropZone({
   ignoredDragTypes?: readonly string[];
   onDrop: (selection: UploadSelection) => void;
 }) {
+  const t = useT();
   const [dragActive, setDragActive] = useState(false);
   const [reading, setReading] = useState(false);
   const dragCounter = useRef(0);
@@ -228,7 +230,7 @@ export function DropZone({
       {children}
       {(dragActive || reading) && !disabled ? (
         <div
-          aria-label={reading ? "Reading dropped files" : "Drop files here to upload"}
+          aria-label={reading ? t("Reading dropped files") : t("Drop files here to upload")}
           className="pointer-events-none absolute inset-0 z-40 flex items-center justify-center rounded-[24px] border-2 border-dashed border-[var(--accent)] bg-[var(--accent-soft)]"
         >
           <div className="flex flex-col items-center gap-2 text-center">
@@ -236,7 +238,7 @@ export function DropZone({
               ⬆
             </span>
             <p className="text-sm font-semibold text-[var(--text)]">
-              {reading ? "Reading files…" : "Drop files here to upload"}
+              {reading ? t("Reading files…") : t("Drop files here to upload")}
             </p>
           </div>
         </div>

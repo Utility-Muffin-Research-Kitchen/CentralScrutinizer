@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 
 import { deleteItem, getMacDotfiles } from "../lib/api";
 import type { MacDotfileEntry } from "../lib/types";
+import { useT } from "../lib/i18n";
 
 function formatDate(value: number): string {
   if (!value) {
@@ -31,19 +32,26 @@ export function MacDotCleanToolView({
   csrf: string | null;
   onBack: () => void;
 }) {
+  const t = useT();
   const [entries, setEntries] = useState<MacDotfileEntry[]>([]);
   const [entryCount, setEntryCount] = useState(0);
   const [loading, setLoading] = useState(true);
-  const [notice, setNotice] = useState<string | null>(null);
+  const [notice, setNoticeState] = useState<string | null>(null);
+  const [noticeSource, setNoticeSource] = useState<string | null>(null);
   const [cleaning, setCleaning] = useState(false);
   const [truncated, setTruncated] = useState(false);
+
+  function setNotice(message: string | null, source?: string) {
+    setNoticeState(message);
+    setNoticeSource(message === null ? null : source ?? message);
+  }
 
   async function loadEntries() {
     if (!csrf) {
       setEntries([]);
       setEntryCount(0);
       setTruncated(false);
-      setNotice("Missing session csrf token.");
+      setNotice(t("Missing session csrf token."), "Missing session csrf token.");
       setLoading(false);
       return;
     }
@@ -60,7 +68,7 @@ export function MacDotCleanToolView({
       setEntries([]);
       setEntryCount(0);
       setTruncated(false);
-      setNotice(error instanceof Error ? error.message : "Could not scan for macOS dotfiles.");
+      setNotice(error instanceof Error ? t(error.message) : t("Could not scan for macOS dotfiles."), error instanceof Error ? error.message : "Could not scan for macOS dotfiles.");
     } finally {
       setLoading(false);
     }
@@ -77,8 +85,8 @@ export function MacDotCleanToolView({
     if (
       !window.confirm(
         truncated
-          ? `Delete the ${entries.length} listed macOS transfer artifact${entries.length === 1 ? "" : "s"} now? The scan found ${entryCount} total.`
-          : `Delete ${entries.length} macOS transfer artifact${entries.length === 1 ? "" : "s"}?`,
+          ? `${t("Delete the listed macOS transfer artifacts now?")} ${t("The scan found")} ${entryCount} ${t("total")}.`
+          : `${t("Delete macOS transfer artifacts?")}`,
       )
     ) {
       return;
@@ -96,17 +104,17 @@ export function MacDotCleanToolView({
       await loadEntries();
 
       if (failureCount === 0) {
-        setNotice(`Deleted ${successCount} macOS artifact${successCount === 1 ? "" : "s"}.`);
+        setNotice(`${t("Deleted")} ${successCount} ${t("macOS artifacts")}.`, "Deleted");
         return;
       }
       if (successCount === 0) {
-        setNotice(`Failed to delete ${entries.length} macOS artifact${entries.length === 1 ? "" : "s"}.`);
+        setNotice(`${t("Failed to delete")} ${entries.length} ${t("macOS artifacts")}.`, "Failed to delete");
         return;
       }
 
-      setNotice(`Deleted ${successCount} of ${entries.length} macOS artifacts. ${failureCount} failed.`);
+      setNotice(`${t("Deleted")} ${successCount} / ${entries.length} ${t("macOS artifacts")}. ${failureCount} ${t("failed")}.`, "Deleted");
     } catch (error) {
-      setNotice(error instanceof Error ? error.message : "Cleanup failed.");
+      setNotice(error instanceof Error ? t(error.message) : t("Cleanup failed."), error instanceof Error ? error.message : "Cleanup failed.");
     } finally {
       setCleaning(false);
     }
@@ -127,13 +135,11 @@ export function MacDotCleanToolView({
             type="button"
           >
             <span aria-hidden="true">←</span>
-            Back
+            {t("Back")}
           </button>
-          <h2 className="mt-4 text-lg font-semibold">Mac Dot Cleanup</h2>
+          <h2 className="mt-4 text-lg font-semibold">{t("Mac Dot Cleanup")}</h2>
           <p className="mt-1 max-w-2xl text-sm text-[var(--muted)]">
-            Scan SD storage for safe macOS transfer artifacts including `.DS_Store`, AppleDouble `._*` sidecars,
-            Spotlight or Finder metadata folders, and `__MACOSX` directories. Matches inside `__MACOSX` are removed
-            along with the folder.
+            {t("Scan SD storage for safe macOS transfer artifacts including `.DS_Store`, AppleDouble `._*` sidecars, Spotlight or Finder metadata folders, and `__MACOSX` directories. Matches inside `__MACOSX` are removed along with the folder.")}
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
@@ -145,7 +151,7 @@ export function MacDotCleanToolView({
             }}
             type="button"
           >
-            Refresh
+            {t("Refresh")}
           </button>
           <button
             className={primaryActionClass}
@@ -155,7 +161,7 @@ export function MacDotCleanToolView({
             }}
             type="button"
           >
-            {cleaning ? "Cleaning..." : "Clean Now"}
+            {t(cleaning ? "Cleaning..." : "Clean Now")}
           </button>
         </div>
       </div>
@@ -168,18 +174,17 @@ export function MacDotCleanToolView({
 
       {!loading && truncated ? (
         <div className="rounded-2xl border border-amber-300/30 bg-amber-200/10 px-4 py-3 text-sm text-amber-50">
-          Showing {entries.length} of {entryCount} macOS transfer artifacts. Clean Now only removes the listed items;
-          refresh after cleanup to scan for the rest.
+          {t("Showing")} {entries.length} {t("of")} {entryCount} {t("macOS transfer artifacts. Clean Now only removes the listed items; refresh after cleanup to scan for the rest.")}
         </div>
       ) : null}
 
       {loading ? (
         <div className="rounded-[24px] border border-[var(--border)] bg-[var(--panel)] px-5 py-10 text-center text-sm text-[var(--muted)]">
-          Scanning for macOS dotfiles...
+          {t("Scanning for macOS dotfiles...")}
         </div>
       ) : entries.length === 0 ? (
         <div className="rounded-[24px] border border-[var(--border)] bg-[var(--panel)] px-5 py-10 text-center text-sm text-[var(--muted)]">
-          No macOS transfer artifacts found.
+          {t("No macOS transfer artifacts found.")}
         </div>
       ) : (
         <div className="space-y-3">
@@ -199,11 +204,11 @@ export function MacDotCleanToolView({
               </div>
               <dl className="mt-4 grid gap-3 text-sm text-[var(--muted)] sm:grid-cols-2 xl:grid-cols-4">
                 <div>
-                  <dt className="text-xs uppercase tracking-[0.14em]">Modified</dt>
+                  <dt className="text-xs uppercase tracking-[0.14em]">{t("Modified")}</dt>
                   <dd className="mt-1 text-[var(--text)]">{formatDate(entry.modified)}</dd>
                 </div>
                 <div>
-                  <dt className="text-xs uppercase tracking-[0.14em]">Size</dt>
+                  <dt className="text-xs uppercase tracking-[0.14em]">{t("Size")}</dt>
                   <dd className="mt-1 text-[var(--text)]">{formatSize(entry.size)}</dd>
                 </div>
               </dl>

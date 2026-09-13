@@ -117,6 +117,9 @@ fi
 if [ -z "${CS_WEB_ROOT:-}" ] && [ -d "$PAK_DIR/resources/web" ]; then
     export CS_WEB_ROOT="$PAK_DIR/resources/web"
 fi
+if [ -z "${CENTRAL_SCRUTINIZER_I18N_DIR:-}" ] && [ -d "$PAK_DIR/resources/i18n" ]; then
+    export CENTRAL_SCRUTINIZER_I18N_DIR="$PAK_DIR/resources/i18n"
+fi
 
 LOG_ROOT=${LOGS_PATH:-"$USERDATA_PATH/logs"}
 mkdir -p "$LOG_ROOT"

@@ -1,4 +1,5 @@
 import { useRef, useState } from "react";
+import { useT } from "../lib/i18n";
 
 export function PairScreen({
   message,
@@ -13,6 +14,7 @@ export function PairScreen({
   error?: string | null;
   pairingAvailable?: boolean;
 }) {
+  const t = useT();
   const [code, setCode] = useState("");
   const inputRef = useRef<HTMLInputElement | null>(null);
   const digits = Array.from({ length: 4 }, (_, index) => code[index] ?? "");
@@ -21,10 +23,10 @@ export function PairScreen({
     <main className="flex min-h-screen items-center justify-center px-4 py-10 text-[var(--text)]">
       <section className="w-full max-w-sm space-y-6 rounded-xl border border-[var(--border)] bg-[var(--panel)] p-8 shadow-[var(--shadow)]">
         <div className="space-y-3 text-center">
-          <img alt="The Central Scrutinizer" className="mx-auto h-32 w-auto" src="/logo.png" />
-          <h1 className="text-2xl font-bold tracking-tight">The Central Scrutinizer</h1>
+          <img alt={t("The Central Scrutinizer")} className="mx-auto h-32 w-auto" src="/logo.png" />
+          <h1 className="text-2xl font-bold tracking-tight">{t("The Central Scrutinizer")}</h1>
           <p className="text-sm font-semibold text-[var(--muted)]">
-            {pairingAvailable ? "Please enter the PIN shown on the device." : "Background mode is active on the handheld."}
+            {t(pairingAvailable ? "Please enter the PIN shown on the device." : "Background mode is active on the handheld.")}
           </p>
         </div>
         {pairingAvailable ? (
@@ -38,7 +40,7 @@ export function PairScreen({
             }}
           >
             <label className="sr-only" htmlFor="pair-code">
-              Pairing code
+              {t("Pairing code")}
             </label>
             <div
               className="relative"
@@ -48,7 +50,7 @@ export function PairScreen({
             >
               <input
                 ref={inputRef}
-                aria-label="Pairing code"
+                aria-label={t("Pairing code")}
                 autoFocus
                 className="absolute inset-0 opacity-0"
                 id="pair-code"
@@ -85,13 +87,13 @@ export function PairScreen({
               disabled={code.length !== 4 || isBusy}
               type="submit"
             >
-              {isBusy ? "Pairing..." : "Pair Browser"}
+              {t(isBusy ? "Pairing..." : "Pair Browser")}
             </button>
           </form>
         ) : (
           <div className="space-y-4 text-center">
             <p className="text-sm text-[var(--muted)]">
-              {message ?? "Reopen the app on the handheld to pair a browser or change device settings."}
+              {message ?? t("Reopen the app on the handheld to pair a browser or change device settings.")}
             </p>
           </div>
         )}

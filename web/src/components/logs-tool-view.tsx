@@ -5,6 +5,7 @@ import JSZip from "jszip";
 
 import { buildLogDownloadUrl, getLogs } from "../lib/api";
 import type { LogFileSummary } from "../lib/types";
+import { tFormat, useT } from "../lib/i18n";
 
 const MAX_LINES = 2000;
 
@@ -47,6 +48,7 @@ export function LogsToolView({
   onBack: () => void;
   onPathChange: (path?: string) => void;
 }) {
+  const t = useT();
   const [files, setFiles] = useState<LogFileSummary[]>([]);
   const [loading, setLoading] = useState(true);
   const [notice, setNotice] = useState<string | null>(null);
@@ -91,7 +93,7 @@ export function LogsToolView({
         }
       } catch (error) {
         if (!cancelled) {
-          setNotice(error instanceof Error ? error.message : "Logs lookup failed");
+          setNotice(error instanceof Error ? t(error.message) : t("Logs lookup failed"));
         }
       } finally {
         if (!cancelled) {
@@ -215,14 +217,14 @@ export function LogsToolView({
         const response = await fetch(buildLogDownloadUrl(file.path, csrf));
 
         if (!response.ok) {
-          throw new Error(`Could not download ${file.path}`);
+          throw new Error(tFormat(t, "Could not download {name}", { name: file.path }));
         }
 
-        setProgress(`Downloading ${index + 1}/${files.length}: ${file.path}`);
+        setProgress(tFormat(t, "Downloading {current}/{total}: {path}", { current: index + 1, total: files.length, path: file.path }));
         zip.file(file.path.replace(/^\.?\//, ""), await response.arrayBuffer());
       }
 
-      setProgress("Creating zip...");
+      setProgress(t("Creating zip..."));
       const blob = await zip.generateAsync({ type: "blob" });
       const url = URL.createObjectURL(blob);
       const link = document.createElement("a");
@@ -231,9 +233,9 @@ export function LogsToolView({
       link.download = `central-scrutinizer-logs-${new Date().toISOString().replace(/[:.]/g, "-")}.zip`;
       link.click();
       URL.revokeObjectURL(url);
-      setNotice(`Downloaded ${files.length} log file${files.length === 1 ? "" : "s"}.`);
+      setNotice(`${t("Downloaded")} ${files.length} ${t("log files")}.`);
     } catch (error) {
-      setNotice(error instanceof Error ? error.message : "Bulk download failed");
+      setNotice(error instanceof Error ? t(error.message) : t("Bulk download failed"));
     } finally {
       setDownloadingAll(false);
       setProgress("");
@@ -248,7 +250,7 @@ export function LogsToolView({
       const response = await fetch(buildLogDownloadUrl(path, csrf));
 
       if (!response.ok) {
-        throw new Error(`Could not download ${path}`);
+        throw new Error(tFormat(t, "Could not download {name}", { name: path }));
       }
 
       const blob = await response.blob();
@@ -260,7 +262,7 @@ export function LogsToolView({
       link.click();
       URL.revokeObjectURL(url);
     } catch (error) {
-      setNotice(error instanceof Error ? error.message : "Download failed");
+      setNotice(error instanceof Error ? t(error.message) : t("Download failed"));
     } finally {
       setDownloadingPath(null);
     }
@@ -278,17 +280,17 @@ export function LogsToolView({
           type="button"
         >
           <span aria-hidden="true">←</span>
-          Back to logs
+          {t("Back to logs")}
         </button>
         <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
           <div className="min-w-0">
-            <h2 className="text-lg font-semibold">Log Tail</h2>
+            <h2 className="text-lg font-semibold">{t("Log Tail")}</h2>
             <p className="mt-1 break-words font-mono text-sm text-[var(--muted)]">{viewingFile.path}</p>
           </div>
           <div className="flex flex-wrap items-center gap-3">
             <label className="flex items-center gap-2 text-sm text-[var(--muted)]">
               <input checked={autoScroll} onChange={(event) => setAutoScroll(event.target.checked)} type="checkbox" />
-              Auto-scroll
+              {t("Auto-scroll")}
             </label>
             <button
               className="rounded-full border border-[var(--border)] px-4 py-2 text-sm text-[var(--muted)] transition hover:text-[var(--text)]"
@@ -297,7 +299,7 @@ export function LogsToolView({
               }}
               type="button"
             >
-              Clear View
+              {t("Clear View")}
             </button>
           </div>
         </div>
@@ -312,7 +314,7 @@ export function LogsToolView({
         >
           <div className="max-h-[60vh] overflow-auto pr-2">
             {logLines.length === 0 && !tailError ? (
-              <div className="italic text-[var(--muted)]">Waiting for log output...</div>
+              <div className="italic text-[var(--muted)]">{t("Waiting for log output...")}</div>
             ) : (
               logLines.map((line, index) => (
                 <div className="whitespace-pre-wrap break-all" key={`${index}-${line}`}>
@@ -338,12 +340,12 @@ export function LogsToolView({
         type="button"
       >
         <span aria-hidden="true">←</span>
-        Back
+          {t("Back")}
       </button>
       <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
         <div className="min-w-0">
-          <h2 className="text-lg font-semibold">Log Viewer</h2>
-          <p className="mt-1 text-sm text-[var(--muted)]">Scan Leaf app logs, then tail or download them.</p>
+          <h2 className="text-lg font-semibold">{t("Log Viewer")}</h2>
+          <p className="mt-1 text-sm text-[var(--muted)]">{t("Scan Leaf app logs, then tail or download them.")}</p>
         </div>
         <div className="flex flex-wrap items-center gap-3">
           <button
@@ -353,7 +355,7 @@ export function LogsToolView({
               setNotice(null);
               if (!csrf) {
                 setLoading(false);
-                setNotice("Missing session csrf token.");
+                setNotice(t("Missing session csrf token."));
                 return;
               }
               void getLogs(csrf)
@@ -361,7 +363,7 @@ export function LogsToolView({
                   setFiles(response.files);
                 })
                 .catch((error) => {
-                  setNotice(error instanceof Error ? error.message : "Logs lookup failed");
+                  setNotice(error instanceof Error ? t(error.message) : t("Logs lookup failed"));
                 })
                 .finally(() => {
                   setLoading(false);
@@ -369,7 +371,7 @@ export function LogsToolView({
             }}
             type="button"
           >
-            {loading ? "Scanning..." : "Rescan"}
+            {t(loading ? "Scanning..." : "Rescan")}
           </button>
           <button
             className="rounded-full border border-[var(--border)] bg-[var(--accent-soft)] px-4 py-2 text-sm font-semibold text-[var(--accent)] transition hover:border-[var(--accent)]/40"
@@ -379,7 +381,7 @@ export function LogsToolView({
             }}
             type="button"
           >
-            {downloadingAll ? "Downloading..." : "Download All as Zip"}
+            {t(downloadingAll ? "Downloading..." : "Download All as Zip")}
           </button>
         </div>
       </div>
@@ -392,36 +394,36 @@ export function LogsToolView({
       <div className="rounded-2xl border border-[var(--border)] bg-[var(--panel)]">
         <div className="hidden grid-cols-[minmax(0,1fr)_auto_auto_auto] gap-3 border-b border-[var(--border)] px-4 py-3 text-xs font-semibold uppercase tracking-[0.2em] text-[var(--muted)] md:grid">
           <button className="text-left" onClick={() => toggleSort("path")} type="button">
-            File
+            {t("File")}
           </button>
           <button onClick={() => toggleSort("size")} type="button">
-            Size
+            {t("Size")}
           </button>
           <button onClick={() => toggleSort("modified")} type="button">
-            Modified
+            {t("Modified")}
           </button>
-          <span className="text-right">Actions</span>
+          <span className="text-right">{t("Actions")}</span>
         </div>
         {loading ? (
-          <div className="px-4 py-10 text-center text-sm text-[var(--muted)]">Scanning for log files...</div>
+          <div className="px-4 py-10 text-center text-sm text-[var(--muted)]">{t("Scanning for log files...")}</div>
         ) : sortedFiles.length === 0 ? (
-          <div className="px-4 py-10 text-center text-sm text-[var(--muted)]">No log files found.</div>
+          <div className="px-4 py-10 text-center text-sm text-[var(--muted)]">{t("No log files found.")}</div>
         ) : (
           <>
             <div className="divide-y divide-[var(--border)] md:hidden">
               {sortedFiles.map((file) => (
                 <article className="space-y-4 px-4 py-4" key={file.path}>
                   <div className="space-y-1.5">
-                    <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-[var(--muted)]">Path</p>
+                    <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-[var(--muted)]">{t("Path")}</p>
                     <p className="break-words font-mono text-sm leading-5 text-[var(--text)]">{file.path}</p>
                   </div>
                   <dl className="grid grid-cols-2 gap-3 text-sm">
                     <div className="min-w-0">
-                      <dt className="text-[10px] font-semibold uppercase tracking-[0.2em] text-[var(--muted)]">Size</dt>
+                      <dt className="text-[10px] font-semibold uppercase tracking-[0.2em] text-[var(--muted)]">{t("Size")}</dt>
                       <dd className="mt-1 text-[var(--muted)]">{formatSize(file.size)}</dd>
                     </div>
                     <div className="min-w-0">
-                      <dt className="text-[10px] font-semibold uppercase tracking-[0.2em] text-[var(--muted)]">Last Updated</dt>
+                      <dt className="text-[10px] font-semibold uppercase tracking-[0.2em] text-[var(--muted)]">{t("Last Updated")}</dt>
                       <dd className="mt-1 text-[var(--muted)]">{formatDate(file.modified)}</dd>
                     </div>
                   </dl>
@@ -433,7 +435,7 @@ export function LogsToolView({
                       }}
                       type="button"
                     >
-                      Open Tail
+                      {t("Open Tail")}
                     </button>
                     <button
                       aria-label={`Download ${file.path}`}
@@ -444,7 +446,7 @@ export function LogsToolView({
                       }}
                       type="button"
                     >
-                      {downloadingPath === file.path ? "..." : "Download"}
+                      {downloadingPath === file.path ? "..." : t("Download")}
                     </button>
                   </div>
                 </article>
@@ -477,7 +479,7 @@ export function LogsToolView({
                       }}
                       type="button"
                     >
-                      {downloadingPath === file.path ? "..." : "Download"}
+                      {downloadingPath === file.path ? "..." : t("Download")}
                     </button>
                   </div>
                 </div>

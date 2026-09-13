@@ -3,6 +3,7 @@ export type SessionResponse = {
   csrf: string | null;
   trustedCount: number;
   pairingAvailable: boolean;
+  language?: string;
   capabilities: {
     terminal: boolean;
   };

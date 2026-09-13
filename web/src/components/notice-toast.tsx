@@ -1,4 +1,5 @@
 import { useEffect, useRef } from "react";
+import { useT } from "../lib/i18n";
 
 type NoticeTone = "error" | "info" | "success";
 
@@ -8,8 +9,8 @@ const DISMISS_DELAY_MS: Record<NoticeTone, number> = {
   success: 5000,
 };
 
-function inferTone(message: string): NoticeTone {
-  const normalized = message.toLowerCase();
+function inferTone(source: string): NoticeTone {
+  const normalized = source.toLowerCase();
 
   if (
     normalized.includes("can't")
@@ -41,15 +42,18 @@ function inferTone(message: string): NoticeTone {
 export function NoticeToast({
   autoDismissMs,
   message,
+  source,
   onDismiss,
   tone,
 }: {
   autoDismissMs?: number;
   message: string;
+  source: string;
   onDismiss?: () => void;
   tone?: NoticeTone;
 }) {
-  const resolvedTone = tone ?? inferTone(message);
+  const t = useT();
+  const resolvedTone = tone ?? inferTone(source);
   const dismissDelay = autoDismissMs ?? DISMISS_DELAY_MS[resolvedTone];
   const dismissRef = useRef(onDismiss);
   const canDismiss = Boolean(onDismiss);
@@ -87,18 +91,18 @@ export function NoticeToast({
       <div className={`flex max-w-xl items-start gap-3 rounded-2xl border px-4 py-3 text-sm shadow-2xl backdrop-blur ${toneClass}`}>
         <div className="min-w-0 flex-1">
           <p className="font-semibold">
-            {resolvedTone === "error" ? "Action needed" : resolvedTone === "success" ? "Done" : "Notice"}
+            {t(resolvedTone === "error" ? "Action needed" : resolvedTone === "success" ? "Done" : "Notice")}
           </p>
           <p className="mt-1 break-words">{message}</p>
         </div>
         {onDismiss ? (
           <button
-            aria-label="Dismiss notice"
+            aria-label={t("Dismiss notice")}
             className="shrink-0 rounded-md border border-white/15 px-2 py-1 text-xs font-semibold opacity-80 transition hover:opacity-100"
             onClick={onDismiss}
             type="button"
           >
-            Dismiss
+            {t("Dismiss")}
           </button>
         ) : null}
       </div>

@@ -1,6 +1,7 @@
 import type { AppDestination } from "../lib/navigation";
 import type { TransferState } from "../lib/types";
 import { PrimaryNav } from "./primary-nav";
+import { useT } from "../lib/i18n";
 
 export function TopBar({
   activeDestination,
@@ -23,6 +24,7 @@ export function TopBar({
   showSearch: boolean;
   transfer: TransferState;
 }) {
+  const t = useT();
   const headerClass = compact
     ? "rounded-[24px] border border-[var(--border)] bg-[var(--panel)] px-4 py-3 shadow-[var(--shadow)] md:rounded-[28px] md:px-5 md:py-4"
     : "rounded-[28px] border border-[var(--border)] bg-[var(--panel)] px-5 py-4 shadow-[var(--shadow)]";
@@ -43,14 +45,14 @@ export function TopBar({
       <div className="flex flex-col gap-4">
         <div className="flex items-center justify-between gap-4">
           <div className="flex items-center gap-3">
-            <img alt="The Central Scrutinizer" className={logoClass} src="/logo.png" />
+            <img alt={t("The Central Scrutinizer")} className={logoClass} src="/logo.png" />
             <div>
-              <p className={eyebrowClass}>Central Scrutinizer</p>
-              <p className={titleClass}>Device Library Workspace</p>
+              <p className={eyebrowClass}>{t("Central Scrutinizer")}</p>
+              <p className={titleClass}>{t("Device Library Workspace")}</p>
             </div>
           </div>
           <button className={disconnectClass} onClick={onDisconnect} type="button">
-            Disconnect
+            {t("Disconnect")}
           </button>
         </div>
         <div className={secondaryRowClass}>
@@ -58,12 +60,12 @@ export function TopBar({
           <div className="flex items-center gap-3">
             {showSearch ? (
               <label className="sr-only" htmlFor="shell-search">
-                Search
+                {t("Search")}
               </label>
             ) : null}
             {showSearch ? (
               <input
-                aria-label="Search"
+                aria-label={t("Search")}
                 className="h-10 w-full rounded-full border border-[var(--border)] bg-[var(--bg)] px-4 text-sm text-[var(--text)] outline-none focus:border-[var(--accent)] lg:w-72"
                 id="shell-search"
                 onChange={(event) => {
@@ -74,7 +76,7 @@ export function TopBar({
               />
             ) : null}
             <div className="min-w-[10rem] rounded-full bg-[var(--bg)] px-4 py-2 text-xs text-[var(--muted)]">
-              {transfer.active ? `${transfer.label} · ${transfer.progress}%` : "No active transfers"}
+              {transfer.active ? `${transfer.label} · ${transfer.progress}%` : t("No active transfers")}
             </div>
           </div>
         </div>

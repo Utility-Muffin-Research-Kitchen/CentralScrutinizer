@@ -1,6 +1,7 @@
 import JSZip from "jszip";
 
 import type { ExtractStrategy, UploadPreviewConflict, UploadSelection } from "./types";
+import { tFormat } from "./i18n";
 
 export type ParsedZipEntry = {
   kind: "directory" | "file";
@@ -60,9 +61,9 @@ function readUint64(view: DataView, offset: number): bigint {
   return low | (high << 32n);
 }
 
-function toSafeNumber(value: bigint, label: string): number {
+function toSafeNumber(value: bigint, label: string, t: (key: string) => string): number {
   if (value > BigInt(Number.MAX_SAFE_INTEGER)) {
-    throw new Error(`ZIP ${label} is too large to inspect safely.`);
+    throw new Error(tFormat(t, "ZIP {label} is too large to inspect safely.", { label }));
   }
 
   return Number(value);
@@ -212,7 +213,7 @@ function findEndOfCentralDirectory(view: DataView): number {
   throw new Error("ZIP central directory could not be read.");
 }
 
-function readZip64CentralDirectory(view: DataView, eocdOffset: number): {
+function readZip64CentralDirectory(view: DataView, eocdOffset: number, t: (key: string) => string): {
   centralDirectoryOffset: number;
   centralDirectorySize: number;
   totalEntries: number;
@@ -223,7 +224,7 @@ function readZip64CentralDirectory(view: DataView, eocdOffset: number): {
     throw new Error("ZIP central directory could not be read.");
   }
 
-  const zip64EocdOffset = toSafeNumber(readUint64(view, locatorOffset + 8), "metadata");
+  const zip64EocdOffset = toSafeNumber(readUint64(view, locatorOffset + 8), "metadata", t);
 
   if (zip64EocdOffset < 0 || zip64EocdOffset + 56 > view.byteLength) {
     throw new Error("ZIP central directory could not be read.");
@@ -233,9 +234,9 @@ function readZip64CentralDirectory(view: DataView, eocdOffset: number): {
   }
 
   return {
-    totalEntries: toSafeNumber(readUint64(view, zip64EocdOffset + 32), "entry count"),
-    centralDirectorySize: toSafeNumber(readUint64(view, zip64EocdOffset + 40), "metadata"),
-    centralDirectoryOffset: toSafeNumber(readUint64(view, zip64EocdOffset + 48), "metadata"),
+    totalEntries: toSafeNumber(readUint64(view, zip64EocdOffset + 32), "entry count", t),
+    centralDirectorySize: toSafeNumber(readUint64(view, zip64EocdOffset + 40), "metadata", t),
+    centralDirectoryOffset: toSafeNumber(readUint64(view, zip64EocdOffset + 48), "metadata", t),
   };
 }
 
@@ -244,6 +245,7 @@ function readZip64EntryUncompressedSize(
   entryOffset: number,
   extraFieldOffset: number,
   extraFieldLength: number,
+  t: (key: string) => string,
 ): number {
   const extraFieldEnd = extraFieldOffset + extraFieldLength;
   let cursor = extraFieldOffset;
@@ -262,7 +264,7 @@ function readZip64EntryUncompressedSize(
         if (dataOffset + 8 > dataEnd) {
           break;
         }
-        return toSafeNumber(readUint64(view, dataOffset), "entry size");
+        return toSafeNumber(readUint64(view, dataOffset), "entry size", t);
       }
       break;
     }
@@ -273,7 +275,7 @@ function readZip64EntryUncompressedSize(
   throw new Error("ZIP entry size could not be read.");
 }
 
-function inspectZipArchive(buffer: ArrayBuffer): ZipMetadataEntry[] {
+function inspectZipArchive(buffer: ArrayBuffer, t: (key: string) => string): ZipMetadataEntry[] {
   const view = new DataView(buffer);
   const eocdOffset = findEndOfCentralDirectory(view);
 
@@ -282,7 +284,7 @@ function inspectZipArchive(buffer: ArrayBuffer): ZipMetadataEntry[] {
   let centralDirectoryOffset = view.getUint32(eocdOffset + 16, true);
 
   if (totalEntries === 0xffff || centralDirectorySize === 0xffffffff || centralDirectoryOffset === 0xffffffff) {
-    const zip64 = readZip64CentralDirectory(view, eocdOffset);
+    const zip64 = readZip64CentralDirectory(view, eocdOffset, t);
 
     totalEntries = zip64.totalEntries;
     centralDirectorySize = zip64.centralDirectorySize;
@@ -327,7 +329,7 @@ function inspectZipArchive(buffer: ArrayBuffer): ZipMetadataEntry[] {
     const uncompressedSize = isDirectory
       ? 0
       : view.getUint32(cursor + 24, true) === 0xffffffff
-        ? readZip64EntryUncompressedSize(view, cursor, extraFieldOffset, extraFieldLength)
+        ? readZip64EntryUncompressedSize(view, cursor, extraFieldOffset, extraFieldLength, t)
         : view.getUint32(cursor + 24, true);
 
     entries.push({
@@ -355,19 +357,21 @@ export function computeUploadPath(
   return uploadPath;
 }
 
-export async function parseZipFile(file: File): Promise<ParsedZipPreview> {
-  const metadataEntries = inspectZipArchive(await readFileArrayBuffer(file));
+export async function parseZipFile(file: File, t: (key: string) => string = (key) => key): Promise<ParsedZipPreview> {
+  const metadataEntries = inspectZipArchive(await readFileArrayBuffer(file), t);
   const totalUncompressedBytes = metadataEntries.reduce((total, entry) => total + entry.uncompressedSize, 0);
 
   if (metadataEntries.length > ZIP_MAX_ENTRIES) {
-    throw new Error(
-      `ZIP contains too many entries (${metadataEntries.length.toLocaleString()}). Limit is ${ZIP_MAX_ENTRIES.toLocaleString()}.`,
-    );
+    throw new Error(tFormat(t, "ZIP contains too many entries ({count}). Limit is {limit}.", {
+      count: metadataEntries.length.toLocaleString(),
+      limit: ZIP_MAX_ENTRIES.toLocaleString(),
+    }));
   }
   if (totalUncompressedBytes > ZIP_MAX_UNCOMPRESSED_BYTES) {
-    throw new Error(
-      `ZIP expands to too much data (${formatBytes(totalUncompressedBytes)}). Limit is ${formatBytes(ZIP_MAX_UNCOMPRESSED_BYTES)}.`,
-    );
+    throw new Error(tFormat(t, "ZIP expands to too much data ({size}). Limit is {limit}.", {
+      size: formatBytes(totalUncompressedBytes),
+      limit: formatBytes(ZIP_MAX_UNCOMPRESSED_BYTES),
+    }));
   }
 
   const zip = await JSZip.loadAsync(file);

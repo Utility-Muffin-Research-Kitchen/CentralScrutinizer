@@ -21,6 +21,7 @@ import type {
   UploadRequest,
   WriteRequest,
 } from "./types";
+import { tFormat } from "./i18n";
 
 export class ApiError extends Error {
   code?: string;
@@ -165,25 +166,25 @@ async function readErrorCode(response: Response): Promise<string | undefined> {
   }
 }
 
-function parseUploadError(xhr: XMLHttpRequest): Error {
+function parseUploadError(xhr: XMLHttpRequest, t: (key: string) => string): Error {
   try {
     const body = JSON.parse(xhr.responseText) as { error?: string; path?: string };
     const errorPath = typeof body.path === "string" && body.path.length > 0 ? body.path : undefined;
-    const pathLabel = errorPath ? ` "${errorPath}"` : "";
+    const pathLabel = errorPath ? `"${errorPath}"` : t("the destination");
 
     if (body.error === "upload_conflict") {
-      return new ApiError(`Upload blocked because${pathLabel} already exists.`, xhr.status, body.error, errorPath);
+      return new ApiError(tFormat(t, "Upload blocked because {path} already exists.", { path: pathLabel }), xhr.status, body.error, errorPath);
     }
     if (body.error === "upload_type_conflict") {
       return new ApiError(
-        `Upload blocked because${pathLabel} conflicts with an existing file or folder.`,
+        tFormat(t, "Upload blocked because {path} conflicts with an existing file or folder.", { path: pathLabel }),
         xhr.status,
         body.error,
         errorPath,
       );
     }
     if (body.error === "upload_source_required") {
-      return new ApiError("Open an SD card source before uploading files.", xhr.status, body.error);
+      return new ApiError(t("Open an SD card source before uploading files."), xhr.status, body.error);
     }
     {
       const mappedMessage = uploadErrorMessage(body.error);
@@ -196,7 +197,7 @@ function parseUploadError(xhr: XMLHttpRequest): Error {
     // Ignore non-JSON upload failures.
   }
 
-  return new Error("Upload failed");
+  return new Error(t("Upload failed"));
 }
 
 export function buildDownloadUrl(scope: BrowserScope, path: string, tag?: string, csrf?: string | null): string {
@@ -560,6 +561,7 @@ export function beginUploadFiles(
   request: UploadRequest,
   csrf: string,
   onProgress?: (value: number) => void,
+  t: (key: string) => string = (key) => key,
 ): UploadHandle {
   const xhr = new XMLHttpRequest();
   const promise = new Promise<void>((resolve, reject) => {
@@ -593,9 +595,9 @@ export function beginUploadFiles(
         resolve();
         return;
       }
-      reject(parseUploadError(xhr));
+      reject(parseUploadError(xhr, t));
     });
-    xhr.addEventListener("error", () => reject(new Error("Upload failed")));
+    xhr.addEventListener("error", () => reject(new Error(t("Upload failed"))));
     xhr.addEventListener("abort", () => reject(new UploadAbortedError()));
     xhr.send(form);
   });
@@ -638,14 +640,15 @@ export async function uploadFiles(
   request: UploadRequest,
   csrf: string,
   onProgress?: (value: number) => void,
+  t: (key: string) => string = (key) => key,
 ): Promise<void> {
-  const summary = await beginUploadFilesBatched(request, csrf, onProgress).promise;
+  const summary = await beginUploadFilesBatched(request, csrf, onProgress, t).promise;
 
   if (summary.cancelled) {
     throw new UploadAbortedError();
   }
   if (summary.failed > 0 || summary.directoriesFailed > 0) {
-    throw new Error("Upload failed");
+    throw new Error(t("Upload failed"));
   }
 }
 
@@ -658,6 +661,7 @@ export function beginUploadFilesBatched(
   request: UploadRequest,
   csrf: string,
   onProgress?: (value: number) => void,
+  t: (key: string) => string = (key) => key,
 ): UploadBatchedHandle {
   let cancelled = false;
   let activeHandle: UploadHandle | null = null;
@@ -684,7 +688,7 @@ export function beginUploadFilesBatched(
         break;
       }
 
-      const handle = beginUploadFiles({ ...rest, files: [], directories: [directory] }, csrf);
+      const handle = beginUploadFiles({ ...rest, files: [], directories: [directory] }, csrf, undefined, t);
 
       activeHandle = handle;
       try {
@@ -718,7 +722,7 @@ export function beginUploadFilesBatched(
         const batchLoaded = (batchPct / 100) * batchWork;
 
         reportProgress(completedWork + batchLoaded);
-      });
+      }, t);
 
       activeHandle = handle;
       try {

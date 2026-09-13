@@ -1,4 +1,5 @@
 import type { Breadcrumb, BrowserScope } from "../lib/types";
+import { useT } from "../lib/i18n";
 
 export function BrowserWorkspaceCard({
   breadcrumbs,
@@ -35,8 +36,9 @@ export function BrowserWorkspaceCard({
   search: string;
   title: string;
 }) {
+  const t = useT();
   const showFolderOps = scope === "roms";
-  const itemCountLabel = `${itemCount.toLocaleString()} item${itemCount === 1 ? "" : "s"}`;
+  const itemCountLabel = `${itemCount.toLocaleString()} ${t(itemCount === 1 ? "item" : "items")}`;
 
   return (
     <section className="rounded-[24px] border border-[var(--border)] bg-[var(--panel)] px-5 py-5">
@@ -49,10 +51,10 @@ export function BrowserWorkspaceCard({
               type="button"
             >
               <span aria-hidden="true">←</span>
-              Back
+              {t("Back")}
             </button>
             <div className="min-w-0">
-              <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-[var(--muted)]">Library Browser</p>
+              <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-[var(--muted)]">{t("Library Browser")}</p>
               <div className="mt-2 flex flex-wrap items-center gap-3">
                 <h2 className="text-3xl font-bold tracking-tight">{title}</h2>
                 <span className="rounded-full border border-[var(--border)] bg-[var(--bg)] px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-[var(--muted)]">
@@ -60,7 +62,7 @@ export function BrowserWorkspaceCard({
                 </span>
               </div>
               <nav
-                aria-label="Library path"
+                aria-label={t("Library path")}
                 className="mt-3 flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-[var(--muted)]"
               >
                 <button
@@ -97,7 +99,7 @@ export function BrowserWorkspaceCard({
               onClick={onUploadFile}
               type="button"
             >
-              Upload File
+              {t("Upload File")}
             </button>
             {showFolderOps && canUploadFolder && onUploadFolder ? (
               <button
@@ -106,7 +108,7 @@ export function BrowserWorkspaceCard({
                 onClick={onUploadFolder}
                 type="button"
               >
-                Upload Folder
+                {t("Upload Folder")}
               </button>
             ) : null}
             {showFolderOps && onUploadZip ? (
@@ -116,7 +118,7 @@ export function BrowserWorkspaceCard({
                 onClick={onUploadZip}
                 type="button"
               >
-                Upload ZIP
+                {t("Upload ZIP")}
               </button>
             ) : null}
             {showFolderOps ? (
@@ -126,7 +128,7 @@ export function BrowserWorkspaceCard({
                 onClick={onCreateFolder}
                 type="button"
               >
-                New Folder
+                {t("New Folder")}
               </button>
             ) : null}
             <button
@@ -135,7 +137,7 @@ export function BrowserWorkspaceCard({
               onClick={onRefresh}
               type="button"
             >
-              Refresh
+              {t("Refresh")}
             </button>
           </div>
         </div>
@@ -151,12 +153,12 @@ export function BrowserWorkspaceCard({
             <path d="M16 16l4 4" stroke="currentColor" strokeLinecap="round" strokeWidth="1.8" />
           </svg>
           <input
-            aria-label="Search current folder"
+            aria-label={t("Search current folder")}
             className="h-12 w-full rounded-xl border border-[var(--border)] bg-[var(--bg)] pl-11 pr-4 text-sm text-[var(--text)] outline-none transition focus:border-[var(--accent)]"
             onChange={(event) => {
               onSearchChange(event.target.value);
             }}
-            placeholder="Search in current folder"
+            placeholder={t("Search in current folder")}
             value={search}
           />
         </div>

@@ -8,13 +8,14 @@ import "@xterm/xterm/css/xterm.css";
 import { createTerminalSession } from "../lib/api";
 import type { SessionResponse } from "../lib/types";
 import { NoticeToast } from "./notice-toast";
+import { useT } from "../lib/i18n";
 
-function describeTerminalError(error: string): string {
+function describeTerminalError(error: string, t: (key: string) => string): string {
   if (error === "terminal_disabled") {
-    return "Terminal access was disabled on the handheld.";
+    return t("Terminal access was disabled on the handheld.");
   }
 
-  return "Terminal connection failed.";
+  return t("Terminal connection failed.");
 }
 
 export function TerminalToolView({
@@ -26,12 +27,19 @@ export function TerminalToolView({
   onBack: () => void;
   refreshSession: () => Promise<SessionResponse>;
 }) {
+  const t = useT();
   const containerRef = useRef<HTMLDivElement | null>(null);
   const socketRef = useRef<WebSocket | null>(null);
   const terminalRef = useRef<Terminal | null>(null);
   const fitAddonRef = useRef<FitAddon | null>(null);
   const [status, setStatus] = useState<"idle" | "connecting" | "connected">("idle");
-  const [notice, setNotice] = useState<string | null>(null);
+  const [notice, setNoticeState] = useState<string | null>(null);
+  const [noticeSource, setNoticeSource] = useState<string | null>(null);
+
+  function setNotice(message: string | null, source?: string) {
+    setNoticeState(message);
+    setNoticeSource(message === null ? null : source ?? message);
+  }
 
   useEffect(() => {
     return () => {
@@ -92,7 +100,7 @@ export function TerminalToolView({
       term.loadAddon(fitAddon);
       term.open(containerRef.current);
       fitAddon.fit();
-      term.writeln("Central Scrutinizer terminal");
+      term.writeln(t("Central Scrutinizer terminal"));
       term.writeln("");
       term.onData((data) => {
         if (socketRef.current?.readyState === WebSocket.OPEN) {
@@ -143,7 +151,7 @@ export function TerminalToolView({
     try {
       nextSession = await refreshSession();
       if (!nextSession.capabilities.terminal) {
-        setNotice("Terminal access is disabled on the handheld.");
+        setNotice(t("Terminal access is disabled on the handheld."), "Terminal access is disabled on the handheld.");
         setStatus("idle");
         return;
       }
@@ -182,12 +190,12 @@ export function TerminalToolView({
               return;
             }
             if (message.type === "error") {
-              setNotice(describeTerminalError(message.error ?? ""));
+              setNotice(describeTerminalError(message.error ?? "", t), message.error ?? "Terminal connection failed.");
               socket.close();
               return;
             }
             if (message.type === "closed") {
-              setNotice("Terminal session closed.");
+              setNotice(t("Terminal session closed."), "Terminal session closed.");
               socket.close();
             }
           } catch {
@@ -207,11 +215,11 @@ export function TerminalToolView({
         setStatus("idle");
       });
       socket.addEventListener("error", () => {
-        setNotice("Terminal connection failed.");
+        setNotice(t("Terminal connection failed."), "Terminal connection failed.");
         socket.close();
       });
     } catch (error) {
-      setNotice(error instanceof Error ? error.message : "Terminal connection failed.");
+      setNotice(error instanceof Error ? t(error.message) : t("Terminal connection failed."), error instanceof Error ? error.message : "Terminal connection failed.");
       setStatus("idle");
     }
   }
@@ -235,28 +243,27 @@ export function TerminalToolView({
         type="button"
       >
         <span aria-hidden="true">←</span>
-        Back
+        {t("Back")}
       </button>
       <div className="shrink-0 space-y-2">
-        <h2 className="text-lg font-semibold">Terminal</h2>
+        <h2 className="text-lg font-semibold">{t("Terminal")}</h2>
         {!terminalActive ? (
           <p className="text-sm text-[var(--muted)]">
-            This opens a real shell on the device. Use it only when you understand the commands you are
-            running.
+            {t("This opens a real shell on the device. Use it only when you understand the commands you are running.")}
           </p>
         ) : null}
       </div>
       {!enabled ? (
         <div className="rounded-2xl border border-[var(--border)] bg-[var(--panel)] px-5 py-5 text-sm text-[var(--muted)]">
-          Terminal access is disabled on the handheld. Enable it from the device settings screen first.
+          {t("Terminal access is disabled on the handheld. Enable it from the device settings screen first.")}
         </div>
       ) : (
         <>
-          {notice ? <NoticeToast message={notice} onDismiss={() => setNotice(null)} /> : null}
+          {notice ? <NoticeToast message={notice} source={noticeSource ?? notice} onDismiss={() => setNotice(null)} /> : null}
           {status === "idle" ? (
             <div className="shrink-0 rounded-2xl border border-[var(--border)] bg-[var(--panel)] px-5 py-5">
               <p className="text-sm text-[var(--muted)]">
-                The session starts in the SD card root and uses the device shell through a PTY-backed websocket.
+                {t("The session starts in the SD card root and uses the device shell through a PTY-backed websocket.")}
               </p>
               <button
                 className="mt-4 rounded-full border border-[var(--border)] bg-[var(--accent-soft)] px-4 py-2 text-sm font-semibold text-[var(--accent)] transition hover:border-[var(--accent)]/40"
@@ -265,7 +272,7 @@ export function TerminalToolView({
                 }}
                 type="button"
               >
-                Acknowledge And Connect
+                {t("Acknowledge And Connect")}
               </button>
             </div>
           ) : null}
@@ -273,14 +280,14 @@ export function TerminalToolView({
             <div className="flex min-h-0 flex-1 flex-col gap-3">
               <div className="flex shrink-0 items-center justify-between gap-3">
                 <p className="text-sm text-[var(--muted)]">
-                  {status === "connecting" ? "Connecting terminal..." : "Connected"}
+                  {status === "connecting" ? t("Connecting terminal...") : t("Connected")}
                 </p>
                 <button
                   className="rounded-full border border-[var(--border)] px-4 py-2 text-sm text-[var(--muted)] transition hover:text-[var(--text)]"
                   onClick={handleDisconnect}
                   type="button"
                 >
-                  Disconnect
+                  {t("Disconnect")}
                 </button>
               </div>
               <div className="min-h-[18rem] flex-1 rounded-2xl border border-[var(--border)] bg-black/40 p-3">

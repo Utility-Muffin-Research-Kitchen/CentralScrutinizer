@@ -55,6 +55,7 @@ import {
   writeViewState,
 } from "../lib/navigation";
 import { PLAINTEXT_MAX_BYTES } from "../lib/plaintext";
+import { I18nProvider, useT } from "../lib/i18n";
 import type {
   BrowserEntry,
   BrowserScope,
@@ -231,6 +232,7 @@ function joinWithAnd(items: string[]): string {
 
 function unsupportedRomPreviewMessage(
   preflight: UploadPreviewResponse,
+  t: (key: string) => string,
   context?: {
     platformName?: string;
     formats?: string[];
@@ -250,8 +252,8 @@ function unsupportedRomPreviewMessage(
 
   const lead =
     count === 1
-      ? `1 selection will not be scanned as a ${platform ? `${platform} game` : "game"}.${sample}`
-      : `${count} selections will not be scanned as ${platform ? `${platform} games` : "games"}.${sample}`;
+      ? `${t("1 selection will not be scanned as a")} ${platform ? `${platform} ${t("game")}` : t("game")}.${sample}`
+      : `${count} ${t("selections will not be scanned as")} ${platform ? `${platform} ${t("games")}` : t("games")}.${sample}`;
 
   if (!hasAcceptedEntries) {
     return lead;
@@ -259,31 +261,33 @@ function unsupportedRomPreviewMessage(
 
   const parts = [lead];
   if (hasFormats) {
-    parts.push(`${context?.platformName ?? "This system"} accepts ${joinWithAnd(formats)}.`);
+    parts.push(`${context?.platformName ?? t("This system")} ${t("accepts")} ${joinWithAnd(formats)}.`);
   }
   if (hasExactFileNames) {
-    const label = exactFileNames.length === 1 ? "Accepted exact filename" : "Accepted exact filenames";
+    const label = exactFileNames.length === 1 ? t("Accepted exact filename") : t("Accepted exact filenames");
 
     parts.push(`${label}: ${joinWithAnd(exactFileNames)}.`);
   }
   if (context?.acceptsArchive === false) {
-    parts.push("Use Upload ZIP to extract a supported file.");
+    parts.push(t("Use Upload ZIP to extract a supported file."));
   }
   return parts.join(" ");
 }
 
-function formatUploadCount(count: number, singular: string): string | null {
-  return count > 0 ? `${count} ${singular}${count === 1 ? "" : "s"}` : null;
+function formatUploadCount(count: number, singular: string, t: (key: string) => string): string | null {
+  if (count <= 0) return null;
+  const word = t(count === 1 ? singular : `${singular}s`);
+  return `${count} ${word}`;
 }
 
-function formatUploadParts(files: number, directories: number): string {
-  return [formatUploadCount(files, "file"), formatUploadCount(directories, "folder")]
+function formatUploadParts(files: number, directories: number, t: (key: string) => string): string {
+  return [formatUploadCount(files, "file", t), formatUploadCount(directories, "folder", t)]
     .filter((part): part is string => Boolean(part))
-    .join(" and ");
+    .join(` ${t("and")} `);
 }
 
-function formatItemCount(count: number): string {
-  return `${count} item${count === 1 ? "" : "s"}`;
+function formatItemCount(count: number, t: (key: string) => string): string {
+  return `${count} ${t(count === 1 ? "item" : "items")}`;
 }
 
 function zipInternalConflictsToPreflight(conflicts: UploadPreviewConflict[]): UploadPreviewResponse {
@@ -321,20 +325,20 @@ function emptySession(): SessionResponse {
   };
 }
 
-function getPairErrorMessage(error: unknown): string {
-  return error instanceof Error ? error.message : "Pairing failed";
+function getPairErrorMessage(error: unknown, t: (key: string) => string): string {
+  return error instanceof Error ? t(error.message) : t("Pairing failed");
 }
 
-function getReconnectMessage(): string {
-  return "Connection restored, but this browser is no longer trusted. Refresh the PIN or QR code on the device to pair again.";
+function getReconnectMessage(t: (key: string) => string): string {
+  return t("Connection restored, but this browser is no longer trusted. Refresh the PIN or QR code on the device to pair again.");
 }
 
 function isAbortError(error: unknown): boolean {
   return error instanceof DOMException && error.name === "AbortError";
 }
 
-function getPairingUnavailableMessage(): string {
-  return PAIRING_UNAVAILABLE_MESSAGE;
+function getPairingUnavailableMessage(t: (key: string) => string): string {
+  return t(PAIRING_UNAVAILABLE_MESSAGE);
 }
 
 function isFileBrowserTool(
@@ -343,7 +347,7 @@ function isFileBrowserTool(
   return viewState.view === "tools" && viewState.tool === "file-browser";
 }
 
-export default function Page() {
+function PageContent() {
   type ShellSearchKey = "library" | "browser" | "file-browser";
 
   const [browserId] = useState(() => (typeof window === "undefined" ? "browser-server-render" : getBrowserId()));
@@ -357,7 +361,8 @@ export default function Page() {
   const [isLoadingPlatforms, setIsLoadingPlatforms] = useState(false);
   const platformsLoadGenerationRef = useRef(0);
   const [fileSearchResults, setFileSearchResults] = useState<FileSearchResult[] | null>(null);
-  const [notice, setNotice] = useState<string | null>(null);
+  const [notice, setNoticeState] = useState<string | null>(null);
+  const [noticeSource, setNoticeSource] = useState<string | null>(null);
   const [pairError, setPairError] = useState<string | null>(null);
   const [pairMessage, setPairMessage] = useState<string | null>(null);
   const [isBusy, setIsBusy] = useState(false);
@@ -389,6 +394,16 @@ export default function Page() {
     preflight: UploadPreviewResponse | null;
     checking: boolean;
   } | null>(null);
+  const t = useT();
+
+  useEffect(() => {
+    document.title = t("The Central Scrutinizer");
+  }, [t]);
+
+  function setNotice(message: string | null, source?: string) {
+    setNoticeState(message);
+    setNoticeSource(message === null ? null : source ?? message);
+  }
   const zipPreviewAbortRef = useRef<{
     controller: AbortController;
     timeoutId: ReturnType<typeof setTimeout>;
@@ -596,7 +611,7 @@ export default function Page() {
 
   function ensureUploadTarget(scopeState: { scope: BrowserScope; path?: string } | null): boolean {
     if (uploadNeedsFileSource(scopeState)) {
-      setNotice("Open an SD card source before uploading files.");
+      setNotice(t("Open an SD card source before uploading files."), "Open an SD card source before uploading files.");
       return false;
     }
 
@@ -653,12 +668,12 @@ export default function Page() {
                 pairingAvailable: false,
               });
               setPairError(null);
-              setPairMessage(getPairingUnavailableMessage());
+              setPairMessage(getPairingUnavailableMessage(t));
               navigate({ view: "pair" }, true);
               return;
             }
 
-            setPairError(getPairErrorMessage(error));
+            setPairError(getPairErrorMessage(error, t));
             navigate({ view: "pair" }, true);
           } finally {
             if (active) {
@@ -677,7 +692,7 @@ export default function Page() {
         setRetryUnavailableSession(false);
         setSession(nextSession);
         if (!nextSession.paired) {
-          setPairMessage(nextSession.pairingAvailable ? null : getPairingUnavailableMessage());
+          setPairMessage(nextSession.pairingAvailable ? null : getPairingUnavailableMessage(t));
           navigate({ view: "pair" }, true);
           return;
         }
@@ -694,7 +709,7 @@ export default function Page() {
           setConnectionLost(false);
           setRetryUnavailableSession(true);
           setSession(emptySession());
-          setPairMessage("Connection to the device is unavailable. Open the device app on the handheld to continue.");
+          setPairMessage(t("Connection to the device is unavailable. Open the device app on the handheld to continue."));
         }
       }
     })();
@@ -786,8 +801,8 @@ export default function Page() {
             nextSession.pairingAvailable
               ? retryUnavailableSession
                 ? null
-                : getReconnectMessage()
-              : getPairingUnavailableMessage(),
+                : getReconnectMessage(t)
+              : getPairingUnavailableMessage(t),
           );
           navigate({ view: "pair" }, true);
           return;
@@ -840,7 +855,7 @@ export default function Page() {
   }
 
   if (!session) {
-    return <main className="flex min-h-screen items-center justify-center text-sm text-[var(--muted)]">Loading...</main>;
+    return <main className="flex min-h-screen items-center justify-center text-sm text-[var(--muted)]">{t("Loading...")}</main>;
   }
 
   if (!session.paired) {
@@ -873,10 +888,10 @@ export default function Page() {
                 pairingAvailable: false,
               }));
               setPairError(null);
-              setPairMessage(getPairingUnavailableMessage());
+              setPairMessage(getPairingUnavailableMessage(t));
               return;
             }
-            setPairError(getPairErrorMessage(error));
+            setPairError(getPairErrorMessage(error, t));
           } finally {
             setIsPairing(false);
           }
@@ -973,7 +988,7 @@ export default function Page() {
           );
         }
       } catch (error) {
-        setNotice(error instanceof Error ? error.message : "Upload format check failed.");
+        setNotice(error instanceof Error ? t(error.message) : t("Upload format check failed."), error instanceof Error ? error.message : "Upload format check failed.");
         return;
       }
       if (preflight && (preflight.unsupportedCount ?? 0) > 0) {
@@ -981,6 +996,7 @@ export default function Page() {
         setNotice(
           unsupportedRomPreviewMessage(
             preflight,
+            t,
             supported
               ? {
                   platformName: activePlatformDisplayName ?? activePlatform?.name,
@@ -990,6 +1006,7 @@ export default function Page() {
                 }
               : undefined,
           ),
+          "Upload format check failed.",
         );
         return;
       }
@@ -1000,10 +1017,10 @@ export default function Page() {
       );
       const totalFiles = orderedSelection.files.length;
       const totalDirectories = orderedSelection.directories.length;
-      const label = `Uploading ${formatUploadParts(totalFiles, totalDirectories)}`;
+      const label = `${t("Uploading")} ${formatUploadParts(totalFiles, totalDirectories, t)}`;
       const upload = beginUploadFilesBatched({ ...scopeState, ...orderedSelection, overwriteExisting: options?.overwriteExisting }, csrf, (progress) => {
         setTransfer((current) => ({ ...current, progress }));
-      });
+      }, t);
 
       setTransfer({
         active: true,
@@ -1027,27 +1044,28 @@ export default function Page() {
           await refreshCurrentData();
         }
 
-        const uploadedParts = formatUploadParts(summary.uploaded, summary.directoriesCreated);
-        const failedParts = formatUploadParts(summary.failed, summary.directoriesFailed);
+        const uploadedParts = formatUploadParts(summary.uploaded, summary.directoriesCreated, t);
+        const failedParts = formatUploadParts(summary.failed, summary.directoriesFailed, t);
         const noneUploaded = summary.uploaded === 0 && summary.directoriesCreated === 0;
         const anyFailed = summary.failed > 0 || summary.directoriesFailed > 0;
 
         if (summary.cancelled && noneUploaded) {
-          setNotice("Upload cancelled.");
+          setNotice(t("Upload cancelled."), "Upload cancelled.");
         } else if (summary.cancelled) {
-          setNotice(`Upload cancelled after ${uploadedParts}.`);
+          setNotice(`${t("Upload cancelled after")} ${uploadedParts}.`, "Upload cancelled after");
         } else if (anyFailed && noneUploaded && summary.errorMessage) {
-          setNotice(summary.errorMessage);
+          setNotice(t(summary.errorMessage), summary.errorMessage);
         } else if (anyFailed && noneUploaded) {
-          setNotice(`Upload failed${failedParts ? ` (${failedParts} failed)` : ""}.`);
+          setNotice(`${t("Upload failed")}${failedParts ? ` (${failedParts} ${t("failed")})` : ""}.`, "Upload failed");
         } else if (anyFailed) {
           setNotice(
             summary.errorMessage
-              ? `Uploaded ${uploadedParts}, ${failedParts} failed. ${summary.errorMessage}`
-              : `Uploaded ${uploadedParts}, ${failedParts} failed.`,
+              ? `${t("Uploaded")} ${uploadedParts}, ${failedParts} ${t("failed")}. ${t(summary.errorMessage)}`
+              : `${t("Uploaded")} ${uploadedParts}, ${failedParts} ${t("failed")}.`,
+            "Uploaded",
           );
         } else {
-          setNotice(`Uploaded ${uploadedParts}.`);
+          setNotice(`${t("Uploaded")} ${uploadedParts}.`, "Uploaded");
         }
       } finally {
         clearTransfer();
@@ -1083,10 +1101,10 @@ export default function Page() {
     }
 
     try {
-      const preview = await parseZipFile(file);
+      const preview = await parseZipFile(file, t);
 
       if (preview.entries.length === 0) {
-        setNotice("ZIP contains no uploadable files or folders.");
+        setNotice(t("ZIP contains no uploadable files or folders."), "ZIP contains no uploadable files or folders.");
         return;
       }
 
@@ -1098,7 +1116,7 @@ export default function Page() {
         checking: false,
       });
     } catch (error) {
-      setNotice(error instanceof Error ? error.message : "ZIP upload failed.");
+      setNotice(error instanceof Error ? t(error.message) : t("ZIP upload failed."), error instanceof Error ? error.message : "ZIP upload failed.");
     }
   };
 
@@ -1132,7 +1150,7 @@ export default function Page() {
     }
 
     if (uploadPaths.filePaths.length === 0 && uploadPaths.directories.length === 0) {
-      setNotice("ZIP contains no uploadable files or folders.");
+      setNotice(t("ZIP contains no uploadable files or folders."), "ZIP contains no uploadable files or folders.");
       return;
     }
 
@@ -1188,7 +1206,7 @@ export default function Page() {
 
       if (!hasUploadItems(selection)) {
         setZipExtractDialog((current) => (current ? { ...current, checking: false } : current));
-        setNotice("ZIP contains no uploadable files or folders.");
+        setNotice(t("ZIP contains no uploadable files or folders."), "ZIP contains no uploadable files or folders.");
         return;
       }
 
@@ -1207,11 +1225,11 @@ export default function Page() {
       }
       if (abortError) {
         if (timedOut) {
-          setNotice("ZIP conflict check timed out.");
+          setNotice(t("ZIP conflict check timed out."), "ZIP conflict check timed out.");
         }
         return;
       }
-      setNotice(error instanceof Error ? error.message : "ZIP upload failed.");
+      setNotice(error instanceof Error ? t(error.message) : t("ZIP upload failed."), error instanceof Error ? error.message : "ZIP upload failed.");
     }
   };
 
@@ -1235,7 +1253,7 @@ export default function Page() {
       const response = await searchFiles(viewState.path, query, session.csrf);
 
       setFileSearchResults(response.results);
-      setNotice(response.truncated ? "Search results truncated at 200 matches." : null);
+      setNotice(response.truncated ? t("Search results truncated at 200 matches.") : null, "Search results truncated at 200 matches.");
     });
   };
 
@@ -1251,7 +1269,7 @@ export default function Page() {
       return;
     }
     if (!file.name.toLowerCase().endsWith(".png")) {
-      setNotice("Artwork must be uploaded as a PNG file.");
+      setNotice(t("Artwork must be uploaded as a PNG file."), "Artwork must be uploaded as a PNG file.");
       return;
     }
 
@@ -1270,9 +1288,9 @@ export default function Page() {
           },
         );
         await refreshAfterLibraryMutation(csrf);
-        setNotice(`Artwork updated for ${entry.name}.`);
+        setNotice(`${t("Artwork updated for")} ${entry.name}.`, "Artwork updated for");
       } catch (error) {
-        setNotice(error instanceof Error ? error.message : "Artwork update failed.");
+        setNotice(error instanceof Error ? t(error.message) : t("Artwork update failed."), error instanceof Error ? error.message : "Artwork update failed.");
       } finally {
         clearTransfer();
       }
@@ -1297,16 +1315,16 @@ export default function Page() {
           csrf,
         );
         await refreshCurrentData();
-        setNotice(favorite ? `Added ${entry.name} to favorites.` : `Removed ${entry.name} from favorites.`);
+        setNotice(favorite ? `${t("Added")} ${entry.name} ${t("to favorites")}.` : `${t("Removed")} ${entry.name} ${t("from favorites")}.`, favorite ? "Added" : "Removed");
       } catch (error) {
-        setNotice(error instanceof Error ? error.message : "Favorite update failed.");
+        setNotice(error instanceof Error ? t(error.message) : t("Favorite update failed."), error instanceof Error ? error.message : "Favorite update failed.");
       }
     });
   };
 
   const handleCreateFolder = async () => {
     const scopeState = currentScopeState();
-    const name = window.prompt("Folder name");
+    const name = window.prompt(t("Folder name"));
     const csrf = session.csrf;
 
     if (!scopeState || !csrf || !name) {
@@ -1330,13 +1348,13 @@ export default function Page() {
       } else {
         await refreshCurrentData();
       }
-      setNotice(`Created folder ${name.trim()}.`);
+      setNotice(`${t("Created folder")} ${name.trim()}.`, "Created folder");
     });
   };
 
   const handleRename = async (entry: BrowserEntry) => {
     const scopeState = currentScopeState();
-    const nextName = window.prompt("Rename item", entry.name);
+    const nextName = window.prompt(t("Rename item"), entry.name);
     const csrf = session.csrf;
     const trimmedName = nextName?.trim();
     const nameInUse = browser.entries.some(
@@ -1348,7 +1366,7 @@ export default function Page() {
       return;
     }
     if (nameInUse) {
-      setNotice(`Can't rename ${entry.name} to ${trimmedName} because that name is already in use.`);
+      setNotice(`${t("Can't rename")} ${entry.name} ${t("because that name is already in use")}.`, "Can't rename");
       return;
     }
 
@@ -1368,9 +1386,9 @@ export default function Page() {
         } else {
           await refreshCurrentData();
         }
-        setNotice(`Renamed ${entry.name} to ${trimmedName}.`);
+        setNotice(`${t("Renamed")} ${entry.name} ${t("to")} ${trimmedName}.`, "Renamed");
       } catch (error) {
-        setNotice(error instanceof Error ? error.message : "Rename failed.");
+        setNotice(error instanceof Error ? t(error.message) : t("Rename failed."), error instanceof Error ? error.message : "Rename failed.");
       }
     });
   };
@@ -1391,7 +1409,7 @@ export default function Page() {
       return;
     }
     if (moves.length === 0) {
-      setNotice("Nothing to move.");
+      setNotice(t("Nothing to move."), "Nothing to move.");
       return;
     }
 
@@ -1399,7 +1417,7 @@ export default function Page() {
       const total = moves.length;
       let completed = 0;
 
-      setTransfer({ active: true, label: `Moving ${formatItemCount(total)}...`, progress: 0 });
+      setTransfer({ active: true, label: `${t("Moving")} ${formatItemCount(total, t)}...`, progress: 0 });
       try {
         const results = await Promise.allSettled(
           moves.map(async ({ entry, to }) => {
@@ -1417,7 +1435,7 @@ export default function Page() {
               completed++;
               setTransfer({
                 active: true,
-                label: `Moving ${completed} of ${total} item${total === 1 ? "" : "s"}...`,
+                label: `${t("Moving")} ${completed} ${t("of")} ${total} ${t(total === 1 ? "item" : "items")}...`,
                 progress: Math.round((completed / total) * 100),
               });
             }
@@ -1433,15 +1451,15 @@ export default function Page() {
           await refreshCurrentData();
         }
         if (failureCount === 0) {
-          setNotice(`Moved ${formatItemCount(successCount)} to ${destinationLabel}.`);
+          setNotice(`${t("Moved")} ${formatItemCount(successCount, t)} ${t("to")} ${destinationLabel}.`, "Moved");
           return;
         }
         if (successCount === 0) {
-          setNotice(`Failed to move ${formatItemCount(moves.length)}.`);
+          setNotice(`${t("Failed to move")} ${formatItemCount(moves.length, t)}.`, "Failed to move");
           return;
         }
 
-        setNotice(`Moved ${successCount} of ${moves.length} items to ${destinationLabel}. ${failureCount} failed.`);
+        setNotice(`${t("Moved")} ${successCount} / ${moves.length} ${t("items")} ${t("to")} ${destinationLabel}. ${failureCount} ${t("failed")}.`, "Moved");
       } finally {
         clearTransfer();
       }
@@ -1454,7 +1472,7 @@ export default function Page() {
     void (async () => {
       try {
         if (!session.csrf) {
-          throw new Error("Missing session csrf token.");
+          throw new Error(t("Missing session csrf token."));
         }
 
         const content = await readTextFile("files", entry.path, session.csrf);
@@ -1472,7 +1490,7 @@ export default function Page() {
             return current;
           }
 
-          return { ...current, loading: false, loadError: "Could not load file contents." };
+          return { ...current, loading: false, loadError: t("Could not load file contents.") };
         });
       }
     })();
@@ -1501,12 +1519,12 @@ export default function Page() {
       setEditor(null);
       await withBusy(async () => {
         await refreshCurrentData();
-        setNotice(`Saved ${editor.entry.name}.`);
+        setNotice(`${t("Saved")} ${editor.entry.name}.`, "Saved");
       });
     } catch {
       setEditor((current) =>
         current
-          ? { ...current, saving: false, loadError: "Save failed. Please try again." }
+          ? { ...current, saving: false, loadError: t("Save failed. Please try again.") }
           : current,
       );
     }
@@ -1519,7 +1537,7 @@ export default function Page() {
     if (!scopeState || !csrf || entries.length === 0) {
       return;
     }
-    if (!window.confirm(`Delete ${formatItemCount(entries.length)}?`)) {
+    if (!window.confirm(`${t("Delete")} ${formatItemCount(entries.length, t)}?`)) {
       return;
     }
 
@@ -1527,7 +1545,7 @@ export default function Page() {
       const total = entries.length;
       let completed = 0;
 
-      setTransfer({ active: true, label: `Deleting ${formatItemCount(total)}...`, progress: 0 });
+      setTransfer({ active: true, label: `${t("Deleting")} ${formatItemCount(total, t)}...`, progress: 0 });
       try {
         const results = await Promise.allSettled(
           entries.map(async (entry) => {
@@ -1537,7 +1555,7 @@ export default function Page() {
               completed++;
               setTransfer({
                 active: true,
-                label: `Deleting ${completed} of ${total} item${total === 1 ? "" : "s"}...`,
+                label: `${t("Deleting")} ${completed} ${t("of")} ${total} ${t(total === 1 ? "item" : "items")}...`,
                 progress: Math.round((completed / total) * 100),
               });
             }
@@ -1552,15 +1570,15 @@ export default function Page() {
           await refreshCurrentData();
         }
         if (failureCount === 0) {
-          setNotice(`Deleted ${formatItemCount(successCount)}.`);
+          setNotice(`${t("Deleted")} ${formatItemCount(successCount, t)}.`, "Deleted");
           return;
         }
         if (successCount === 0) {
-          setNotice(`Failed to delete ${formatItemCount(total)}.`);
+          setNotice(`${t("Failed to delete")} ${formatItemCount(total, t)}.`, "Failed to delete");
           return;
         }
 
-        setNotice(`Deleted ${successCount} of ${total} items. ${failureCount} failed.`);
+        setNotice(`${t("Deleted")} ${successCount} / ${total} ${t("items")}. ${failureCount} ${t("failed")}.`, "Deleted");
       } finally {
         clearTransfer();
       }
@@ -1573,7 +1591,7 @@ export default function Page() {
         destination: "library" as const,
         description: formatPlatformDescription(activePlatform),
         searchKey: "library" as const,
-        searchPlaceholder: "Search platforms...",
+        searchPlaceholder: t("Search platforms..."),
         showPageHeader: true,
         showSearch: true,
         title: activePlatformDisplayName ?? activePlatform.name,
@@ -1582,89 +1600,89 @@ export default function Page() {
     if (showStatesView && activePlatform) {
       return {
         destination: "library" as const,
-        description: "Download and remove grouped save-state bundles for the selected platform.",
+        description: t("Download and remove grouped save-state bundles for the selected platform."),
         searchKey: "library" as const,
-        searchPlaceholder: "Search platforms...",
+        searchPlaceholder: t("Search platforms..."),
         showPageHeader: false,
         showSearch: false,
-        title: "Save States",
+        title: t("Save States"),
       };
     }
     if (showManagedBrowserView) {
       return {
         destination: "library" as const,
-        description: "Browse, upload, rename, and delete managed content for the selected platform.",
+        description: t("Browse, upload, rename, and delete managed content for the selected platform."),
         searchKey: "browser" as const,
-        searchPlaceholder: "Search in current folder",
+        searchPlaceholder: t("Search in current folder"),
         showPageHeader: false,
         showSearch: false,
-        title: browser.metadata?.title ?? "Browser",
+        title: browser.metadata?.title ?? t("Browser"),
       };
     }
     if (isFileBrowserTool(viewState)) {
       return {
         destination: "tools" as const,
-        description: "Browse the device filesystem and manage folders safely.",
+        description: t("Browse the device filesystem and manage folders safely."),
         searchKey: "file-browser" as const,
-        searchPlaceholder: "Search in current folder",
+        searchPlaceholder: t("Search in current folder"),
         showPageHeader: false,
         showSearch: false,
-        title: "File Browser",
+        title: t("File Browser"),
       };
     }
     if (viewState.view === "tools" && viewState.tool === "logs") {
       return {
         destination: "tools" as const,
-        description: "Scan, tail, and download Leaf app logs.",
+        description: t("Scan, tail, and download Leaf app logs."),
         searchKey: "library" as const,
-        searchPlaceholder: "Search",
+        searchPlaceholder: t("Search"),
         showPageHeader: false,
         showSearch: false,
-        title: "Log Viewer",
+        title: t("Log Viewer"),
       };
     }
     if (viewState.view === "tools" && viewState.tool === "terminal") {
       return {
         destination: "tools" as const,
-        description: "Open a PTY-backed shell when it is enabled on the handheld.",
+        description: t("Open a PTY-backed shell when it is enabled on the handheld."),
         searchKey: "library" as const,
-        searchPlaceholder: "Search",
+        searchPlaceholder: t("Search"),
         showPageHeader: false,
         showSearch: false,
-        title: "Terminal",
+        title: t("Terminal"),
       };
     }
     if (viewState.view === "tools" && viewState.tool === "mac-dot-clean") {
       return {
         destination: "tools" as const,
-        description: "Scan and remove safe macOS transfer artifacts from SD storage.",
+        description: t("Scan and remove safe macOS transfer artifacts from SD storage."),
         searchKey: "library" as const,
-        searchPlaceholder: "Search",
+        searchPlaceholder: t("Search"),
         showPageHeader: false,
         showSearch: false,
-        title: "Mac Dot Cleanup",
+        title: t("Mac Dot Cleanup"),
       };
     }
     if (viewState.view === "tools") {
       return {
         destination: "tools" as const,
-        description: "Shortcuts and maintenance utilities for this device.",
+        description: t("Shortcuts and maintenance utilities for this device."),
         searchKey: "library" as const,
-        searchPlaceholder: "Search",
+        searchPlaceholder: t("Search"),
         showPageHeader: true,
         showSearch: false,
-        title: "Tools",
+        title: t("Tools"),
       };
     }
 
     return {
       destination: "library" as const,
-      description: "Manage content by platform and jump into system-specific workspaces.",
+      description: t("Manage content by platform and jump into system-specific workspaces."),
       searchKey: "library" as const,
-      searchPlaceholder: "Search platforms...",
+      searchPlaceholder: t("Search platforms..."),
       showPageHeader: true,
       showSearch: true,
-      title: "Library",
+      title: t("Library"),
     };
   }
 
@@ -1704,6 +1722,7 @@ export default function Page() {
         hasMore={browser.hasMore}
         isLoadingMore={browser.isLoadingMore}
         notice={notice}
+        noticeSource={noticeSource ?? undefined}
         onLoadMore={browser.loadMore}
         sort={browserSort}
         onBack={() => {
@@ -1798,7 +1817,7 @@ export default function Page() {
       />
     ) : viewState.view === "browser" || isFileBrowserTool(viewState) ? (
       <div className="py-12 text-center text-sm text-[var(--muted)]">
-        {browser.error ?? "Loading browser..."}
+        {browser.error ? t(browser.error) : t("Loading browser...")}
       </div>
     ) : viewState.view === "tools" && viewState.tool === "logs" ? (
       <LogsToolView
@@ -1933,17 +1952,21 @@ export default function Page() {
       {connectionLost ? (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 px-4 backdrop-blur-sm">
           <section className="w-full max-w-md rounded-[28px] border border-[var(--border)] bg-[var(--panel)] px-6 py-6 text-[var(--text)] shadow-[var(--shadow)]">
-            <p className="text-xs font-semibold uppercase tracking-[0.2em] text-rose-300">Connection lost</p>
-            <h2 className="mt-3 text-2xl font-bold">The handheld app is unavailable.</h2>
+            <p className="text-xs font-semibold uppercase tracking-[0.2em] text-rose-300">{t("Connection lost")}</p>
+            <h2 className="mt-3 text-2xl font-bold">{t("The handheld app is unavailable.")}</h2>
             <p className="mt-3 text-sm text-[var(--muted)]">
-              Work is paused until the device app reconnects. This page keeps retrying automatically every 2 seconds.
+              {t("Work is paused until the device app reconnects. This page keeps retrying automatically every 2 seconds.")}
             </p>
             <p className="mt-3 text-sm text-[var(--muted)]">
-              Keep this tab open. Your current workspace will resume in place as soon as the connection returns.
+              {t("Keep this tab open. Your current workspace will resume in place as soon as the connection returns.")}
             </p>
           </section>
         </div>
       ) : null}
     </>
   );
+}
+
+export default function Page() {
+  return <I18nProvider><PageContent /></I18nProvider>;
 }

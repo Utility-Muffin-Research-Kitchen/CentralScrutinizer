@@ -1,9 +1,5 @@
 import type { AppDestination } from "../lib/navigation";
-
-const items: Array<{ key: AppDestination; label: string }> = [
-  { key: "library", label: "Library" },
-  { key: "tools", label: "Tools" },
-];
+import { useT } from "../lib/i18n";
 
 export function MobileNav({
   active,
@@ -12,9 +8,14 @@ export function MobileNav({
   active: AppDestination;
   onChange: (destination: AppDestination) => void;
 }) {
+  const t = useT();
+  const items = [
+    { key: "library" as const, label: t("Library") },
+    { key: "tools" as const, label: t("Tools") },
+  ];
   return (
     <nav
-      aria-label="Mobile"
+      aria-label={t("Mobile")}
       className="fixed inset-x-0 bottom-0 z-40 border-t border-[var(--border)] bg-[var(--bg-deep)]/95 px-4 py-3 md:hidden"
     >
       <div className="grid grid-cols-2 gap-2">
@@ -30,7 +31,7 @@ export function MobileNav({
             }}
             type="button"
           >
-            {item.label}
+          {item.label}
           </button>
         ))}
       </div>

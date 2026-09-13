@@ -1,3 +1,5 @@
+import { useT } from "../lib/i18n";
+
 function ToolCard({
   title,
   description,
@@ -9,6 +11,7 @@ function ToolCard({
   disabled?: boolean;
   onClick: () => void;
 }) {
+  const t = useT();
   return (
     <button
       aria-disabled={disabled}
@@ -26,7 +29,7 @@ function ToolCard({
         <p className="mt-1 text-sm text-[var(--muted)]">{description}</p>
       </div>
       <span className="text-xs uppercase tracking-[0.2em] text-[var(--muted)]">
-        {disabled ? "Enable on handheld" : "Open tool"}
+        {t(disabled ? "Enable on handheld" : "Open tool")}
       </span>
     </button>
   );
@@ -45,41 +48,42 @@ export function ToolsView({
   onOpenLogs: () => void;
   onOpenTerminal: () => void;
 }) {
+  const t = useT();
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between gap-3">
         <div>
-          <h2 className="text-lg font-semibold">Tools</h2>
+          <h2 className="text-lg font-semibold">{t("Tools")}</h2>
           <p className="mt-1 text-sm text-[var(--muted)]">
-            Device utilities for files, logs, and direct shell access.
+            {t("Device utilities for files, logs, and direct shell access.")}
           </p>
         </div>
       </div>
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
         <ToolCard
-          description="Browse the SD card filesystem and manage folders from the tools workspace."
+          description={t("Browse the SD card filesystem and manage folders from the tools workspace.")}
           onClick={onOpenFileBrowser}
-          title="File Browser"
+          title={t("File Browser")}
         />
         <ToolCard
-          description="Scan for safe macOS transfer artifacts like .DS_Store, ._ sidecars, and __MACOSX folders."
+          description={t("Scan for safe macOS transfer artifacts like .DS_Store, ._ sidecars, and __MACOSX folders.")}
           onClick={onOpenMacDotClean}
-          title="Mac Dot Cleanup"
+          title={t("Mac Dot Cleanup")}
         />
         <ToolCard
-          description="Scan Leaf app logs, download them, and follow output live."
+          description={t("Scan Leaf app logs, download them, and follow output live.")}
           onClick={onOpenLogs}
-          title="Log Viewer"
+          title={t("Log Viewer")}
         />
         <ToolCard
           description={
             terminalEnabled
-              ? "Open a PTY-backed shell in the browser after acknowledging the safety warning."
-              : "Terminal access is disabled on the handheld. Enable it from the device settings screen."
+              ? t("Open a PTY-backed shell in the browser after acknowledging the safety warning.")
+              : t("Terminal access is disabled on the handheld. Enable it from the device settings screen.")
           }
           disabled={!terminalEnabled}
           onClick={onOpenTerminal}
-          title="Terminal"
+          title={t("Terminal")}
         />
       </div>
     </div>

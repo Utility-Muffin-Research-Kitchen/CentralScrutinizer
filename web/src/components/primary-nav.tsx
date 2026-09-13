@@ -1,9 +1,5 @@
 import type { AppDestination } from "../lib/navigation";
-
-const items: Array<{ key: AppDestination; label: string }> = [
-  { key: "library", label: "Library" },
-  { key: "tools", label: "Tools" },
-];
+import { useT } from "../lib/i18n";
 
 export function PrimaryNav({
   active,
@@ -12,8 +8,13 @@ export function PrimaryNav({
   active: AppDestination;
   onChange: (destination: AppDestination) => void;
 }) {
+  const t = useT();
+  const items = [
+    { key: "library" as const, label: t("Library") },
+    { key: "tools" as const, label: t("Tools") },
+  ];
   return (
-    <nav aria-label="Primary" className="hidden items-center gap-2 md:flex">
+    <nav aria-label={t("Primary")} className="hidden items-center gap-2 md:flex">
       {items.map((item) => (
         <button
           key={item.key}

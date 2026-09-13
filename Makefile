@@ -27,7 +27,7 @@ else
 	MAC_UI_CFLAGS :=
 	MAC_UI_LDFLAGS :=
 endif
-SRC_COMMON := src/build_info.c src/paths.c src/auth.c src/session.c src/catalog.c src/rom_policy.c src/platforms.c src/states.c src/dotclean.c src/library.c src/uploads.c src/file_ops.c src/settings.c src/keep_awake.c src/ui.c
+SRC_COMMON := src/build_info.c src/paths.c src/auth.c src/session.c src/catalog.c src/rom_policy.c src/platforms.c src/states.c src/dotclean.c src/library.c src/uploads.c src/file_ops.c src/settings.c src/keep_awake.c src/i18n.c src/ui.c
 SRC_SERVER := src/daemon.c src/terminal.c src/app.c src/server.c src/routes_status.c src/routes_auth.c src/routes_helpers.c src/routes_library.c src/routes_states.c src/routes_logs.c src/routes_upload.c src/routes_file_ops.c src/routes_tools.c src/routes_jawaka.c src/jawaka_ipc.c third_party/civetweb/src/civetweb.c
 SRC_VENDOR := third_party/qrcodegen.c $(CATASTROPHE_DIR)/include/cjson/cJSON.c
 SRC_APP := src/main.c $(SRC_COMMON) $(SRC_SERVER) $(SRC_VENDOR)
@@ -35,7 +35,17 @@ COMMON_INCLUDES := -Iinclude -Ithird_party/civetweb/include -I$(CATASTROPHE_DIR)
 SQLITE_LDFLAGS ?= -lsqlite3
 WEB_DEPS_STAMP := web/node_modules/next/package.json
 
-.PHONY: all mac mlp1 package package-platform package-mlp1 do-package-leaf clean test-native test-native-all test-smoke test-all web-install web-test web-build preview preview-clear-port
+.PHONY: all mac mlp1 package package-platform package-mlp1 do-package-leaf clean test-native test-native-all test-smoke test-all web-install web-test web-build preview preview-clear-port i18n-pot i18n-web-json i18n-check
+
+i18n-pot:
+	python3 tools/i18n-extract.py
+
+i18n-web-json:
+	python3 tools/i18n-tsv-to-web-json.py
+
+i18n-check:
+	python3 tools/i18n-extract.py --check
+	python3 tools/i18n-check.py
 
 mac:
 	@mkdir -p $(BUILD_DIR)/mac
@@ -95,10 +105,10 @@ web-build: $(WEB_DEPS_STAMP)
 	rm -rf web/out
 	npm --prefix web run build
 
-package-mlp1: mlp1 web-build
+package-mlp1: i18n-check mlp1 web-build
 	@$(MAKE) do-package-leaf PLATFORM=mlp1 BIN_SRC=$(BUILD_DIR)/mlp1/$(APP_NAME)
 
-package-local: mac web-build
+package-local: i18n-check mac web-build
 	@$(MAKE) do-package-leaf PLATFORM=mac BIN_SRC=$(BUILD_DIR)/mac/$(APP_NAME)
 
 package-platform:
@@ -114,9 +124,10 @@ do-package-leaf:
 		exit 1; \
 	fi
 	@rm -rf "$(BUILD_DIR)/$(PLATFORM)/package"
-	@mkdir -p "$(BUILD_DIR)/$(PLATFORM)/package/$(LEAF_PAK_DIR_NAME)/bin" "$(BUILD_DIR)/$(PLATFORM)/package/$(LEAF_PAK_DIR_NAME)/resources/web"
+	@mkdir -p "$(BUILD_DIR)/$(PLATFORM)/package/$(LEAF_PAK_DIR_NAME)/bin" "$(BUILD_DIR)/$(PLATFORM)/package/$(LEAF_PAK_DIR_NAME)/resources/web" "$(BUILD_DIR)/$(PLATFORM)/package/$(LEAF_PAK_DIR_NAME)/resources/i18n"
 	@cp "$(BIN_SRC)" "$(BUILD_DIR)/$(PLATFORM)/package/$(LEAF_PAK_DIR_NAME)/bin/$(APP_NAME)"
 	@cp launch.sh pak.json "$(BUILD_DIR)/$(PLATFORM)/package/$(LEAF_PAK_DIR_NAME)/"
+	@cp -a i18n/. "$(BUILD_DIR)/$(PLATFORM)/package/$(LEAF_PAK_DIR_NAME)/resources/i18n/"
 	@if [ "$(PLATFORM)" = "mlp1" ]; then \
 		{ \
 			printf '{\n'; \

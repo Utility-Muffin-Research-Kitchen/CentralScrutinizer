@@ -1,3 +1,5 @@
+import { useT } from "../lib/i18n";
+
 export function TransferBar({
   active,
   cancellable = false,
@@ -11,6 +13,7 @@ export function TransferBar({
   onCancel?: () => void;
   progress: number;
 }) {
+  const t = useT();
   if (!active) {
     return null;
   }
@@ -26,7 +29,7 @@ export function TransferBar({
               onClick={onCancel}
               type="button"
             >
-              Cancel Upload
+              {t("Cancel Upload")}
             </button>
           ) : null}
         </div>

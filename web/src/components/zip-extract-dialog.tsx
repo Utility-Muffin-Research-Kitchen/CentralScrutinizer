@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 
 import { computeUploadPath, type ParsedZipPreview, uploadPathsFromZip } from "../lib/zip-upload";
 import type { ExtractStrategy, UploadPreviewConflict, UploadPreviewResponse, ZipExtractOptions } from "../lib/types";
+import { useT } from "../lib/i18n";
 
 const PREVIEW_LIMIT = 5;
 const STRATEGY_ORDER: ExtractStrategy[] = ["extract-here", "extract-into-folder", "preserve-full-path"];
@@ -21,15 +22,15 @@ function getPreviewPaths(preview: ParsedZipPreview, strategy: ExtractStrategy): 
     .filter(Boolean);
 }
 
-function describeConflict(conflict: UploadPreviewConflict): string {
+function describeConflict(conflict: UploadPreviewConflict, t: (key: string) => string): string {
   if (conflict.kind === "directory-over-file") {
-    return `Folder needed but a file already exists: ${conflict.path}`;
+    return `${t("Folder needed but a file already exists")}: ${conflict.path}`;
   }
   if (conflict.kind === "file-over-directory") {
-    return `File needed but a folder already exists: ${conflict.path}`;
+    return `${t("File needed but a folder already exists")}: ${conflict.path}`;
   }
 
-  return `Existing file would be replaced: ${conflict.path}`;
+  return `${t("Existing file would be replaced")}: ${conflict.path}`;
 }
 
 function getUploadSignature(preview: ParsedZipPreview, strategy: ExtractStrategy): string {
@@ -40,39 +41,39 @@ function getUploadSignature(preview: ParsedZipPreview, strategy: ExtractStrategy
   return [...directoryKeys, ...fileKeys].join("\n");
 }
 
-function getStrategyTitle(strategy: ExtractStrategy, wrapperName: string): string {
+function getStrategyTitle(strategy: ExtractStrategy, wrapperName: string, t: (key: string) => string): string {
   if (strategy === "extract-here") {
-    return "Extract here";
+    return t("Extract here");
   }
   if (strategy === "extract-into-folder") {
-    return `Extract into folder "${wrapperName}"`;
+    return `${t("Extract into folder")} "${wrapperName}"`;
   }
 
-  return "Preserve full archive path";
+  return t("Preserve full archive path");
 }
 
-function getStrategyDescription(strategy: ExtractStrategy): string {
+function getStrategyDescription(strategy: ExtractStrategy, t: (key: string) => string): string {
   if (strategy === "extract-here") {
-    return "Place files directly in the current folder";
+    return t("Place files directly in the current folder");
   }
   if (strategy === "extract-into-folder") {
-    return "Wrap contents under a new folder named after the archive";
+    return t("Wrap contents under a new folder named after the archive");
   }
 
-  return "Keep top-level folders like Apps/ exactly as stored in the archive";
+  return t("Keep top-level folders like Apps/ exactly as stored in the archive");
 }
 
-function getVisibleOptions(preview: ParsedZipPreview): ZipExtractOption[] {
+function getVisibleOptions(preview: ParsedZipPreview, t: (key: string) => string): ZipExtractOption[] {
   const seenSignatures = new Set<string>();
   const options = STRATEGY_ORDER.map((strategy) => {
     const signature = getUploadSignature(preview, strategy);
 
     return {
-      description: getStrategyDescription(strategy),
+      description: getStrategyDescription(strategy, t),
       previewPaths: getPreviewPaths(preview, strategy),
       signature,
       strategy,
-      title: getStrategyTitle(strategy, preview.zipNameWithoutExtension),
+      title: getStrategyTitle(strategy, preview.zipNameWithoutExtension, t),
     };
   });
 
@@ -122,7 +123,8 @@ export function ZipExtractDialog({
   onCancel,
   onConfirm,
 }: ZipExtractDialogProps) {
-  const visibleOptions = getVisibleOptions(preview);
+  const t = useT();
+  const visibleOptions = getVisibleOptions(preview, t);
   const selectedStrategy = getCanonicalStrategy(preview, visibleOptions, strategy);
   const [showMobileSelectedPreview, setShowMobileSelectedPreview] = useState(false);
   const totalRemaining = Math.max(0, preview.entries.length - PREVIEW_LIMIT);
@@ -151,12 +153,12 @@ export function ZipExtractDialog({
         <div className="flex items-start justify-between gap-4 border-b border-[var(--line)] px-4 py-3 sm:px-5 sm:py-4">
           <div className="min-w-0">
             <h2 className="truncate text-base font-semibold text-[var(--text)]" id="zip-extract-title">
-              Extract ZIP
+              {t("Extract ZIP")}
             </h2>
             <p className="truncate text-xs text-[var(--muted)]">{preview.archiveFileName}</p>
           </div>
           <button
-            aria-label="Close dialog"
+            aria-label={t("Close dialog")}
             className="rounded-md px-2 py-1 text-sm text-[var(--muted)] transition hover:text-[var(--text)]"
             onClick={onCancel}
             type="button"
@@ -166,7 +168,7 @@ export function ZipExtractDialog({
         </div>
 
         <div className="flex-1 overflow-auto px-4 py-3 sm:px-5 sm:py-4">
-          <p className="mb-2 text-sm text-[var(--text)] sm:mb-3">How would you like to extract the contents?</p>
+          <p className="mb-2 text-sm text-[var(--text)] sm:mb-3">{t("How would you like to extract the contents?")}</p>
 
           {visibleOptions.map((option, index) => {
               const mobilePreviewRemaining = Math.max(0, option.previewPaths.length - 1) + totalRemaining;
@@ -198,7 +200,7 @@ export function ZipExtractDialog({
                         <div className="mt-2 sm:hidden">
                           <p className="truncate font-mono text-xs text-[var(--muted)]">{option.previewPaths[0]}</p>
                           {mobilePreviewRemaining > 0 ? (
-                            <p className="text-xs text-[var(--muted)]">...and {mobilePreviewRemaining} more</p>
+                            <p className="text-xs text-[var(--muted)]">...{t("and")} {mobilePreviewRemaining} {t("more")}</p>
                           ) : null}
                         </div>
                       ) : null}
@@ -211,7 +213,7 @@ export function ZipExtractDialog({
                         {path}
                       </p>
                     ))}
-                    {totalRemaining > 0 ? <p className="text-xs text-[var(--muted)]">...and {totalRemaining} more</p> : null}
+                    {totalRemaining > 0 ? <p className="text-xs text-[var(--muted)]">...{t("and")} {totalRemaining} {t("more")}</p> : null}
                   </div>
 
                   {isSelected && canExpandMobilePreview ? (
@@ -226,7 +228,7 @@ export function ZipExtractDialog({
                         }}
                         type="button"
                       >
-                        {showMobileSelectedPreview ? "Hide sample paths" : "Show sample paths"}
+                        {t(showMobileSelectedPreview ? "Hide sample paths" : "Show sample paths")}
                       </button>
                       {showMobileSelectedPreview ? (
                         <div className="mt-2 space-y-0.5">
@@ -236,7 +238,7 @@ export function ZipExtractDialog({
                             </p>
                           ))}
                           {totalRemaining > 0 ? (
-                            <p className="text-xs text-[var(--muted)]">...and {totalRemaining} more</p>
+                            <p className="text-xs text-[var(--muted)]">...{t("and")} {totalRemaining} {t("more")}</p>
                           ) : null}
                         </div>
                       ) : null}
@@ -255,9 +257,9 @@ export function ZipExtractDialog({
               type="checkbox"
             />
             <div>
-              <p className="text-sm font-medium text-[var(--text)]">Allow overwriting existing files</p>
+              <p className="text-sm font-medium text-[var(--text)]">{t("Allow overwriting existing files")}</p>
               <p className="text-xs text-[var(--muted)]">
-                Off by default. Existing folders merge automatically, but file and folder type conflicts still block extraction.
+                {t("Off by default. Existing folders merge automatically, but file and folder type conflicts still block extraction.")}
               </p>
             </div>
           </label>
@@ -267,16 +269,16 @@ export function ZipExtractDialog({
             <section className="mt-3 rounded-xl border border-amber-300/25 bg-amber-500/10 p-3 text-sm text-[var(--text)] sm:mt-4 sm:p-4">
               <p className="font-semibold">
                 {unsupportedCount > 0
-                  ? "This extraction does not contain a supported game entrypoint."
+                  ? t("This extraction does not contain a supported game entrypoint.")
                   : conflicts.blockingCount > 0
-                  ? "Some paths need attention before extraction can continue."
-                  : "This extraction would replace existing files."}
+                  ? t("Some paths need attention before extraction can continue.")
+                  : t("This extraction would replace existing files.")}
               </p>
 
               {unsupportedCount > 0 ? (
                 <div className="mt-3">
                   <p className="text-xs uppercase tracking-[0.18em] text-[var(--muted)]">
-                    Unsupported ROM bundles ({unsupportedCount})
+                    {t("Unsupported ROM bundles")} ({unsupportedCount})
                   </p>
                   <div className="mt-2 space-y-1">
                     {unsupported.map((item) => (
@@ -285,11 +287,11 @@ export function ZipExtractDialog({
                       </p>
                     ))}
                     {unsupportedRemaining > 0 ? (
-                      <p className="text-xs text-[var(--muted)]">...and {unsupportedRemaining} more</p>
+                      <p className="text-xs text-[var(--muted)]">...{t("and")} {unsupportedRemaining} {t("more")}</p>
                     ) : null}
                   </div>
                   <p className="mt-2 text-xs text-[var(--muted)]">
-                    Choose another extraction layout or include a file format supported by this system.
+                    {t("Choose another extraction layout or include a file format supported by this system.")}
                   </p>
                 </div>
               ) : null}
@@ -297,20 +299,20 @@ export function ZipExtractDialog({
               {conflicts.overwriteableCount > 0 ? (
                 <div className="mt-3">
                   <p className="text-xs uppercase tracking-[0.18em] text-[var(--muted)]">
-                    Replaceable file conflicts ({conflicts.overwriteableCount})
+                    {t("Replaceable file conflicts")} ({conflicts.overwriteableCount})
                   </p>
                   <div className="mt-2 space-y-1">
                     {conflicts.overwriteable.map((conflict) => (
                       <p key={`${conflict.kind}:${conflict.path}`} className="break-all font-mono text-xs text-[var(--muted)]">
-                        {describeConflict(conflict)}
+                        {describeConflict(conflict, t)}
                       </p>
                     ))}
                     {overwriteableRemaining > 0 ? (
-                      <p className="text-xs text-[var(--muted)]">...and {overwriteableRemaining} more</p>
+                      <p className="text-xs text-[var(--muted)]">...{t("and")} {overwriteableRemaining} {t("more")}</p>
                     ) : null}
                   </div>
                   {!overwriteExisting ? (
-                    <p className="mt-2 text-xs text-[var(--muted)]">Enable overwrite to replace these existing files.</p>
+                    <p className="mt-2 text-xs text-[var(--muted)]">{t("Enable overwrite to replace these existing files.")}</p>
                   ) : null}
                 </div>
               ) : null}
@@ -318,20 +320,20 @@ export function ZipExtractDialog({
               {conflicts.blockingCount > 0 ? (
                 <div className="mt-3">
                   <p className="text-xs uppercase tracking-[0.18em] text-[var(--muted)]">
-                    Blocking type conflicts ({conflicts.blockingCount})
+                    {t("Blocking type conflicts")} ({conflicts.blockingCount})
                   </p>
                   <div className="mt-2 space-y-1">
                     {conflicts.blocking.map((conflict) => (
                       <p key={`${conflict.kind}:${conflict.path}`} className="break-all font-mono text-xs text-[var(--muted)]">
-                        {describeConflict(conflict)}
+                        {describeConflict(conflict, t)}
                       </p>
                     ))}
                     {blockingRemaining > 0 ? (
-                      <p className="text-xs text-[var(--muted)]">...and {blockingRemaining} more</p>
+                      <p className="text-xs text-[var(--muted)]">...{t("and")} {blockingRemaining} {t("more")}</p>
                     ) : null}
                   </div>
                   <p className="mt-2 text-xs text-[var(--muted)]">
-                    These conflicts need a different destination or manual cleanup before extraction can continue.
+                    {t("These conflicts need a different destination or manual cleanup before extraction can continue.")}
                   </p>
                 </div>
               ) : null}
@@ -346,9 +348,9 @@ export function ZipExtractDialog({
                   className="mt-0.5 inline-block h-3.5 w-3.5 animate-spin rounded-full border-2 border-[var(--accent)] border-t-transparent"
                 />
                 <div>
-                  <p className="font-medium">Checking destination for conflicts...</p>
+                  <p className="font-medium">{t("Checking destination for conflicts...")}</p>
                   <p className="text-xs text-[var(--muted)]">
-                    Extraction stays paused until the preview scan finishes.
+                    {t("Extraction stays paused until the preview scan finishes.")}
                   </p>
                 </div>
               </div>
@@ -362,7 +364,7 @@ export function ZipExtractDialog({
             onClick={onCancel}
             type="button"
           >
-            Cancel
+            {t("Cancel")}
           </button>
           <button
             className="rounded-md border border-[var(--accent)] bg-[var(--accent)] px-3 py-2 text-xs font-semibold text-white transition hover:bg-[var(--accent-strong)] disabled:cursor-not-allowed disabled:opacity-70"
@@ -370,7 +372,7 @@ export function ZipExtractDialog({
             onClick={() => onConfirm({ strategy: selectedStrategy, overwriteExisting })}
             type="button"
           >
-            {checking ? "Checking..." : "Extract"}
+            {t(checking ? "Checking..." : "Extract")}
           </button>
         </div>
       </div>

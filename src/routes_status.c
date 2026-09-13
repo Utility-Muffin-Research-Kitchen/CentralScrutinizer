@@ -4,13 +4,14 @@
 #include "cs_session.h"
 #include "cs_server.h"
 #include "cs_terminal.h"
+#include "cs_i18n.h"
 
 #include "civetweb.h"
 
 #include <stdio.h>
 int cs_route_status_handler(struct mg_connection *conn, void *cbdata) {
     cs_app *app = (cs_app *) cbdata;
-    char body[256];
+    char body[320];
     int trusted_count = cs_server_get_trusted_count();
     int written;
 
@@ -33,7 +34,7 @@ int cs_route_status_handler(struct mg_connection *conn, void *cbdata) {
 
 int cs_route_session_handler(struct mg_connection *conn, void *cbdata) {
     cs_app *app = (cs_app *) cbdata;
-    char body[256];
+    char body[384];
     char cookie_token[64];
     char csrf_token[CS_SESSION_CSRF_TOKEN_HEX_LEN + 1];
     const char *cookie;
@@ -54,10 +55,10 @@ int cs_route_session_handler(struct mg_connection *conn, void *cbdata) {
         written = snprintf(body,
                            sizeof(body),
                            cs_terminal_feature_enabled(app)
-                               ? "{\"paired\":false,\"csrf\":null,\"trustedCount\":%d,\"pairingAvailable\":%s,\"capabilities\":{\"terminal\":true}}"
-                               : "{\"paired\":false,\"csrf\":null,\"trustedCount\":%d,\"pairingAvailable\":%s,\"capabilities\":{\"terminal\":false}}",
+                           ? "{\"paired\":false,\"csrf\":null,\"trustedCount\":%d,\"pairingAvailable\":%s,\"language\":\"%s\",\"capabilities\":{\"terminal\":true}}"
+                               : "{\"paired\":false,\"csrf\":null,\"trustedCount\":%d,\"pairingAvailable\":%s,\"language\":\"%s\",\"capabilities\":{\"terminal\":false}}",
                            trusted_count,
-                           pairing_available ? "true" : "false");
+                           pairing_available ? "true" : "false", cs_i18n_language());
         if (written < 0 || (size_t) written >= sizeof(body)) {
             return cs_routes_write_json(conn, 500, "Internal Server Error", "{\"error\":\"session_too_large\"}");
         }
@@ -73,10 +74,11 @@ int cs_route_session_handler(struct mg_connection *conn, void *cbdata) {
 
     written = snprintf(body,
                        sizeof(body),
-                       "{\"paired\":true,\"csrf\":\"%s\",\"trustedCount\":%d,\"pairingAvailable\":%s,\"capabilities\":{\"terminal\":%s}}",
+                       "{\"paired\":true,\"csrf\":\"%s\",\"trustedCount\":%d,\"pairingAvailable\":%s,\"language\":\"%s\",\"capabilities\":{\"terminal\":%s}}",
                        csrf_token,
                        trusted_count,
                        pairing_available ? "true" : "false",
+                       cs_i18n_language(),
                        cs_terminal_feature_enabled(app) ? "true" : "false");
     if (written < 0 || (size_t) written >= sizeof(body)) {
         return cs_routes_write_json(conn, 500, "Internal Server Error", "{\"error\":\"session_too_large\"}");

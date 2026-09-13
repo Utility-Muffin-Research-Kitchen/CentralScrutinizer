@@ -1,5 +1,6 @@
 import type { PlatformResource, PlatformSummary } from "../lib/types";
 import { ResourceCardGrid } from "./resource-card-grid";
+import { useT } from "../lib/i18n";
 
 export function PlatformView({
   platform,
@@ -10,6 +11,7 @@ export function PlatformView({
   onBack: () => void;
   onOpenResource: (resource: PlatformResource) => void;
 }) {
+  const t = useT();
   return (
     <div className="space-y-6">
       <button
@@ -18,7 +20,7 @@ export function PlatformView({
         type="button"
       >
         <span aria-hidden="true">←</span>
-        Back to Library
+        {t("Back to Library")}
       </button>
       <ResourceCardGrid onSelect={onOpenResource} platform={platform} />
     </div>

@@ -1,0 +1,1125 @@
+# Simplified Chinese translation for CentralScrutinizer.
+msgid ""
+msgstr "Content-Type: text/plain; charset=UTF-8\nLanguage: zh_CN\n"
+
+msgid "Central Scrutinizer"
+msgstr "掌机远程管理"
+
+msgid "Enabling this will temporarily change the launcher's screen timeout setting while Central Scrutinizer runs in background mode. The previous timeout is restored when background mode ends."
+msgstr "启用此功能后，掌机远程管理在后台运行期间会临时更改启动器的屏幕超时设置。后台模式结束后将恢复原设置。"
+
+msgid "Trusted clients are remembered. Pairing codes refresh after each use. Press Y to add another client."
+msgstr "受信任的客户端会被记住。配对码每次使用后都会刷新。按 Y 添加其他客户端。"
+
+msgid "Open the URL in a browser or press Y for QR pairing. Pairing codes are single-use and refresh automatically."
+msgstr "请在浏览器中打开网址，或按 Y 使用二维码配对。配对码仅可使用一次并会自动刷新。"
+
+msgid "Could not save setting."
+msgstr "无法保存设置。"
+
+msgid "Could not save the terminal setting."
+msgstr "无法保存终端设置。"
+
+msgid "Could not save the background keep-awake setting."
+msgstr "无法保存后台保持唤醒设置。"
+
+msgid "The QR code is too large to render on this screen."
+msgstr "二维码过大，无法在此屏幕显示。"
+
+msgid "Could not generate a pairing QR code."
+msgstr "无法生成配对二维码。"
+
+msgid "Run in Background requires at least one trusted browser."
+msgstr "在后台运行至少需要一个受信任的浏览器。"
+
+msgid "This screen refreshes automatically after a client pairs. Press Y to generate a new QR code for another trusted client."
+msgstr "客户端配对后此屏幕会自动刷新。按 Y 为其他受信任客户端生成新二维码。"
+
+msgid "Open the URL in a browser and enter the PIN once, or press Y for a QR code. PINs and QR links are single-use."
+msgstr "请在浏览器中打开网址并输入一次 PIN，或按 Y 使用二维码。PIN 和二维码链接仅可使用一次。"
+
+msgid "Trusted browsers stay connected in background mode.\n\nNew pairing is disabled until you reopen the app. Reopening it stops background mode and brings back pairing and settings. Active terminal sessions may need to reconnect."
+msgstr "后台模式下受信任的浏览器仍保持连接。\n\n重新打开应用前无法进行新配对。重新打开应用会停止后台模式并恢复配对与设置，活动终端会话可能需要重新连接。"
+
+msgid "Server"
+msgstr "服务器"
+
+msgid "QR"
+msgstr "二维码"
+
+msgid "Pairing"
+msgstr "配对"
+
+msgid "Settings"
+msgstr "设置"
+
+msgid "Exit"
+msgstr "退出"
+
+msgid "Retry"
+msgstr "重试"
+
+msgid "Back"
+msgstr "返回"
+
+msgid "Refresh"
+msgstr "刷新"
+
+msgid "Choose"
+msgstr "选择"
+
+msgid "Cancel"
+msgstr "取消"
+
+msgid "Enable"
+msgstr "启用"
+
+msgid "Run"
+msgstr "运行"
+
+msgid "Disabled"
+msgstr "已禁用"
+
+msgid "Enabled"
+msgstr "已启用"
+
+msgid "Terminal"
+msgstr "终端"
+
+msgid "Keep Awake in Background"
+msgstr "后台保持唤醒"
+
+msgid "Revoke Trusted Browsers"
+msgstr "撤销受信任浏览器"
+
+msgid "Run in Background"
+msgstr "在后台运行"
+
+msgid "Pair by QR"
+msgstr "通过二维码配对"
+
+msgid "Connect Wi-Fi from the launcher first."
+msgstr "请先在启动器中连接 Wi-Fi。"
+
+msgid "Valid for %d minutes or until it is used."
+msgstr "有效期为 %d 分钟，使用后立即失效。"
+
+msgid "URL"
+msgstr "网址"
+
+msgid "Code"
+msgstr "代码"
+
+msgid "Trusted Clients"
+msgstr "受信任客户端"
+
+msgid "Status"
+msgstr "状态"
+
+msgid "Loading..."
+msgstr "正在加载…"
+
+msgid "Search"
+msgstr "搜索"
+
+msgid "Save States"
+msgstr "存档状态"
+
+msgid "Loading save states..."
+msgstr "正在加载存档状态…"
+
+msgid "File Browser"
+msgstr "文件浏览器"
+
+msgid "Log Viewer"
+msgstr "日志查看器"
+
+msgid "Mac Dot Cleanup"
+msgstr "Mac 点文件清理"
+
+msgid "Scan SD storage for safe macOS transfer artifacts including `.DS_Store`, AppleDouble `._*` sidecars, Spotlight or Finder metadata folders, and `__MACOSX` directories. Matches inside `__MACOSX` are removed along with the folder."
+msgstr "扫描 SD 存储中的安全 macOS 传输残留，包括 `.DS_Store`、AppleDouble `._*` 伴随文件、Spotlight 或 Finder 元数据文件夹以及 `__MACOSX` 目录。`__MACOSX` 内的匹配项会随文件夹一并删除。"
+
+msgid "macOS transfer artifacts. Clean Now only removes the listed items; refresh after cleanup to scan for the rest."
+msgstr "个 macOS 传输残留。“立即清理”只会删除列出的项目；清理后请刷新以扫描其余项目。"
+
+msgid "Tools"
+msgstr "工具"
+
+msgid "Upload"
+msgstr "上传"
+
+msgid "Download"
+msgstr "下载"
+
+msgid "Delete"
+msgstr "删除"
+
+msgid "Rename"
+msgstr "重命名"
+
+msgid "Move"
+msgstr "移动"
+
+msgid "Preview"
+msgstr "预览"
+
+msgid "Close"
+msgstr "关闭"
+
+msgid "Open"
+msgstr "打开"
+
+msgid "Select all"
+msgstr "全选"
+
+msgid "Select none"
+msgstr "取消全选"
+
+msgid "Yes"
+msgstr "是"
+
+msgid "The Central Scrutinizer"
+msgstr "掌机远程管理"
+
+msgid "Device Library Workspace"
+msgstr "设备库工作区"
+
+msgid "Library"
+msgstr "库"
+
+msgid "Disconnect"
+msgstr "断开连接"
+
+msgid "No active transfers"
+msgstr "没有活动传输"
+
+msgid "Please enter the PIN shown on the device."
+msgstr "请输入设备上显示的 PIN。"
+
+msgid "Background mode is active on the handheld."
+msgstr "掌机正处于后台模式。"
+
+msgid "Pairing code"
+msgstr "配对码"
+
+msgid "Pairing..."
+msgstr "正在配对…"
+
+msgid "Pair Browser"
+msgstr "配对浏览器"
+
+msgid "Reopen the app on the handheld to pair a browser or change device settings."
+msgstr "请在掌机上重新打开应用，以配对浏览器或更改设备设置。"
+
+msgid "Connection lost"
+msgstr "连接已断开"
+
+msgid "The handheld app is unavailable."
+msgstr "掌机应用不可用。"
+
+msgid "Work is paused until the device app reconnects. This page keeps retrying automatically every 2 seconds."
+msgstr "设备应用重新连接前，当前工作已暂停。此页面每 2 秒自动重试。"
+
+msgid "Keep this tab open. Your current workspace will resume in place as soon as the connection returns."
+msgstr "请保持此标签页打开。连接恢复后，将在当前位置恢复当前工作区。"
+
+msgid "and"
+msgstr "以及"
+
+msgid "file"
+msgstr "个文件"
+
+msgid "files"
+msgstr "个文件"
+
+msgid "folder"
+msgstr "个文件夹"
+
+msgid "folders"
+msgstr "个文件夹"
+
+msgid "item"
+msgstr "个项目"
+
+msgid "Uploading"
+msgstr "正在上传"
+
+msgid "Moving"
+msgstr "正在移动"
+
+msgid "Deleting"
+msgstr "正在删除"
+
+msgid "of"
+msgstr "/ 共"
+
+msgid "more"
+msgstr "更多"
+
+msgid "Platforms"
+msgstr "平台"
+
+msgid "Browse library content by platform family."
+msgstr "按平台系列浏览库内容。"
+
+msgid "Show empty consoles"
+msgstr "显示空主机"
+
+msgid "visible systems"
+msgstr "个可见系统"
+
+msgid "Platform catalog unavailable:"
+msgstr "平台目录不可用："
+
+msgid "Loading platforms..."
+msgstr "正在加载平台…"
+
+msgid "Loading more platforms..."
+msgstr "正在加载更多平台…"
+
+msgid "Workspace"
+msgstr "工作区"
+
+msgid "Device utilities for files, logs, and direct shell access."
+msgstr "文件、日志和直接 Shell 访问工具。"
+
+msgid "Browse the SD card filesystem and manage folders from the tools workspace."
+msgstr "从工具工作区浏览 SD 卡文件系统并管理文件夹。"
+
+msgid "Scan for safe macOS transfer artifacts like .DS_Store, ._ sidecars, and __MACOSX folders."
+msgstr "扫描 .DS_Store、._ 伴随文件和 __MACOSX 文件夹等 macOS 传输残留。"
+
+msgid "Scan Leaf app logs, download them, and follow output live."
+msgstr "扫描 Leaf 应用日志、下载日志并实时跟踪输出。"
+
+msgid "Open a PTY-backed shell in the browser after acknowledging the safety warning."
+msgstr "确认安全警告后在浏览器中打开 PTY Shell。"
+
+msgid "Terminal access is disabled on the handheld. Enable it from the device settings screen."
+msgstr "掌机上的终端访问已禁用，请在设备设置中启用。"
+
+msgid "Enable on handheld"
+msgstr "在掌机上启用"
+
+msgid "Open tool"
+msgstr "打开工具"
+
+msgid "Edit"
+msgstr "编辑"
+
+msgid "Close editor"
+msgstr "关闭编辑器"
+
+msgid "Edit contents of"
+msgstr "编辑内容："
+
+msgid "bytes"
+msgstr "字节"
+
+msgid "Extract ZIP"
+msgstr "解压 ZIP"
+
+msgid "Close dialog"
+msgstr "关闭对话框"
+
+msgid "How would you like to extract the contents?"
+msgstr "请选择解压方式。"
+
+msgid "Allow overwriting existing files"
+msgstr "允许覆盖现有文件"
+
+msgid "Off by default. Existing folders merge automatically, but file and folder type conflicts still block extraction."
+msgstr "默认关闭。现有文件夹会自动合并，但文件与文件夹类型冲突仍会阻止解压。"
+
+msgid "Enable overwrite to replace these existing files."
+msgstr "启用覆盖以替换这些现有文件。"
+
+msgid "Checking destination for conflicts..."
+msgstr "正在检查目标位置冲突…"
+
+msgid "Extraction stays paused until the preview scan finishes."
+msgstr "预览扫描完成前，解压将保持暂停。"
+
+msgid "Checking..."
+msgstr "检查中…"
+
+msgid "Extract"
+msgstr "解压"
+
+msgid "Name"
+msgstr "名称"
+
+msgid "No files found in this directory."
+msgstr "此目录中没有文件。"
+
+msgid "Nothing found in this folder."
+msgstr "此文件夹中没有内容。"
+
+msgid "Replace Art"
+msgstr "替换封面"
+
+msgid "More actions for"
+msgstr "更多操作："
+
+msgid "Browse folders and choose a destination visually."
+msgstr "浏览文件夹并直观选择目标位置。"
+
+msgid "Destination"
+msgstr "目标位置"
+
+msgid "Open a folder below, then choose “Move Here”."
+msgstr "打开下方文件夹，然后选择“移动到此处”。"
+
+msgid "Loading folders..."
+msgstr "正在加载文件夹…"
+
+msgid "No folders in this location."
+msgstr "此位置没有文件夹。"
+
+msgid "Search Results"
+msgstr "搜索结果"
+
+msgid "No matches found."
+msgstr "未找到匹配项。"
+
+msgid "Log Tail"
+msgstr "日志尾部"
+
+msgid "Waiting for log output..."
+msgstr "等待日志输出…"
+
+msgid "Scan Leaf app logs, then tail or download them."
+msgstr "扫描 Leaf 应用日志，然后查看或下载。"
+
+msgid "Scanning for log files..."
+msgstr "正在扫描日志文件…"
+
+msgid "No log files found."
+msgstr "未找到日志文件。"
+
+msgid "Path"
+msgstr "路径"
+
+msgid "Last Updated"
+msgstr "最后更新"
+
+msgid "No save states found for this platform."
+msgstr "此平台没有存档状态。"
+
+msgid "No preview available"
+msgstr "无可用预览"
+
+msgid "Back to logs"
+msgstr "返回日志"
+
+msgid "Auto-scroll"
+msgstr "自动滚动"
+
+msgid "Clear View"
+msgstr "清除视图"
+
+msgid "Rescan"
+msgstr "重新扫描"
+
+msgid "Scanning..."
+msgstr "扫描中…"
+
+msgid "Download All as Zip"
+msgstr "全部下载为 ZIP"
+
+msgid "Downloading..."
+msgstr "正在下载…"
+
+msgid "File"
+msgstr "文件"
+
+msgid "Open Tail"
+msgstr "打开日志尾部"
+
+msgid "Clean Now"
+msgstr "立即清理"
+
+msgid "Cleaning..."
+msgstr "正在清理…"
+
+msgid "Scanning for macOS dotfiles..."
+msgstr "正在扫描 macOS 点文件…"
+
+msgid "No macOS transfer artifacts found."
+msgstr "未找到 macOS 传输残留。"
+
+msgid "Close move picker"
+msgstr "关闭移动选择器"
+
+msgid "Ready to move into the selected folder."
+msgstr "可以移动到所选文件夹。"
+
+msgid "Selected items are already in this folder."
+msgstr "所选项目已在此文件夹中。"
+
+msgid "selected"
+msgstr "已选择"
+
+msgid "No"
+msgstr "否"
+
+msgid "OK"
+msgstr "确定"
+
+msgid "Could not prepare background mode."
+msgstr "无法准备后台模式。"
+
+msgid "Could not start the background server."
+msgstr "无法启动后台服务器。"
+
+msgid "Could not start background mode. The app will stay in the foreground."
+msgstr "无法启动后台模式。应用将保持在前台运行。"
+
+msgid "Background mode failed and the foreground server could not be restored."
+msgstr "后台模式失败，前台服务器无法恢复。"
+
+msgid "Pairing failed"
+msgstr "配对失败"
+
+msgid "Connection restored, but this browser is no longer trusted. Refresh the PIN or QR code on the device to pair again."
+msgstr "连接已恢复，但此浏览器不再受信任。请在设备上刷新 PIN 码或二维码重新配对。"
+
+msgid "Connection to the device is unavailable. Open the device app on the handheld to continue."
+msgstr "与设备的连接不可用。请在手持设备上打开设备应用继续。"
+
+msgid "Search platforms..."
+msgstr "搜索平台..."
+
+msgid "Search in current folder"
+msgstr "搜索当前文件夹"
+
+msgid "Download and remove grouped save-state bundles for the selected platform."
+msgstr "下载或删除所选平台的分组存档状态包。"
+
+msgid "Browse, upload, rename, and delete managed content for the selected platform."
+msgstr "浏览、上传、重命名和删除所选平台的托管内容。"
+
+msgid "Browser"
+msgstr "浏览器"
+
+msgid "Browse the device filesystem and manage folders safely."
+msgstr "安全浏览设备文件系统并管理文件夹。"
+
+msgid "Scan, tail, and download Leaf app logs."
+msgstr "扫描、跟踪和下载 Leaf 应用日志。"
+
+msgid "Open a PTY-backed shell when it is enabled on the handheld."
+msgstr "在手持设备启用时打开 PTY 终端。"
+
+msgid "Scan and remove safe macOS transfer artifacts from SD storage."
+msgstr "扫描并清除 SD 存储中的安全 macOS 传输文件。"
+
+msgid "Shortcuts and maintenance utilities for this device."
+msgstr "此设备的快捷方式和维护工具。"
+
+msgid "Manage content by platform and jump into system-specific workspaces."
+msgstr "按平台管理内容并跳转到系统特定的工作区。"
+
+msgid "Loading browser..."
+msgstr "加载浏览器中..."
+
+msgid "Search results truncated at 200 matches."
+msgstr "搜索结果在 200 个匹配处截断。"
+
+msgid "Open an SD card source before uploading files."
+msgstr "上传文件前请先打开 SD 卡源。"
+
+msgid "Folder name"
+msgstr "文件夹名称"
+
+msgid "Rename item"
+msgstr "重命名项目"
+
+msgid "Back to Library"
+msgstr "返回库"
+
+msgid "Terminal access was disabled on the handheld."
+msgstr "终端访问在手持设备上已禁用。"
+
+msgid "Terminal connection failed."
+msgstr "终端连接失败。"
+
+msgid "Terminal session closed."
+msgstr "终端会话已关闭。"
+
+msgid "This opens a real shell on the device. Use it only when you understand the commands you are running."
+msgstr "这将在设备上打开真实 Shell。仅在您理解正在运行的命令时使用。"
+
+msgid "The session starts in the SD card root and uses the device shell through a PTY-backed websocket."
+msgstr "会话从 SD 卡根目录开始，通过 PTY 支持的 WebSocket 使用设备 Shell。"
+
+msgid "Acknowledge And Connect"
+msgstr "确认并连接"
+
+msgid "Connecting terminal..."
+msgstr "连接终端中..."
+
+msgid "Connected"
+msgstr "已连接"
+
+msgid "Terminal access is disabled on the handheld. Enable it from the device settings screen first."
+msgstr "终端访问在手持设备上已禁用。请先从设备设置屏幕启用。"
+
+msgid "Cancel Upload"
+msgstr "取消上传"
+
+msgid "Action needed"
+msgstr "需要操作"
+
+msgid "Done"
+msgstr "完成"
+
+msgid "Notice"
+msgstr "通知"
+
+msgid "Dismiss"
+msgstr "关闭"
+
+msgid "ROMs"
+msgstr "ROM"
+
+msgid "Saves"
+msgstr "存档"
+
+msgid "BIOS"
+msgstr "BIOS"
+
+msgid "Overlays"
+msgstr "覆盖层"
+
+msgid "Cheats"
+msgstr "作弊码"
+
+msgid "items"
+msgstr "个项目"
+
+msgid "Drop files here to upload"
+msgstr "将文件拖放到此处上传"
+
+msgid "Reading files…"
+msgstr "读取文件中…"
+
+msgid "Reading dropped files"
+msgstr "读取拖放文件中"
+
+msgid "Download Selected"
+msgstr "下载所选"
+
+msgid "Creating Zip..."
+msgstr "创建 ZIP 中..."
+
+msgid "Move Selected"
+msgstr "移动所选"
+
+msgid "Delete Selected"
+msgstr "删除所选"
+
+msgid "Clear Selection"
+msgstr "清除选择"
+
+msgid "Bulk download works with file-only selections."
+msgstr "批量下载仅适用于文件选择。"
+
+msgid "Move, delete, or download the selected files from this folder."
+msgstr "移动、删除或下载此文件夹中的所选文件。"
+
+msgid "matches"
+msgstr "个匹配"
+
+msgid "Load more"
+msgstr "加载更多"
+
+msgid "remaining"
+msgstr "剩余"
+
+msgid "Size"
+msgstr "大小"
+
+msgid "Modified"
+msgstr "修改时间"
+
+msgid "Action"
+msgstr "操作"
+
+msgid "Folder"
+msgstr "文件夹"
+
+msgid "Select all visible items"
+msgstr "全选所有可见项"
+
+msgid "Go to parent folder"
+msgstr "返回上级文件夹"
+
+msgid "Library Browser"
+msgstr "库浏览器"
+
+msgid "Upload File"
+msgstr "上传文件"
+
+msgid "Supported:"
+msgstr "支持："
+
+msgid "Exact filename:"
+msgstr "确切文件名："
+
+msgid "Exact filenames:"
+msgstr "确切文件名："
+
+msgid "Use Upload ZIP to extract a supported file from an archive."
+msgstr "请使用“上传 ZIP”从压缩包中提取受支持的文件。"
+
+msgid "These conflicts need a different destination or manual cleanup before extraction can continue."
+msgstr "这些冲突需要改用其他目标位置，或手动清理后才能继续解压。"
+
+msgid "Move Here"
+msgstr "移动到此处"
+
+msgid "Download or remove grouped save-state bundles for"
+msgstr "下载或删除以下平台的分组存档状态包："
+
+msgid "Showing"
+msgstr "显示"
+
+msgid "save-state bundles. Refresh after deleting listed entries to load the rest."
+msgstr "个存档状态包。删除所列条目后刷新以加载其余内容。"
+
+msgid "Upload Folder"
+msgstr "上传文件夹"
+
+msgid "Upload ZIP"
+msgstr "上传 ZIP"
+
+msgid "New Folder"
+msgstr "新建文件夹"
+
+msgid "Search Tree"
+msgstr "搜索树"
+
+msgid "Clear Results"
+msgstr "清除结果"
+
+msgid "Save"
+msgstr "保存"
+
+msgid "Saving..."
+msgstr "保存中..."
+
+msgid "Loading file contents..."
+msgstr "加载文件内容中..."
+
+msgid "Save failed. Please try again."
+msgstr "保存失败。请重试。"
+
+msgid "Extract here"
+msgstr "提取到当前位置"
+
+msgid "Extract into folder"
+msgstr "提取到文件夹"
+
+msgid "Preserve full archive path"
+msgstr "保留完整归档路径"
+
+msgid "Place files directly in the current folder"
+msgstr "将文件直接放置在当前文件夹中"
+
+msgid "Wrap contents under a new folder named after the archive"
+msgstr "将内容包装到以归档命名的新文件夹中"
+
+msgid "Keep top-level folders like Apps/ exactly as stored in the archive"
+msgstr "保持顶层文件夹如 Apps/ 与归档中完全一致"
+
+msgid "Show sample paths"
+msgstr "显示示例路径"
+
+msgid "Hide sample paths"
+msgstr "隐藏示例路径"
+
+msgid "Bundle Size"
+msgstr "包大小"
+
+msgid "Download Files"
+msgstr "下载文件"
+
+msgid "Delete Paths"
+msgstr "删除路径"
+
+msgid "Actions"
+msgstr "操作"
+
+msgid "Pairing is temporarily locked. Try again shortly."
+msgstr "配对暂时锁定。请稍后重试。"
+
+msgid "PIN is invalid or already used. Refresh it on the device and try again."
+msgstr "PIN 码无效或已使用。请在设备上刷新后重试。"
+
+msgid "QR code expired. Refresh it on the device and try again."
+msgstr "二维码已过期。请在设备上刷新后重试。"
+
+msgid "QR code is no longer valid. Refresh it on the device and try again."
+msgstr "二维码不再有效。请在设备上刷新后重试。"
+
+msgid "Pairing is unavailable while the app is running in background mode. Reopen it on the handheld to pair or change settings."
+msgstr "应用在后台模式运行时无法配对。请在手持设备上重新打开应用以配对或更改设置。"
+
+msgid "Upload was interrupted before the file finished sending."
+msgstr "上传在文件发送完成前被中断。"
+
+msgid "Upload check was interrupted before it finished."
+msgstr "上传检查在完成前被中断。"
+
+msgid "Upload request was malformed."
+msgstr "上传请求格式错误。"
+
+msgid "Choose at least one file or folder to upload."
+msgstr "请至少选择一个文件或文件夹上传。"
+
+msgid "Upload did not finish sending every file."
+msgstr "上传未完成所有文件的发送。"
+
+msgid "Upload target could not be resolved."
+msgstr "无法解析上传目标。"
+
+msgid "Upload path is invalid."
+msgstr "上传路径无效。"
+
+msgid "Upload folder could not be prepared."
+msgstr "无法准备上传文件夹。"
+
+msgid "Upload target path is invalid."
+msgstr "上传目标路径无效。"
+
+msgid "Could not load folders."
+msgstr "无法加载文件夹。"
+
+msgid "1 selection will not be scanned as"
+msgstr "1 个选择不会被扫描为"
+
+msgid "1 selection will not be scanned as a"
+msgstr "1 个选择不会被扫描为"
+
+msgid "Accepted exact filename"
+msgstr "接受的精确文件名"
+
+msgid "Accepted exact filenames"
+msgstr "接受的精确文件名"
+
+msgid "Added"
+msgstr "已添加"
+
+msgid "Artwork must be uploaded as a PNG file."
+msgstr "图片必须以 PNG 文件上传。"
+
+msgid "Artwork update failed."
+msgstr "图片更新失败。"
+
+msgid "Artwork updated for"
+msgstr "已更新图片："
+
+msgid "Bulk download failed"
+msgstr "批量下载失败"
+
+msgid "Bulk download works with file-only selections. Move and delete still work for folders."
+msgstr "批量下载仅适用于纯文件选择。文件夹仍可移动和删除。"
+
+msgid "Cleanup failed."
+msgstr "清理失败。"
+
+msgid "Could not load file contents."
+msgstr "无法加载文件内容。"
+
+msgid "Could not load save states."
+msgstr "无法加载即时存档。"
+
+msgid "Could not scan for macOS dotfiles."
+msgstr "无法扫描 macOS 隐藏文件。"
+
+msgid "Created folder"
+msgstr "已创建文件夹"
+
+msgid "Delete failed."
+msgstr "删除失败。"
+
+msgid "Delete macOS transfer artifacts?"
+msgstr "要删除 macOS 传输文件吗？"
+
+msgid "Delete the listed macOS transfer artifacts now?"
+msgstr "要立即删除列出的 macOS 传输文件吗？"
+
+msgid "Deleted"
+msgstr "已删除"
+
+msgid "Dismiss notice"
+msgstr "关闭通知"
+
+msgid "Download failed"
+msgstr "下载失败"
+
+msgid "Download failed."
+msgstr "下载失败。"
+
+msgid "Downloaded"
+msgstr "已下载"
+
+msgid "Existing file would be replaced"
+msgstr "现有文件将被替换"
+
+msgid "Failed to delete"
+msgstr "删除失败"
+
+msgid "Failed to move"
+msgstr "移动失败"
+
+msgid "Favorite update failed."
+msgstr "收藏状态更新失败。"
+
+msgid "File needed but a folder already exists"
+msgstr "需要文件，但已存在文件夹"
+
+msgid "Files path"
+msgstr "文件路径"
+
+msgid "Folder needed but a file already exists"
+msgstr "需要文件夹，但已存在文件"
+
+msgid "Library path"
+msgstr "库路径"
+
+msgid "Logs lookup failed"
+msgstr "查找日志失败"
+
+msgid "Missing session csrf token."
+msgstr "缺少会话 CSRF 令牌。"
+
+msgid "Mobile"
+msgstr "移动端"
+
+msgid "Move destination path"
+msgstr "移动目标路径"
+
+msgid "Moved"
+msgstr "已移动"
+
+msgid "Nothing to move."
+msgstr "没有可移动的项目。"
+
+msgid "Primary"
+msgstr "主导航"
+
+msgid "Removed"
+msgstr "已移除"
+
+msgid "Rename failed."
+msgstr "重命名失败。"
+
+msgid "Renamed"
+msgstr "已重命名"
+
+msgid "SD Card"
+msgstr "SD 卡"
+
+msgid "Saved"
+msgstr "已保存"
+
+msgid "Search current folder"
+msgstr "搜索当前文件夹"
+
+msgid "Select"
+msgstr "选择"
+
+msgid "Terminal access is disabled on the handheld."
+msgstr "手持设备已禁用终端访问。"
+
+msgid "The scan found"
+msgstr "扫描找到"
+
+msgid "This system"
+msgstr "此系统"
+
+msgid "Upload cancelled after"
+msgstr "上传已取消，已完成"
+
+msgid "Upload cancelled."
+msgstr "上传已取消。"
+
+msgid "Upload failed"
+msgstr "上传失败"
+
+msgid "Upload format check failed."
+msgstr "上传格式检查失败。"
+
+msgid "Uploaded"
+msgstr "已上传"
+
+msgid "Use Upload ZIP to extract a supported file."
+msgstr "请使用“上传 ZIP”解压受支持的文件。"
+
+msgid "ZIP conflict check timed out."
+msgstr "ZIP 冲突检查超时。"
+
+msgid "ZIP contains no uploadable files or folders."
+msgstr "ZIP 中没有可上传的文件或文件夹。"
+
+msgid "ZIP upload failed."
+msgstr "ZIP 上传失败。"
+
+msgid "accepts"
+msgstr "接受"
+
+msgid "because that name is already in use"
+msgstr "因为该名称已被占用"
+
+msgid "Can't rename"
+msgstr "无法重命名"
+
+msgid "failed"
+msgstr "失败"
+
+msgid "files for"
+msgstr "个文件，属于"
+
+msgid "from favorites"
+msgstr "从收藏中移除"
+
+msgid "game"
+msgstr "游戏"
+
+msgid "games"
+msgstr "游戏"
+
+msgid "log files"
+msgstr "日志文件"
+
+msgid "macOS artifacts"
+msgstr "macOS 文件"
+
+msgid "not sorted"
+msgstr "未排序"
+
+msgid "selections will not be scanned as"
+msgstr "个选择不会被扫描为"
+
+msgid "sorted"
+msgstr "已排序"
+
+msgid "to"
+msgstr "至"
+
+msgid "to favorites"
+msgstr "加入收藏"
+
+msgid "total"
+msgstr "总计"
+
+msgid "Blocking type conflicts"
+msgstr "阻止提取的类型冲突"
+
+msgid "Choose another extraction layout or include a file format supported by this system."
+msgstr "请选择其他解压布局，或加入此系统支持的文件格式。"
+
+msgid "Replaceable file conflicts"
+msgstr "可替换文件冲突"
+
+msgid "Some paths need attention before extraction can continue."
+msgstr "部分路径需要处理后才能继续解压。"
+
+msgid "This extraction does not contain a supported game entrypoint."
+msgstr "此解压内容不包含受支持的游戏入口文件。"
+
+msgid "This extraction would replace existing files."
+msgstr "此解压操作将替换现有文件。"
+
+msgid "Unsupported ROM bundles"
+msgstr "不受支持的 ROM 包"
+
+msgid "Central Scrutinizer terminal"
+msgstr "掌机远程管理终端"
+
+msgid "Upload blocked because {path} already exists."
+msgstr "上传已阻止：{path} 已存在。"
+
+msgid "Upload blocked because {path} conflicts with an existing file or folder."
+msgstr "上传已阻止：{path} 与现有文件或文件夹冲突。"
+
+msgid "the destination"
+msgstr "目标位置"
+
+msgid "Could not download {name}"
+msgstr "无法下载 {name}"
+
+msgid "Downloading {current}/{total}: {path}"
+msgstr "正在下载 {current}/{total}：{path}"
+
+msgid "Creating zip..."
+msgstr "正在创建压缩包…"
+
+msgid "Current path"
+msgstr "当前路径"
+
+msgid "Root"
+msgstr "根目录"
+
+msgid "ZIP {label} is too large to inspect safely."
+msgstr "ZIP 的 {label} 过大，无法安全校验。"
+
+msgid "Disconnect failed"
+msgstr "断开连接失败"
+
+msgid "Malformed platforms stream"
+msgstr "平台数据流格式错误"
+
+msgid "Platforms lookup failed"
+msgstr "获取平台列表失败"
+
+msgid "Platforms stream ended before completion"
+msgstr "平台数据流在完成前中断"
+
+msgid "Favorite update failed"
+msgstr "更新收藏状态失败"
+
+msgid "Library rescan failed"
+msgstr "重新扫描库失败"
+
+msgid "That name is already in use in this folder."
+msgstr "此文件夹中已存在同名项目。"
+
+msgid "The item you tried to rename no longer exists."
+msgstr "要重命名的项目已不存在。"
+
+msgid "Rename failed"
+msgstr "重命名失败"
+
+msgid "Delete failed"
+msgstr "删除失败"
+
+msgid "Read failed"
+msgstr "读取失败"
+
+msgid "Write failed"
+msgstr "写入失败"
+
+msgid "Create folder failed"
+msgstr "创建文件夹失败"
+
+msgid "Could not tail log"
+msgstr "无法继续读取日志"
+
+msgid "ZIP contains too many entries ({count}). Limit is {limit}."
+msgstr "ZIP 条目过多（{count}），上限为 {limit}。"
+
+msgid "ZIP expands to too much data ({size}). Limit is {limit}."
+msgstr "ZIP 解压后数据过大（{size}），上限为 {limit}。"
+
+msgid "ZIP file could not be read."
+msgstr "无法读取 ZIP 文件。"
+
+msgid "ZIP central directory could not be read."
+msgstr "无法读取 ZIP 中央目录。"
+
+msgid "ZIP entry size could not be read."
+msgstr "无法读取 ZIP 条目大小。"

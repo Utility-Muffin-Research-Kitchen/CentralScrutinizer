@@ -6,6 +6,7 @@ import { DEFAULT_BROWSER_SORT, nextBrowserSort } from "../lib/browser-sort";
 import { BROWSER_MOVE_DRAG_TYPE } from "../lib/drag-types";
 import { isPlaintextFileName } from "../lib/plaintext";
 import type { BrowserEntry, BrowserScope, BrowserSortColumn, BrowserSortState } from "../lib/types";
+import { useT } from "../lib/i18n";
 
 const DASH = "\u2014";
 
@@ -16,12 +17,12 @@ function SortIndicator({ column, sort }: { column: BrowserSortColumn; sort: Brow
   return <span aria-hidden="true">{sort.direction === "asc" ? "\u25b2" : "\u25bc"}</span>;
 }
 
-function sortAriaLabel(label: string, column: BrowserSortColumn, sort: BrowserSortState): string {
+function sortAriaLabel(label: string, column: BrowserSortColumn, sort: BrowserSortState, t: (key: string) => string): string {
   if (sort.column !== column) {
-    return `${label}, not sorted`;
+    return `${label}, ${t("not sorted")}`;
   }
 
-  return `${label}, sorted ${sort.direction === "asc" ? "ascending" : "descending"}`;
+  return `${label}, ${t("sorted")} ${t(sort.direction === "asc" ? "ascending" : "descending")}`;
 }
 
 function SortableHeader({
@@ -37,13 +38,14 @@ function SortableHeader({
   onSortChange?: (sort: BrowserSortState) => void;
   className?: string;
 }) {
+  const t = useT();
   if (!onSortChange) {
     return <span className={`flex items-center gap-1 uppercase tracking-wider ${className}`}>{label}</span>;
   }
 
   return (
     <button
-      aria-label={sortAriaLabel(label, column, sort)}
+      aria-label={sortAriaLabel(label, column, sort, t)}
       className={`flex items-center gap-1 uppercase tracking-wider transition hover:text-[var(--text)] ${className}`}
       onClick={() => onSortChange(nextBrowserSort(sort, column))}
       type="button"
@@ -284,6 +286,7 @@ function RowMoreMenu({
   onReplaceArt?: (entry: BrowserEntry) => void;
   entry: BrowserEntry;
 }) {
+  const t = useT();
   const [open, setOpen] = useState(false);
   const wrapperRef = useRef<HTMLDivElement | null>(null);
 
@@ -318,7 +321,7 @@ function RowMoreMenu({
       <button
         aria-haspopup="menu"
         aria-expanded={open}
-        aria-label={`More actions for ${entry.name}`}
+        aria-label={`${t("More actions for")} ${entry.name}`}
         className="inline-flex h-9 w-9 items-center justify-center rounded-md border border-[var(--border)] text-[var(--muted)] transition hover:border-[var(--accent)]/50 hover:text-[var(--text)] disabled:cursor-not-allowed disabled:opacity-40"
         disabled={busy}
         onClick={() => setOpen((current) => !current)}
@@ -343,7 +346,7 @@ function RowMoreMenu({
               type="button"
             >
               <PencilGlyph />
-              Rename
+              {t("Rename")}
             </button>
           ) : null}
           {canReplaceArt && onReplaceArt ? (
@@ -358,7 +361,7 @@ function RowMoreMenu({
               type="button"
             >
               <ImageGlyph />
-              Replace Art
+              {t("Replace Art")}
             </button>
           ) : null}
           {onDelete ? (
@@ -373,7 +376,7 @@ function RowMoreMenu({
               type="button"
             >
               <TrashGlyph />
-              Delete
+              {t("Delete")}
             </button>
           ) : null}
         </div>
@@ -419,6 +422,7 @@ function FilesTable({
   onSortChange?: (sort: BrowserSortState) => void;
   tag?: string;
 }) {
+  const t = useT();
   const [dropTargetPath, setDropTargetPath] = useState<string | null>(null);
   const dragPathsRef = useRef<string[] | null>(null);
   const gridClass =
@@ -458,24 +462,24 @@ function FilesTable({
       >
         <span className="flex items-center justify-center">
           <SelectionCheckbox
-            ariaLabel="Select all visible items"
+            ariaLabel={t("Select all visible items")}
             checked={allSelected}
             disabled={busy || entries.length === 0}
             indeterminate={someSelected}
             onChange={onSelectAll}
           />
         </span>
-        <SortableHeader column="name" label="Name" sort={sort} onSortChange={onSortChange} />
-        <SortableHeader column="size" label="Size" sort={sort} onSortChange={onSortChange} />
-        <SortableHeader column="modified" label="Modified" sort={sort} onSortChange={onSortChange} />
-        <span className="text-right">Action</span>
+        <SortableHeader column="name" label={t("Name")} sort={sort} onSortChange={onSortChange} />
+        <SortableHeader column="size" label={t("Size")} sort={sort} onSortChange={onSortChange} />
+        <SortableHeader column="modified" label={t("Modified")} sort={sort} onSortChange={onSortChange} />
+        <span className="text-right">{t("Action")}</span>
       </div>
 
       {onNavigateParent ? (
         <div className={`items-center border-t border-[var(--line)] px-4 py-3 text-sm ${gridClass}`}>
           <span aria-hidden="true" className="block h-4 w-4" />
           <button
-            aria-label="Go to parent folder"
+            aria-label={t("Go to parent folder")}
             className="flex items-center gap-3 text-left italic text-[var(--muted)] transition hover:text-[var(--text)] disabled:cursor-not-allowed disabled:opacity-50"
             disabled={busy}
             onClick={onNavigateParent}
@@ -500,7 +504,7 @@ function FilesTable({
 
       {entries.length === 0 && !onNavigateParent ? (
         <div className="px-5 py-10 text-center text-sm italic text-[var(--muted)]">
-          No files found in this directory.
+          {t("No files found in this directory.")}
         </div>
       ) : (
         entries.map((entry) => {
@@ -566,7 +570,7 @@ function FilesTable({
             >
               <div className="flex items-center justify-center">
                 <SelectionCheckbox
-                  ariaLabel={`Select ${entry.name}`}
+                  ariaLabel={`${t("Select")} ${entry.name}`}
                   checked={isSelected}
                   disabled={busy}
                   onChange={(checked) => {
@@ -577,7 +581,7 @@ function FilesTable({
               <div className="min-w-0">
                 {isDir ? (
                   <button
-                    aria-label={`Open ${entry.name}`}
+                    aria-label={`${t("Open")} ${entry.name}`}
                     className="flex w-full min-w-0 items-center gap-3 text-left disabled:cursor-not-allowed disabled:opacity-60"
                     disabled={busy}
                     onClick={() => {
@@ -594,7 +598,7 @@ function FilesTable({
                   </button>
                 ) : (
                   <a
-                    aria-label={`Download ${entry.name}`}
+                    aria-label={`${t("Download")} ${entry.name}`}
                     className="flex min-w-0 items-center gap-3"
                     href={buildDownloadUrl("files", entry.path, tag, csrf)}
                   >
@@ -616,7 +620,7 @@ function FilesTable({
               <div className="col-span-2 flex flex-wrap justify-end gap-1 whitespace-nowrap md:col-span-1 md:flex-nowrap">
                 {onRename ? (
                   <button
-                    aria-label={`Rename ${entry.name}`}
+                    aria-label={`${t("Rename")} ${entry.name}`}
                     className="inline-flex items-center gap-1 rounded-md px-2 py-1 text-xs font-semibold text-[var(--muted)] transition hover:text-[var(--text)] disabled:cursor-not-allowed disabled:opacity-40"
                     disabled={busy}
                     onClick={() => {
@@ -625,12 +629,12 @@ function FilesTable({
                     type="button"
                   >
                     <PencilGlyph />
-                    Rename
+                    {t("Rename")}
                   </button>
                 ) : null}
                 {onEdit && !isDir && isPlaintextFileName(entry.name) ? (
                   <button
-                    aria-label={`Edit ${entry.name}`}
+                    aria-label={`${t("Edit")} ${entry.name}`}
                     className="inline-flex items-center gap-1 rounded-md px-2 py-1 text-xs font-semibold text-[var(--muted)] transition hover:text-[var(--text)] disabled:cursor-not-allowed disabled:opacity-40"
                     disabled={busy}
                     onClick={() => {
@@ -639,12 +643,12 @@ function FilesTable({
                     type="button"
                   >
                     <PencilGlyph />
-                    Edit
+                    {t("Edit")}
                   </button>
                 ) : null}
                 {onDelete ? (
                   <button
-                    aria-label={`Delete ${entry.name}`}
+                    aria-label={`${t("Delete")} ${entry.name}`}
                     className="inline-flex items-center gap-1 rounded-md px-2 py-1 text-xs font-semibold text-[var(--accent)] transition hover:text-[var(--accent-strong)] disabled:cursor-not-allowed disabled:opacity-40"
                     disabled={busy}
                     onClick={() => {
@@ -653,7 +657,7 @@ function FilesTable({
                     type="button"
                   >
                     <TrashGlyph />
-                    Delete
+                    {t("Delete")}
                   </button>
                 ) : null}
               </div>
@@ -692,6 +696,7 @@ function LibraryTable({
   onSortChange?: (sort: BrowserSortState) => void;
   tag?: string;
 }) {
+  const t = useT();
   const gridClass =
     "grid grid-cols-[minmax(0,1fr),auto] gap-3 md:grid-cols-[minmax(0,1fr)_110px_220px_140px] md:gap-4";
 
@@ -700,15 +705,15 @@ function LibraryTable({
       <div
         className={`hidden border-b border-[var(--line)] bg-white/[0.02] px-4 py-3 text-xs font-semibold uppercase tracking-wider text-[var(--muted)] md:grid ${gridClass}`}
       >
-        <SortableHeader column="name" label="Name" sort={sort} onSortChange={onSortChange} />
-        <SortableHeader column="size" label="Size" sort={sort} onSortChange={onSortChange} />
-        <SortableHeader column="modified" label="Modified" sort={sort} onSortChange={onSortChange} />
-        <span className="text-right">Action</span>
+        <SortableHeader column="name" label={t("Name")} sort={sort} onSortChange={onSortChange} />
+        <SortableHeader column="size" label={t("Size")} sort={sort} onSortChange={onSortChange} />
+        <SortableHeader column="modified" label={t("Modified")} sort={sort} onSortChange={onSortChange} />
+        <span className="text-right">{t("Action")}</span>
       </div>
 
       {entries.length === 0 ? (
         <div className="px-5 py-10 text-center text-sm italic text-[var(--muted)]">
-          Nothing found in this folder.
+          {t("Nothing found in this folder.")}
         </div>
       ) : (
         entries.map((entry) => {
@@ -731,7 +736,7 @@ function LibraryTable({
                   <div className="min-w-0">
                     <p className="truncate font-medium text-[var(--text)] transition group-hover:text-white">{entry.name}</p>
                     <p className="truncate text-xs text-[var(--muted)] md:hidden">
-                      {isDir ? "Folder" : formatSize(entry.size)}
+                      {isDir ? t("Folder") : formatSize(entry.size)}
                       {entry.modified ? ` · ${formatDate(entry.modified)}` : ""}
                     </p>
                   </div>
@@ -764,7 +769,7 @@ function LibraryTable({
                 ) : null}
                 {isDir ? (
                   <button
-                    aria-label={`Open ${entry.name}`}
+                    aria-label={`${t("Open")} ${entry.name}`}
                     className="rounded-md border border-[var(--border)] px-3 py-2 text-xs font-medium transition hover:border-[var(--accent)]/50 disabled:cursor-not-allowed disabled:opacity-50"
                     disabled={busy}
                     onClick={() => {
@@ -772,15 +777,15 @@ function LibraryTable({
                     }}
                     type="button"
                   >
-                    Open
+                    {t("Open")}
                   </button>
                 ) : (
                   <a
-                    aria-label={`Download ${entry.name}`}
+                    aria-label={`${t("Download")} ${entry.name}`}
                     className="rounded-md bg-[var(--accent)] px-3 py-2 text-xs font-semibold text-white transition hover:bg-[var(--accent-strong)]"
                     href={buildDownloadUrl(scope, entry.path, tag, csrf)}
                   >
-                    Download
+                    {t("Download")}
                   </a>
                 )}
                 <RowMoreMenu

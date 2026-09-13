@@ -22,6 +22,7 @@ import { BrowserTable } from "./browser-table";
 import { DropZone } from "./drop-zone";
 import { NoticeToast } from "./notice-toast";
 import { TransferBar } from "./transfer-bar";
+import { tFormat, useT } from "../lib/i18n";
 
 const BROWSER_MOVE_IGNORED_DRAG_TYPES = [BROWSER_MOVE_DRAG_TYPE];
 
@@ -42,8 +43,8 @@ function getFullPath(scope: BrowserScope, response: BrowserResponse): string {
   return response.path ? `${root}/${response.path}` : root;
 }
 
-function formatItemCount(count: number): string {
-  return `${count} item${count === 1 ? "" : "s"}`;
+function formatItemCount(count: number, t: (key: string) => string): string {
+  return `${count} ${t(count === 1 ? "item" : "items")}`;
 }
 
 function isPreviewableImage(name: string): boolean {
@@ -97,6 +98,7 @@ function BrowserMoveModal({
   onCancel: () => void;
   onConfirm: (destinationPath: string) => void;
 }) {
+  const t = useT();
   const initialPath = getParentBrowserPath(normalizeBrowserPath(initialResponse.path));
   const initialResponsePath = normalizeBrowserPath(initialResponse.path);
   const canUseInitialResponse = initialResponseComplete && initialResponsePath === initialPath;
@@ -122,7 +124,7 @@ function BrowserMoveModal({
     }
     if (!csrf) {
       setCurrentResponse(null);
-      setLoadError("Missing session csrf token.");
+      setLoadError(t("Missing session csrf token."));
       setLoading(false);
       return () => {
         active = false;
@@ -145,7 +147,7 @@ function BrowserMoveModal({
         }
 
         setCurrentResponse(null);
-        setLoadError(error instanceof Error ? error.message : "Could not load folders.");
+        setLoadError(error instanceof Error ? t(error.message) : t("Could not load folders."));
       })
       .finally(() => {
         if (active) {
@@ -160,7 +162,7 @@ function BrowserMoveModal({
 
   const directories = currentResponse?.entries.filter((entry) => entry.type === "directory") ?? [];
   const canMoveHere = currentResponse ? canMoveEntriesToDestination(entries, currentResponse.path) : false;
-  const currentLabel = currentResponse?.path ? `SD Card/${currentResponse.path}` : "SD Card";
+  const currentLabel = currentResponse?.path ? `${t("SD Card")}/${currentResponse.path}` : t("SD Card");
 
   return (
     <div
@@ -173,12 +175,12 @@ function BrowserMoveModal({
         <div className="flex items-start justify-between gap-4 border-b border-[var(--line)] px-5 py-4">
           <div className="min-w-0">
             <h2 className="truncate text-base font-semibold text-[var(--text)]" id="move-items-title">
-              Move {formatItemCount(entries.length)}
+              {t("Move")} {formatItemCount(entries.length, t)}
             </h2>
-            <p className="text-sm text-[var(--muted)]">Browse folders and choose a destination visually.</p>
+            <p className="text-sm text-[var(--muted)]">{t("Browse folders and choose a destination visually.")}</p>
           </div>
           <button
-            aria-label="Close move picker"
+            aria-label={t("Close move picker")}
             className="rounded-md px-2 py-1 text-sm text-[var(--muted)] transition hover:text-[var(--text)]"
             onClick={onCancel}
             type="button"
@@ -190,17 +192,17 @@ function BrowserMoveModal({
         <div className="flex-1 space-y-4 overflow-auto px-5 py-4">
           <div className="space-y-3 rounded-xl border border-[var(--border)] bg-black/10 px-4 py-4">
             <div>
-              <p className="text-xs font-semibold uppercase tracking-[0.15em] text-[var(--muted)]">Destination</p>
+              <p className="text-xs font-semibold uppercase tracking-[0.15em] text-[var(--muted)]">{t("Destination")}</p>
               <p className="mt-1 text-sm text-[var(--text)]">{currentLabel}</p>
             </div>
             {currentResponse ? (
               <Breadcrumbs
-                ariaLabel="Move destination path"
+                ariaLabel={t("Move destination path")}
                 items={currentResponse.breadcrumbs}
                 onSelect={(path) => {
                   setCurrentPath(normalizeBrowserPath(path));
                 }}
-                rootLabel="SD Card"
+              rootLabel={t("SD Card")}
               />
             ) : null}
           </div>
@@ -213,12 +215,12 @@ function BrowserMoveModal({
 
           <section className="rounded-[24px] border border-[var(--border)] bg-[var(--panel)]">
             <div className="border-b border-[var(--line)] px-4 py-3">
-              <p className="text-sm text-[var(--muted)]">Open a folder below, then choose “Move Here”.</p>
+              <p className="text-sm text-[var(--muted)]">{t("Open a folder below, then choose “Move Here”.")}</p>
             </div>
             {loading ? (
-              <div className="px-5 py-10 text-center text-sm italic text-[var(--muted)]">Loading folders...</div>
+              <div className="px-5 py-10 text-center text-sm italic text-[var(--muted)]">{t("Loading folders...")}</div>
             ) : directories.length === 0 ? (
-              <div className="px-5 py-10 text-center text-sm italic text-[var(--muted)]">No folders in this location.</div>
+              <div className="px-5 py-10 text-center text-sm italic text-[var(--muted)]">{t("No folders in this location.")}</div>
             ) : (
               <div className="divide-y divide-[var(--line)]">
                 {directories.map((entry) => (
@@ -236,7 +238,7 @@ function BrowserMoveModal({
                       <p className="truncate text-xs text-[var(--muted)]">{entry.path}</p>
                     </div>
                     <span className="shrink-0 text-xs font-semibold uppercase tracking-[0.15em] text-[var(--muted)]">
-                      Open
+                      {t("Open")}
                     </span>
                   </button>
                 ))}
@@ -247,7 +249,7 @@ function BrowserMoveModal({
 
         <div className="flex flex-col gap-2 border-t border-[var(--line)] px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
           <p className="text-xs text-[var(--muted)]">
-            {canMoveHere ? "Ready to move into the selected folder." : "Selected items are already in this folder."}
+            {t(canMoveHere ? "Ready to move into the selected folder." : "Selected items are already in this folder.")}
           </p>
           <div className="flex gap-2 sm:justify-end">
             <button
@@ -255,7 +257,7 @@ function BrowserMoveModal({
               onClick={onCancel}
               type="button"
             >
-              Cancel
+              {t("Cancel")}
             </button>
             <button
               className="rounded-md border border-[var(--accent)] bg-[var(--accent)] px-3 py-2 text-xs font-semibold text-white transition hover:bg-[var(--accent-strong)] disabled:cursor-not-allowed disabled:opacity-50"
@@ -267,7 +269,7 @@ function BrowserMoveModal({
               }}
               type="button"
             >
-              Move Here
+              {t("Move Here")}
             </button>
           </div>
         </div>
@@ -283,6 +285,7 @@ export function BrowserView({
   hasMore = false,
   isLoadingMore = false,
   notice,
+  noticeSource,
   onLoadMore,
   response,
   scope,
@@ -317,6 +320,7 @@ export function BrowserView({
   hasMore?: boolean;
   isLoadingMore?: boolean;
   notice?: string | null;
+  noticeSource?: string;
   onLoadMore?: () => void;
   response: BrowserResponse;
   scope: BrowserScope;
@@ -345,11 +349,13 @@ export function BrowserView({
   searchResults?: FileSearchResult[] | null;
   transfer: TransferState;
 }) {
+  const t = useT();
   const uploadInputRef = useRef<HTMLInputElement | null>(null);
   const [previewPath, setPreviewPath] = useState<string | null>(null);
   const [selectedPaths, setSelectedPaths] = useState<string[]>([]);
   const [bulkDownloadBusy, setBulkDownloadBusy] = useState(false);
   const [localNotice, setLocalNotice] = useState<string | null>(null);
+  const [localNoticeSource, setLocalNoticeSource] = useState<string | null>(null);
   const [moveSelectionEntries, setMoveSelectionEntries] = useState<BrowserEntry[] | null>(null);
   const isFiles = scope === "files";
   const scopeAllowsFolderUploads = isFiles || scope === "roms";
@@ -358,7 +364,7 @@ export function BrowserView({
   const fullPath = getFullPath(scope, response);
   const responseTotalCount = Number.isFinite(response.totalCount) ? response.totalCount : 0;
   const totalCount = Math.max(responseTotalCount, response.entries.length);
-  const itemCountLabel = formatItemCount(totalCount);
+  const itemCountLabel = formatItemCount(totalCount, t);
   const entries = response.entries;
   const remaining = Math.max(totalCount - entries.length, 0);
   const canReuseMoveInitialResponse = search.trim().length === 0 && !hasMore;
@@ -368,6 +374,7 @@ export function BrowserView({
   const hasDirectorySelection = selectedEntries.some((entry) => entry.type === "directory");
   const canDownloadSelection = Boolean(csrf) && selectedEntries.length > 0 && !hasDirectorySelection;
   const visibleNotice = localNotice ?? notice;
+  const visibleNoticeSource = localNoticeSource ?? noticeSource;
 
   useEffect(() => {
     const visiblePaths = new Set(entries.map((entry) => entry.path));
@@ -390,12 +397,14 @@ export function BrowserView({
   useEffect(() => {
     if (notice) {
       setLocalNotice(null);
+      setLocalNoticeSource(null);
     }
   }, [notice]);
 
   function dismissVisibleNotice() {
     if (localNotice) {
       setLocalNotice(null);
+      setLocalNoticeSource(null);
       return;
     }
 
@@ -405,13 +414,15 @@ export function BrowserView({
   async function handleDownloadSelection() {
     if (!csrf || selectedEntries.length === 0 || hasDirectorySelection) {
       if (hasDirectorySelection) {
-        setLocalNotice("Bulk download works with file-only selections.");
+        setLocalNotice(t("Bulk download works with file-only selections."));
+        setLocalNoticeSource("Bulk download works with file-only selections.");
       }
       return;
     }
 
     setBulkDownloadBusy(true);
     setLocalNotice(null);
+    setLocalNoticeSource(null);
     try {
       const zip = new JSZip();
 
@@ -419,7 +430,7 @@ export function BrowserView({
         const downloadResponse = await fetch(buildDownloadUrl("files", entry.path, tag, csrf));
 
         if (!downloadResponse.ok) {
-          throw new Error(`Could not download ${entry.name}`);
+          throw new Error(tFormat(t, "Could not download {name}", { name: entry.name }));
         }
         zip.file(entry.name, await downloadResponse.arrayBuffer());
       }
@@ -433,7 +444,8 @@ export function BrowserView({
       link.click();
       URL.revokeObjectURL(url);
     } catch (error) {
-      setLocalNotice(error instanceof Error ? error.message : "Download failed.");
+      setLocalNotice(error instanceof Error ? t(error.message) : t("Download failed."));
+      setLocalNoticeSource(error instanceof Error ? error.message : "Download failed.");
     } finally {
       setBulkDownloadBusy(false);
     }
@@ -455,7 +467,7 @@ export function BrowserView({
             type="button"
           >
             <span aria-hidden="true">←</span>
-            Back
+            {t("Back")}
           </button>
           <BrowserFilesToolbar
             canRunSearch={search.trim().length > 0}
@@ -508,26 +520,26 @@ export function BrowserView({
       {supportedRomFormats ? (
         <p className="text-sm text-[var(--muted)]" data-testid="rom-supported-formats">
           {supportedRomFormats.formats.length > 0
-            ? `Supported: ${supportedRomFormats.formats.join(", ")}`
+            ? `${t("Supported:")} ${supportedRomFormats.formats.join(", ")}`
             : null}
           {supportedRomFormats.formats.length > 0 && supportedRomFormats.exactFileNames.length > 0 ? " · " : null}
           {supportedRomFormats.exactFileNames.length > 0
-            ? `Exact filename${supportedRomFormats.exactFileNames.length === 1 ? "" : "s"}: ${supportedRomFormats.exactFileNames.join(", ")}`
+            ? `${t(supportedRomFormats.exactFileNames.length === 1 ? "Exact filename:" : "Exact filenames:")} ${supportedRomFormats.exactFileNames.join(", ")}`
             : null}
           {supportedRomFormats.acceptsArchive
             ? null
-            : " · Use Upload ZIP to extract a supported file from an archive."}
+            : ` · ${t("Use Upload ZIP to extract a supported file from an archive.")}`}
         </p>
       ) : null}
       {isFiles && !searchResults && selectedEntries.length > 0 ? (
         <section className="rounded-[20px] border border-[var(--border)] bg-[var(--panel)] px-4 py-4">
           <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
             <div>
-              <h3 className="font-semibold">{formatItemCount(selectedEntries.length)} selected</h3>
+              <h3 className="font-semibold">{formatItemCount(selectedEntries.length, t)} {t("selected")}</h3>
               <p className="text-sm text-[var(--muted)]">
                 {hasDirectorySelection
-                  ? "Bulk download works with file-only selections. Move and delete still work for folders."
-                  : "Move, delete, or download the selected files from this folder."}
+                  ? t("Bulk download works with file-only selections. Move and delete still work for folders.")
+                  : t("Move, delete, or download the selected files from this folder.")}
               </p>
             </div>
             <div className="flex flex-wrap gap-2">
@@ -539,7 +551,7 @@ export function BrowserView({
                 }}
                 type="button"
               >
-                {bulkDownloadBusy ? "Creating Zip..." : "Download Selected"}
+                {t(bulkDownloadBusy ? "Creating Zip..." : "Download Selected")}
               </button>
               {onMoveSelection ? (
                 <button
@@ -550,7 +562,7 @@ export function BrowserView({
                   }}
                   type="button"
                 >
-                  Move Selected
+                  {t("Move Selected")}
                 </button>
               ) : null}
               <button
@@ -561,7 +573,7 @@ export function BrowserView({
                 }}
                 type="button"
               >
-                Delete Selected
+                {t("Delete Selected")}
               </button>
               <button
                 className="rounded-md border border-[var(--border)] bg-[var(--panel-alt)] px-4 py-2 text-sm font-medium text-[var(--text)] transition hover:border-[var(--accent)]/50 disabled:cursor-not-allowed disabled:opacity-50"
@@ -571,7 +583,7 @@ export function BrowserView({
                 }}
                 type="button"
               >
-                Clear Selection
+                {t("Clear Selection")}
               </button>
             </div>
           </div>
@@ -590,17 +602,17 @@ export function BrowserView({
           entries are reachable here — split the folder into subfolders to see the rest.
         </section>
       ) : null}
-      {visibleNotice ? <NoticeToast message={visibleNotice} onDismiss={dismissVisibleNotice} /> : null}
+      {visibleNotice ? <NoticeToast message={visibleNotice} source={visibleNoticeSource ?? visibleNotice} onDismiss={dismissVisibleNotice} /> : null}
       {isFiles && searchResults ? (
         <section className="rounded-[24px] border border-[var(--border)] bg-[var(--panel)] px-5 py-4">
           <div className="mb-4 flex items-center justify-between gap-3">
             <div>
-              <h3 className="font-semibold">Search Results</h3>
+              <h3 className="font-semibold">{t("Search Results")}</h3>
               <p className="text-sm text-[var(--muted)]">{searchResults.length} matches</p>
             </div>
           </div>
           {searchResults.length === 0 ? (
-            <p className="text-sm text-[var(--muted)]">No matches found.</p>
+            <p className="text-sm text-[var(--muted)]">{t("No matches found.")}</p>
           ) : (
             <div className="space-y-2">
               {searchResults.map((result) => (
@@ -684,7 +696,7 @@ export function BrowserView({
             onClick={onLoadMore}
             type="button"
           >
-            {isLoadingMore ? "Loading..." : `Load more (${remaining.toLocaleString()} remaining)`}
+            {isLoadingMore ? t("Loading...") : `${t("Load more")} (${remaining.toLocaleString()} ${t("remaining")})`}
           </button>
         </div>
       ) : null}
@@ -733,10 +745,10 @@ export function BrowserView({
           <div className="max-h-[90vh] max-w-6xl overflow-hidden rounded-2xl border border-[var(--border)] bg-[var(--panel)]">
             <div className="flex justify-end p-3">
               <button className="rounded-md px-3 py-2 text-sm text-[var(--muted)]" onClick={() => setPreviewPath(null)} type="button">
-                Close
+                {t("Close")}
               </button>
             </div>
-            <img alt="Preview" className="max-h-[80vh] w-full object-contain" src={previewPath} />
+            <img alt={t("Preview")} className="max-h-[80vh] w-full object-contain" src={previewPath} />
           </div>
         </div>
       ) : null}

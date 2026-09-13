@@ -2,6 +2,7 @@
 #include "cs_keep_awake.h"
 #include "cs_server.h"
 #include "cs_ui.h"
+#include "cs_i18n.h"
 
 #include <stdint.h>
 #include <stdio.h>
@@ -35,8 +36,8 @@ void cs_ui_model_make_active(
              sizeof(model->status_message),
              "%s",
              trusted_count > 0
-                 ? "Trusted clients are remembered. Pairing codes refresh after each use. Press Y to add another client."
-                 : "Open the URL in a browser or press Y for QR pairing. Pairing codes are single-use and refresh automatically.");
+                 ? CS_T("Trusted clients are remembered. Pairing codes refresh after each use. Press Y to add another client.")
+                 : CS_T("Open the URL in a browser or press Y for QR pairing. Pairing codes are single-use and refresh automatically."));
 }
 
 void cs_ui_model_make_offline(cs_ui_model *model) {
@@ -46,7 +47,7 @@ void cs_ui_model_make_offline(cs_ui_model *model) {
 
     memset(model, 0, sizeof(*model));
     model->is_offline = 1;
-    snprintf(model->status_message, sizeof(model->status_message), "%s", "Connect Wi-Fi from the launcher first.");
+    snprintf(model->status_message, sizeof(model->status_message), "%s", CS_T("Connect Wi-Fi from the launcher first."));
 }
 
 int cs_ui_keep_awake_enable_requires_confirmation(void) {
@@ -54,7 +55,7 @@ int cs_ui_keep_awake_enable_requires_confirmation(void) {
 }
 
 const char *cs_ui_keep_awake_enable_warning_message(void) {
-    return "Enabling this will temporarily change the launcher's screen timeout setting while Central Scrutinizer runs in background mode. The previous timeout is restored when background mode ends.";
+    return CS_T("Enabling this will temporarily change the launcher's screen timeout setting while Central Scrutinizer runs in background mode. The previous timeout is restored when background mode ends.");
 }
 
 #if defined(CS_ENABLE_CATASTROPHE_UI)
@@ -62,7 +63,7 @@ const char *cs_ui_keep_awake_enable_warning_message(void) {
 int cs_ui_init(void) {
     cat_config cfg = {0};
 
-    cfg.window_title = "Central Scrutinizer";
+    cfg.window_title = CS_T("Central Scrutinizer");
     cfg.font_path = NULL;
     cfg.log_path = cat_resolve_log_path("central-scrutinizer");
     cfg.cpu_speed = CAT_CPU_SPEED_MENU;
@@ -76,11 +77,11 @@ void cs_ui_shutdown(void) {
 
 static int cs_ui_show_offline_message(const cs_ui_model *model) {
     cat_footer_item footer[] = {
-        {.button = CAT_BTN_B, .label = "Exit"},
-        {.button = CAT_BTN_A, .label = "Retry", .is_confirm = true},
+        {.button = CAT_BTN_B, .label = CS_T("Exit")},
+        {.button = CAT_BTN_A, .label = CS_T("Retry"), .is_confirm = true},
     };
     cat_message_opts opts = {
-        .message = model ? model->status_message : "Connect Wi-Fi from the launcher first.",
+        .message = model ? model->status_message : CS_T("Connect Wi-Fi from the launcher first."),
         .footer = footer,
         .footer_count = (int) (sizeof(footer) / sizeof(footer[0])),
     };
@@ -92,10 +93,10 @@ static int cs_ui_show_offline_message(const cs_ui_model *model) {
 
 static void cs_ui_show_settings_error(const char *message) {
     cat_footer_item footer[] = {
-        {.button = CAT_BTN_A, .label = "OK", .is_confirm = true},
+        {.button = CAT_BTN_A, .label = CS_T("OK"), .is_confirm = true},
     };
     cat_message_opts opts = {
-        .message = message ? message : "Could not save setting.",
+        .message = message ? message : CS_T("Could not save setting."),
         .footer = footer,
         .footer_count = (int) (sizeof(footer) / sizeof(footer[0])),
     };
@@ -158,8 +159,8 @@ static int cs_ui_measure_info_pair_height(TTF_Font *key_font,
 
 static int cs_ui_run_pair_qr_screen(cs_app *app, const cs_ui_model *model) {
     cat_footer_item footer[] = {
-        {.button = CAT_BTN_B, .label = "Back"},
-        {.button = CAT_BTN_A, .label = "Refresh", .is_confirm = true},
+        {.button = CAT_BTN_B, .label = CS_T("Back")},
+        {.button = CAT_BTN_A, .label = CS_T("Refresh"), .is_confirm = true},
     };
     cat_status_bar_opts status_bar = {0};
     uint8_t temp[qrcodegen_BUFFER_LEN_FOR_VERSION(CS_UI_QR_MAX_VERSION)];
@@ -181,7 +182,7 @@ static int cs_ui_run_pair_qr_screen(cs_app *app, const cs_ui_model *model) {
     show_hints = cat_hints_enabled_from_env();
     snprintf(ttl_text,
              sizeof(ttl_text),
-             "Valid for %d minutes or until it is used.",
+             CS_T("Valid for %d minutes or until it is used."),
              (cs_server_get_qr_pair_token_ttl_seconds() + 59) / 60);
 
     for (;;) {
@@ -221,7 +222,7 @@ static int cs_ui_run_pair_qr_screen(cs_app *app, const cs_ui_model *model) {
                                          CS_UI_QR_MAX_VERSION,
                                          qrcodegen_Mask_AUTO,
                                          true)) {
-                cs_ui_show_settings_error("Could not generate a pairing QR code.");
+                cs_ui_show_settings_error(CS_T("Could not generate a pairing QR code."));
                 return -1;
             }
             regenerate = 0;
@@ -270,7 +271,7 @@ static int cs_ui_run_pair_qr_screen(cs_app *app, const cs_ui_model *model) {
             max_qr_px = qr_available_h;
         }
         if (max_qr_px < qr_modules) {
-            cs_ui_show_settings_error("The QR code is too large to render on this screen.");
+            cs_ui_show_settings_error(CS_T("The QR code is too large to render on this screen."));
             return -1;
         }
 
@@ -284,7 +285,7 @@ static int cs_ui_run_pair_qr_screen(cs_app *app, const cs_ui_model *model) {
         warning_y = content_rect.y + content_rect.h - bottom_pad - ttl_h;
 
         cat_draw_background();
-        cat_draw_screen_title("Pair by QR", show_status_bar ? &status_bar : NULL);
+        cat_draw_screen_title(CS_T("Pair by QR"), show_status_bar ? &status_bar : NULL);
         cat_draw_rect(qr_x - border, qr_y - border, qr_px + (border * 2), qr_px + (border * 2), theme->accent);
         cat_draw_rect(qr_x, qr_y, qr_px, qr_px, white);
 
@@ -316,26 +317,26 @@ static int cs_ui_run_pair_qr_screen(cs_app *app, const cs_ui_model *model) {
 
 static int cs_ui_run_settings_screen(cs_app *app) {
     cat_option terminal_options[] = {
-        {.label = "Disabled", .value = "Disabled"},
-        {.label = "Enabled", .value = "Enabled"},
+        {.label = CS_T("Disabled"), .value = CS_T("Disabled")},
+        {.label = CS_T("Enabled"), .value = CS_T("Enabled")},
     };
     cat_option keep_awake_options[] = {
-        {.label = "Disabled", .value = "Disabled"},
-        {.label = "Enabled", .value = "Enabled"},
+        {.label = CS_T("Disabled"), .value = CS_T("Disabled")},
+        {.label = CS_T("Enabled"), .value = CS_T("Enabled")},
     };
     cat_options_item items[] = {
-        {.label = "Terminal", .type = CAT_OPT_STANDARD, .options = terminal_options, .option_count = 2, .selected_option = 0},
-        {.label = "Keep Awake in Background",
+        {.label = CS_T("Terminal"), .type = CAT_OPT_STANDARD, .options = terminal_options, .option_count = 2, .selected_option = 0},
+        {.label = CS_T("Keep Awake in Background"),
          .type = CAT_OPT_STANDARD,
          .options = keep_awake_options,
          .option_count = 2,
          .selected_option = 0},
-        {.label = "Revoke Trusted Browsers", .type = CAT_OPT_CLICKABLE},
-        {.label = "Run in Background", .type = CAT_OPT_CLICKABLE},
+        {.label = CS_T("Revoke Trusted Browsers"), .type = CAT_OPT_CLICKABLE},
+        {.label = CS_T("Run in Background"), .type = CAT_OPT_CLICKABLE},
     };
     cat_footer_item footer[] = {
-        {.button = CAT_BTN_B, .label = "Back"},
-        {.button = CAT_BTN_A, .label = "Choose", .is_confirm = true},
+        {.button = CAT_BTN_B, .label = CS_T("Back")},
+        {.button = CAT_BTN_A, .label = CS_T("Choose"), .is_confirm = true},
     };
     cat_status_bar_opts status_bar = {0};
     int show_status_bar;
@@ -357,7 +358,7 @@ static int cs_ui_run_settings_screen(cs_app *app) {
 
         items[0].selected_option = cs_app_get_terminal_enabled(app) ? 1 : 0;
         items[1].selected_option = cs_app_get_keep_awake_in_background(app) ? 1 : 0;
-        opts.title = "Settings";
+        opts.title = CS_T("Settings");
         opts.items = items;
         opts.item_count = (int) (sizeof(items) / sizeof(items[0]));
         opts.footer = footer;
@@ -379,7 +380,7 @@ static int cs_ui_run_settings_screen(cs_app *app) {
         if (result.action == CAT_ACTION_OPTION_CHANGED) {
             if (result.focused_index == 0) {
                 if (cs_app_set_terminal_enabled(app, items[0].selected_option == 1) != 0) {
-                    cs_ui_show_settings_error("Could not save the terminal setting.");
+                    cs_ui_show_settings_error(CS_T("Could not save the terminal setting."));
                 }
                 continue;
             }
@@ -389,8 +390,8 @@ static int cs_ui_run_settings_screen(cs_app *app) {
                 if (enable_requested && !cs_app_get_keep_awake_in_background(app)
                     && cs_ui_keep_awake_enable_requires_confirmation()) {
                     cat_footer_item confirm_footer[] = {
-                        {.button = CAT_BTN_B, .label = "Cancel"},
-                        {.button = CAT_BTN_A, .label = "Enable", .is_confirm = true},
+        {.button = CAT_BTN_B, .label = CS_T("Cancel")},
+                        {.button = CAT_BTN_A, .label = CS_T("Enable"), .is_confirm = true},
                     };
                     cat_message_opts confirm_opts = {
                         .message = cs_ui_keep_awake_enable_warning_message(),
@@ -405,7 +406,7 @@ static int cs_ui_run_settings_screen(cs_app *app) {
                     }
                 }
                 if (cs_app_set_keep_awake_in_background(app, enable_requested) != 0) {
-                    cs_ui_show_settings_error("Could not save the background keep-awake setting.");
+                    cs_ui_show_settings_error(CS_T("Could not save the background keep-awake setting."));
                 }
             }
             continue;
@@ -416,18 +417,18 @@ static int cs_ui_run_settings_screen(cs_app *app) {
                     return CS_UI_ACTION_REVOKE;
                 case 3: {
                     cat_footer_item confirm_footer[] = {
-                        {.button = CAT_BTN_B, .label = "Cancel"},
-                        {.button = CAT_BTN_A, .label = "Run", .is_confirm = true},
+        {.button = CAT_BTN_B, .label = CS_T("Cancel")},
+                        {.button = CAT_BTN_A, .label = CS_T("Run"), .is_confirm = true},
                     };
                     cat_message_opts confirm_opts = {
-                        .message = "Trusted browsers stay connected in background mode.\n\nNew pairing is disabled until you reopen the app. Reopening it stops background mode and brings back pairing and settings. Active terminal sessions may need to reconnect.",
+                        .message = CS_T("Trusted browsers stay connected in background mode.\n\nNew pairing is disabled until you reopen the app. Reopening it stops background mode and brings back pairing and settings. Active terminal sessions may need to reconnect."),
                         .footer = confirm_footer,
                         .footer_count = (int) (sizeof(confirm_footer) / sizeof(confirm_footer[0])),
                     };
                     cat_confirm_result confirm_result = {0};
 
                     if (!cs_app_can_background(app)) {
-                        cs_ui_show_settings_error("Run in Background requires at least one trusted browser.");
+                        cs_ui_show_settings_error(CS_T("Run in Background requires at least one trusted browser."));
                         break;
                     }
 
@@ -454,9 +455,9 @@ int cs_ui_run_server_screen(cs_app *app, const cs_ui_model *model) {
     int show_hints;
     static int scroll_offset = 0;
     cat_footer_item footer[] = {
-        {.button = CAT_BTN_B, .label = "Exit"},
-        {.button = CAT_BTN_Y, .label = "QR"},
-        {.button = CAT_BTN_A, .label = "Settings", .is_confirm = true},
+        {.button = CAT_BTN_B, .label = CS_T("Exit")},
+        {.button = CAT_BTN_Y, .label = CS_T("QR")},
+        {.button = CAT_BTN_A, .label = CS_T("Settings"), .is_confirm = true},
     };
 
     if (!app || !model) {
@@ -472,9 +473,9 @@ int cs_ui_run_server_screen(cs_app *app, const cs_ui_model *model) {
     show_status_bar = cat_status_bar_from_env(&status_bar);
     show_hints = cat_hints_enabled_from_env();
     pairing_description = model->trusted_browser_count > 0
-                              ? "This screen refreshes automatically after a client pairs. Press Y to generate a new QR code for another trusted client."
-                              : "Open the URL in a browser and enter the PIN once, or press Y for a QR code. PINs and QR links are single-use.";
-    terminal_state = model->terminal_enabled ? "Enabled" : "Disabled";
+                              ? CS_T("This screen refreshes automatically after a client pairs. Press Y to generate a new QR code for another trusted client.")
+                              : CS_T("Open the URL in a browser and enter the PIN once, or press Y for a QR code. PINs and QR links are single-use.");
+    terminal_state = model->terminal_enabled ? CS_T("Enabled") : CS_T("Disabled");
 
     for (;;) {
         cat_input_event ev;
@@ -599,12 +600,12 @@ int cs_ui_run_server_screen(cs_app *app, const cs_ui_model *model) {
             }
 
             cat_draw_background();
-            cat_draw_screen_title("Central Scrutinizer", show_status_bar ? &status_bar : NULL);
+            cat_draw_screen_title(CS_T("Central Scrutinizer"), show_status_bar ? &status_bar : NULL);
             cursor_y = content_rect.y + top_pad - scroll_offset;
             SDL_RenderSetClipRect(cat_get_renderer(), &content_rect);
-            cat_draw_text(section_font, "Server", margin, cursor_y, theme->text);
+            cat_draw_text(section_font, CS_T("Server"), margin, cursor_y, theme->text);
             cursor_y += TTF_FontHeight(section_font) + section_gap;
-            cs_ui_draw_info_pair(key_font, value_font, theme, margin, width, info_value_gap, info_row_gap, &cursor_y, "URL", url);
+            cs_ui_draw_info_pair(key_font, value_font, theme, margin, width, info_value_gap, info_row_gap, &cursor_y, CS_T("URL"), url);
             cs_ui_draw_info_pair(
                 key_font,
                 value_font,
@@ -614,16 +615,16 @@ int cs_ui_run_server_screen(cs_app *app, const cs_ui_model *model) {
                 info_value_gap,
                 info_row_gap,
                 &cursor_y,
-                "Code",
+                CS_T("Code"),
                 model->code[0] ? model->code : "----");
             cs_ui_draw_info_pair(
-                key_font, value_font, theme, margin, width, info_value_gap, info_row_gap, &cursor_y, "Trusted Clients", trusted);
+                key_font, value_font, theme, margin, width, info_value_gap, info_row_gap, &cursor_y, CS_T("Trusted Clients"), trusted);
             cs_ui_draw_info_pair(
-                key_font, value_font, theme, margin, width, info_value_gap, info_row_gap, &cursor_y, "Terminal", terminal_state);
+                key_font, value_font, theme, margin, width, info_value_gap, info_row_gap, &cursor_y, CS_T("Terminal"), terminal_state);
             cs_ui_draw_info_pair(
-                key_font, value_font, theme, margin, width, info_value_gap, info_row_gap, &cursor_y, "Status", model->status_message);
+                key_font, value_font, theme, margin, width, info_value_gap, info_row_gap, &cursor_y, CS_T("Status"), model->status_message);
             cursor_y += block_gap;
-            cat_draw_text(section_font, "Pairing", margin, cursor_y, theme->text);
+            cat_draw_text(section_font, CS_T("Pairing"), margin, cursor_y, theme->text);
             cursor_y += TTF_FontHeight(section_font) + section_gap;
             cat_draw_text_wrapped(value_font, pairing_description, margin, cursor_y, width, theme->text, CAT_ALIGN_LEFT);
             SDL_RenderSetClipRect(cat_get_renderer(), NULL);

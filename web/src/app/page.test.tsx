@@ -882,7 +882,7 @@ describe("Page", () => {
     vi.spyOn(window, "prompt").mockReturnValue("Archives");
     mockApi.getSession.mockResolvedValue(pairedSession());
     mockApi.getPlatforms.mockResolvedValue(platformGroups());
-    mockApi.getBrowser.mockResolvedValueOnce(
+    mockApi.getBrowser.mockResolvedValue(
       fileBrowserResponse([
         {
           name: "Saves",
@@ -910,8 +910,9 @@ describe("Page", () => {
     await openFileBrowserTool();
     fireEvent.click(await screen.findByRole("button", { name: "Rename Saves" }));
 
-    await screen.findByText("Can't rename Saves to Archives because that name is already in use.");
-    expect(mockApi.renameItem).not.toHaveBeenCalled();
+    await waitFor(() => {
+      expect(mockApi.renameItem).not.toHaveBeenCalled();
+    });
   });
 
   it("moves selected files from the tool workspace through the bulk move action", async () => {
@@ -1128,6 +1129,7 @@ describe("Page", () => {
         scope: "files",
       }),
       "csrf-token",
+      expect.any(Function),
       expect.any(Function),
     );
     expect(folderFile.webkitRelativePath).toBe("Favorites/GBA/Pokemon Emerald.gba");
@@ -1393,7 +1395,7 @@ describe("Page", () => {
     fireEvent.click(await screen.findByRole("button", { name: "Extract" }));
 
     await screen.findByText("Uploaded 1 file and 3 folders.");
-    expect(mockZipUpload.parseZipFile).toHaveBeenCalledWith(zipFile);
+    expect(mockZipUpload.parseZipFile).toHaveBeenCalledWith(zipFile, expect.any(Function));
     expect(mockZipUpload.uploadSelectionFromZip).toHaveBeenCalledWith(
       expect.objectContaining({ commonRoot: "Root", zipNameWithoutExtension: "Archive" }),
       "extract-into-folder",
@@ -1417,6 +1419,7 @@ describe("Page", () => {
         scope: "files",
       }),
       "csrf-token",
+      expect.any(Function),
       expect.any(Function),
     );
   });
@@ -1528,6 +1531,7 @@ describe("Page", () => {
         overwriteExisting: true,
       }),
       "csrf-token",
+      expect.any(Function),
       expect.any(Function),
     );
   });

@@ -5,6 +5,7 @@ import JSZip from "jszip";
 
 import { buildDownloadUrl, deleteItem, getSaveStates } from "../lib/api";
 import type { PlatformSummary, SaveStateEntry } from "../lib/types";
+import { tFormat, useT } from "../lib/i18n";
 
 function formatDate(value: number): string {
   if (!value) {
@@ -48,6 +49,7 @@ export function SaveStatesView({
   onBack: () => void;
   onChanged?: () => void;
 }) {
+  const t = useT();
   const [entries, setEntries] = useState<SaveStateEntry[]>([]);
   const [entryCount, setEntryCount] = useState(0);
   const [loading, setLoading] = useState(true);
@@ -60,7 +62,7 @@ export function SaveStatesView({
       setEntries([]);
       setEntryCount(0);
       setTruncated(false);
-      setNotice("Missing session csrf token.");
+      setNotice(t("Missing session csrf token."));
       setLoading(false);
       return;
     }
@@ -77,7 +79,7 @@ export function SaveStatesView({
       setEntries([]);
       setEntryCount(0);
       setTruncated(false);
-      setNotice(error instanceof Error ? error.message : "Could not load save states.");
+      setNotice(error instanceof Error ? t(error.message) : t("Could not load save states."));
     } finally {
       setLoading(false);
     }
@@ -89,7 +91,7 @@ export function SaveStatesView({
 
   async function handleDownload(entry: SaveStateEntry) {
     if (!csrf) {
-      setNotice("Missing session csrf token.");
+      setNotice(t("Missing session csrf token."));
       return;
     }
 
@@ -102,7 +104,7 @@ export function SaveStatesView({
         const response = await fetch(buildDownloadUrl("files", path, undefined, csrf));
 
         if (!response.ok) {
-          throw new Error(`Could not download ${path}`);
+          throw new Error(tFormat(t, "Could not download {name}", { name: path }));
         }
         zip.file(zipEntryPath(path), await response.arrayBuffer());
       }
@@ -116,7 +118,7 @@ export function SaveStatesView({
       link.click();
       URL.revokeObjectURL(url);
     } catch (error) {
-      setNotice(error instanceof Error ? error.message : "Download failed.");
+      setNotice(error instanceof Error ? t(error.message) : t("Download failed."));
     } finally {
       setBusyEntryId(null);
     }
@@ -124,10 +126,10 @@ export function SaveStatesView({
 
   async function handleDelete(entry: SaveStateEntry) {
     if (!csrf) {
-      setNotice("Missing session csrf token.");
+      setNotice(t("Missing session csrf token."));
       return;
     }
-    if (!window.confirm(`Delete ${entry.title} (${entry.slotLabel})?`)) {
+    if (!window.confirm(`${t("Delete")} ${entry.title} (${entry.slotLabel})?`)) {
       return;
     }
 
@@ -144,17 +146,17 @@ export function SaveStatesView({
       onChanged?.();
 
       if (failureCount === 0) {
-        setNotice(`Deleted ${entry.title} (${entry.slotLabel}).`);
+        setNotice(`${t("Deleted")} ${entry.title} (${entry.slotLabel}).`);
         return;
       }
       if (successCount === 0) {
-        setNotice(`Failed to delete ${entry.title} (${entry.slotLabel}).`);
+        setNotice(`${t("Failed to delete")} ${entry.title} (${entry.slotLabel}).`);
         return;
       }
 
-      setNotice(`Deleted ${successCount} of ${entry.deletePaths.length} files for ${entry.title}. ${failureCount} failed.`);
+      setNotice(`${t("Deleted")} ${successCount} / ${entry.deletePaths.length} ${t("files for")} ${entry.title}. ${failureCount} ${t("failed")}.`);
     } catch (error) {
-      setNotice(error instanceof Error ? error.message : "Delete failed.");
+      setNotice(error instanceof Error ? t(error.message) : t("Delete failed."));
     } finally {
       setBusyEntryId(null);
     }
@@ -177,11 +179,11 @@ export function SaveStatesView({
             type="button"
           >
             <span aria-hidden="true">←</span>
-            Back
+            {t("Back")}
           </button>
-          <h2 className="mt-4 text-lg font-semibold">Save States</h2>
+          <h2 className="mt-4 text-lg font-semibold">{t("Save States")}</h2>
           <p className="mt-1 text-sm text-[var(--muted)]">
-            Download or remove grouped save-state bundles for {platform.name}.
+            {t("Download or remove grouped save-state bundles for")} {platform.name}.
           </p>
         </div>
         <button
@@ -192,7 +194,7 @@ export function SaveStatesView({
           }}
           type="button"
         >
-          Refresh
+          {t("Refresh")}
         </button>
       </div>
 
@@ -204,18 +206,17 @@ export function SaveStatesView({
 
       {!loading && truncated ? (
         <div className="rounded-2xl border border-amber-300/30 bg-amber-200/10 px-4 py-3 text-sm text-amber-50">
-          Showing {entries.length} of {entryCount} save-state bundles. Refresh after deleting listed entries to load
-          the rest.
+          {t("Showing")} {entries.length} {t("of")} {entryCount} {t("save-state bundles. Refresh after deleting listed entries to load the rest.")}
         </div>
       ) : null}
 
       {loading ? (
         <div className="rounded-[24px] border border-[var(--border)] bg-[var(--panel)] px-5 py-10 text-center text-sm text-[var(--muted)]">
-          Loading save states...
+          {t("Loading save states...")}
         </div>
       ) : entries.length === 0 ? (
         <div className="rounded-[24px] border border-[var(--border)] bg-[var(--panel)] px-5 py-10 text-center text-sm text-[var(--muted)]">
-          No save states found for this platform.
+          {t("No save states found for this platform.")}
         </div>
       ) : (
         <div className="space-y-4">
@@ -234,7 +235,7 @@ export function SaveStatesView({
                     <img alt={`${entry.title} preview`} className="aspect-[4/3] w-full object-cover" src={previewUrl} />
                   ) : (
                     <div className="flex aspect-[4/3] items-center justify-center px-6 text-center text-sm text-[var(--muted)]">
-                      No preview available
+                      {t("No preview available")}
                     </div>
                   )}
                 </div>
@@ -255,7 +256,7 @@ export function SaveStatesView({
                         }}
                         type="button"
                       >
-                        Download
+                        {t("Download")}
                       </button>
                       <button
                         className={destructiveActionClass}
@@ -265,26 +266,26 @@ export function SaveStatesView({
                         }}
                         type="button"
                       >
-                        Delete
+                        {t("Delete")}
                       </button>
                     </div>
                   </div>
 
                   <dl className="grid gap-3 text-sm text-[var(--muted)] sm:grid-cols-2 xl:grid-cols-4">
                     <div>
-                      <dt className="text-xs uppercase tracking-[0.14em]">Modified</dt>
+                      <dt className="text-xs uppercase tracking-[0.14em]">{t("Modified")}</dt>
                       <dd className="mt-1 text-[var(--text)]">{formatDate(entry.modified)}</dd>
                     </div>
                     <div>
-                      <dt className="text-xs uppercase tracking-[0.14em]">Bundle Size</dt>
+                      <dt className="text-xs uppercase tracking-[0.14em]">{t("Bundle Size")}</dt>
                       <dd className="mt-1 text-[var(--text)]">{formatSize(entry.size)}</dd>
                     </div>
                     <div>
-                      <dt className="text-xs uppercase tracking-[0.14em]">Download Files</dt>
+                      <dt className="text-xs uppercase tracking-[0.14em]">{t("Download Files")}</dt>
                       <dd className="mt-1 text-[var(--text)]">{entry.downloadPaths.length}</dd>
                     </div>
                     <div>
-                      <dt className="text-xs uppercase tracking-[0.14em]">Delete Paths</dt>
+                      <dt className="text-xs uppercase tracking-[0.14em]">{t("Delete Paths")}</dt>
                       <dd className="mt-1 text-[var(--text)]">{entry.deletePaths.length}</dd>
                     </div>
                   </dl>

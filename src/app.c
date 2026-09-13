@@ -6,6 +6,7 @@
 #include "cs_terminal.h"
 #include "cs_ui.h"
 #include "cs_util.h"
+#include "cs_i18n.h"
 
 #include <arpa/inet.h>
 #include <errno.h>
@@ -599,6 +600,7 @@ int cs_app_run(int argc, char **argv) {
         fprintf(stderr, "Failed to initialize paths\n");
         return 1;
     }
+    cs_i18n_init(app.paths.web_root);
     if (!app.daemonized
         && cs_daemon_prepare_foreground_start(&app.paths, app.port, app.port_explicitly_set, &app.port) != 0) {
         fprintf(stderr, "Failed to stop existing background server\n");

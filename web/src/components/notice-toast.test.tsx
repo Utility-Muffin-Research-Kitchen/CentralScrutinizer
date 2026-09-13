@@ -14,7 +14,7 @@ describe("NoticeToast", () => {
     const onDismiss = vi.fn();
 
     vi.useFakeTimers();
-    render(<NoticeToast autoDismissMs={1200} message="Renamed file." onDismiss={onDismiss} />);
+    render(<NoticeToast autoDismissMs={1200} message="Renamed file." source="Renamed" onDismiss={onDismiss} />);
 
     expect(screen.getByRole("status")).toBeTruthy();
     expect(onDismiss).not.toHaveBeenCalled();
@@ -32,11 +32,11 @@ describe("NoticeToast", () => {
 
     vi.useFakeTimers();
     const { rerender } = render(
-      <NoticeToast autoDismissMs={1200} message="Renamed file." onDismiss={firstDismiss} />,
+      <NoticeToast autoDismissMs={1200} message="Renamed file." source="Renamed" onDismiss={firstDismiss} />,
     );
 
     vi.advanceTimersByTime(800);
-    rerender(<NoticeToast autoDismissMs={1200} message="Renamed file." onDismiss={secondDismiss} />);
+    rerender(<NoticeToast autoDismissMs={1200} message="Renamed file." source="Renamed" onDismiss={secondDismiss} />);
     vi.advanceTimersByTime(400);
 
     expect(firstDismiss).not.toHaveBeenCalled();
@@ -46,7 +46,7 @@ describe("NoticeToast", () => {
   it("keeps manual dismiss available", () => {
     const onDismiss = vi.fn();
 
-    render(<NoticeToast message="Rename failed." onDismiss={onDismiss} />);
+    render(<NoticeToast message="Rename failed." source="Rename failed." onDismiss={onDismiss} />);
 
     screen.getByRole("button", { name: "Dismiss notice" }).click();
 

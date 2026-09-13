@@ -12,7 +12,7 @@ Launch it on the handheld, open the URL shown on screen from another browser on 
   ROM/save-state/save/BIOS/cheat counts
 - ROM, save, BIOS, cheat, and full SD file browsing
 - Upload, folder upload, ZIP extraction, download, rename, delete, and folder creation
-- ROM artwork replacement through Leaf `Images/<SYSTEM>/<ROM>.png`
+- ROM artwork replacement through Leaf `Images/<SYSTEM>/<ROM>.png` (PNG, JPG, or JPEG)
 - RetroArch save-state discovery from Leaf `States/`
 - Mac dot-cleanup for `.DS_Store`, `._*`, `__MACOSX`, and top-level macOS transfer artifacts
 - Leaf app log browsing, live tail, and download

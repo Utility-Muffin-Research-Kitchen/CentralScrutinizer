@@ -1144,6 +1144,32 @@ describe("replaceArt", () => {
     expect(((request.body?.get("file") as File) ?? file).name).toBe("Pokemon Emerald.png");
     expect(progressValue).toBe(50);
   });
+
+  it.each([
+    ["unsupported_art_type", 400, "Artwork must be a PNG or JPEG file."],
+    [
+      "art_cleanup_incomplete",
+      500,
+      "New artwork was saved, but older artwork for this game could not be removed and may still show.",
+    ],
+  ])("reports the %s replace-art error", async (code, status, message) => {
+    class FailingXhr extends MockXhr {
+      constructor() {
+        super();
+        this.status = status;
+        this.responseText = JSON.stringify({ ok: false, error: code });
+      }
+    }
+
+    vi.stubGlobal("XMLHttpRequest", FailingXhr as unknown as typeof XMLHttpRequest);
+
+    await expect(
+      replaceArt(
+        { tag: "GBA", path: "Pokemon Emerald.gba", file: new File(["jpg"], "Pokemon Emerald.jpg", { type: "image/jpeg" }) },
+        "csrf-token",
+      ),
+    ).rejects.toThrow(message);
+  });
 });
 
 describe("setGameFavorite", () => {

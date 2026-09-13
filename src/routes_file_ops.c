@@ -1,4 +1,5 @@
 #include "cs_app.h"
+#include "cs_art.h"
 #include "cs_file_ops.h"
 #include "cs_library.h"
 #include "cs_platforms.h"
@@ -27,6 +28,7 @@ typedef struct cs_replace_art_request {
     int file_stored;
     int failed;
     int unsupported_type;
+    char art_ext[8];
 } cs_replace_art_request;
 
 static atomic_ulong g_replace_art_nonce = ATOMIC_VAR_INIT(0);
@@ -382,29 +384,6 @@ static unsigned long cs_replace_art_next_nonce(void) {
     return atomic_fetch_add_explicit(&g_replace_art_nonce, 1, memory_order_relaxed) + 1;
 }
 
-static int cs_filename_has_png_extension(const char *filename) {
-    const char *ext;
-    static const char png_ext[] = ".png";
-    size_t i;
-
-    if (!filename) {
-        return 0;
-    }
-
-    ext = strrchr(filename, '.');
-    if (!ext || strlen(ext) != sizeof(png_ext) - 1) {
-        return 0;
-    }
-
-    for (i = 0; i < sizeof(png_ext) - 1; ++i) {
-        if (tolower((unsigned char) ext[i]) != png_ext[i]) {
-            return 0;
-        }
-    }
-
-    return 1;
-}
-
 static int cs_split_relative_path(const char *relative_path,
                                   char *parent,
                                   size_t parent_size,
@@ -447,6 +426,7 @@ static void cs_remove_temp_upload(const char *path) {
 
 static int cs_build_leaf_art_relative_paths(const cs_platform_info *platform,
                                             const char *rom_relative_path,
+                                            const char *art_ext,
                                             char *art_relative_path,
                                             size_t art_relative_path_size,
                                             char *art_base_path,
@@ -455,8 +435,8 @@ static int cs_build_leaf_art_relative_paths(const cs_platform_info *platform,
     const char *ext;
     size_t base_len;
 
-    if (!platform || !rom_relative_path || rom_relative_path[0] == '\0' || !art_relative_path
-        || art_relative_path_size == 0 || !art_base_path || art_base_path_size == 0) {
+    if (!platform || !rom_relative_path || rom_relative_path[0] == '\0' || !art_ext || art_ext[0] == '\0'
+        || !art_relative_path || art_relative_path_size == 0 || !art_base_path || art_base_path_size == 0) {
         return -1;
     }
 
@@ -480,7 +460,7 @@ static int cs_build_leaf_art_relative_paths(const cs_platform_info *platform,
                  (int) base_len,
                  rom_relative_path)
             >= (int) art_base_path_size
-        || snprintf(art_relative_path, art_relative_path_size, "%s.png", art_base_path)
+        || snprintf(art_relative_path, art_relative_path_size, "%s.%s", art_base_path, art_ext)
                >= (int) art_relative_path_size) {
         return -1;
     }
@@ -572,7 +552,8 @@ static int cs_replace_art_field_found(const char *key,
         state->failed = 1;
         return MG_FORM_FIELD_STORAGE_ABORT;
     }
-    if (!cs_filename_has_png_extension(filename)) {
+    /* PNG or JPEG, kept in its own format; only the extension is normalized. */
+    if (!cs_art_upload_extension(filename, state->art_ext, sizeof(state->art_ext))) {
         state->unsupported_type = 1;
         state->failed = 1;
         return MG_FORM_FIELD_STORAGE_ABORT;
@@ -589,10 +570,11 @@ static int cs_replace_art_field_found(const char *key,
 
     written = snprintf(state->temp_path,
                        sizeof(state->temp_path),
-                       "%s/.incoming-art-%ld-%lu.png",
+                       "%s/.incoming-art-%ld-%lu.%s",
                        temp_upload_root,
                        (long) getpid(),
-                       cs_replace_art_next_nonce());
+                       cs_replace_art_next_nonce(),
+                       state->art_ext);
     if (written < 0 || (size_t) written >= sizeof(state->temp_path)
         || snprintf(path, pathlen, "%s", state->temp_path) >= (int) pathlen) {
         state->failed = 1;
@@ -1058,6 +1040,10 @@ int cs_route_replace_art_handler(struct mg_connection *conn, void *cbdata) {
     char art_base_path[CS_PATH_MAX];
     char art_dir[CS_PATH_MAX];
     char art_name[256];
+    char art_stem[256];
+    char final_dir[CS_PATH_MAX];
+    char *dot;
+    char *slash;
     cs_upload_plan plan;
     struct stat st;
     int guard_status = cs_route_guard_post(conn, cbdata);
@@ -1122,6 +1108,7 @@ int cs_route_replace_art_handler(struct mg_connection *conn, void *cbdata) {
     if (!rom_source || rom_source->images_root[0] == '\0'
         || cs_build_leaf_art_relative_paths(platform,
                                             rom_relative,
+                                            request_state.art_ext,
                                             art_relative_path,
                                             sizeof(art_relative_path),
                                             art_base_path,
@@ -1137,9 +1124,26 @@ int cs_route_replace_art_handler(struct mg_connection *conn, void *cbdata) {
         cs_remove_temp_upload(request_state.temp_path);
         return cs_write_json(conn, 500, "Internal Server Error", "{\"ok\":false}");
     }
+    if (snprintf(art_stem, sizeof(art_stem), "%s", art_name) >= (int) sizeof(art_stem)
+        || snprintf(final_dir, sizeof(final_dir), "%s", plan.final_path) >= (int) sizeof(final_dir)
+        || !(dot = strrchr(art_stem, '.')) || !(slash = strrchr(final_dir, '/'))) {
+        cs_remove_temp_upload(request_state.temp_path);
+        return cs_write_json(conn, 500, "Internal Server Error", "{\"ok\":false}");
+    }
+    *dot = '\0';
+    *slash = '\0';
     if (cs_upload_promote_replace(&plan) != 0) {
         cs_remove_temp_upload(request_state.temp_path);
         return cs_write_errno_response(conn);
+    }
+    /* Other artwork for this game would still be picked over (or alongside)
+     * the new file, so replacing means removing it. Only after a successful
+     * promotion: a failed upload leaves the old art in place. */
+    if (cs_art_remove_siblings(final_dir, art_stem, art_name) != 0) {
+        return cs_write_json(conn,
+                             500,
+                             "Internal Server Error",
+                             "{\"ok\":false,\"error\":\"art_cleanup_incomplete\"}");
     }
     return cs_write_file_op_result(conn, "replace-art");
 }

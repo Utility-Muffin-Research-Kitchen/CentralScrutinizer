@@ -1246,12 +1246,12 @@ export default function Page() {
       return;
     }
 
-    const file = await pickSingleFile(".png");
+    const file = await pickSingleFile(".png,.jpg,.jpeg,image/png,image/jpeg");
     if (!file) {
       return;
     }
-    if (!file.name.toLowerCase().endsWith(".png")) {
-      setNotice("Artwork must be uploaded as a PNG file.");
+    if (!/\.(png|jpe?g)$/i.test(file.name)) {
+      setNotice("Artwork must be a PNG or JPEG file.");
       return;
     }
 

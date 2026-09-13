@@ -758,6 +758,27 @@ export function beginUploadFilesBatched(
   };
 }
 
+function replaceArtError(xhr: XMLHttpRequest): Error {
+  try {
+    const body = JSON.parse(xhr.responseText) as { error?: string };
+
+    if (body.error === "unsupported_art_type") {
+      return new ApiError("Artwork must be a PNG or JPEG file.", xhr.status, body.error);
+    }
+    if (body.error === "art_cleanup_incomplete") {
+      return new ApiError(
+        "New artwork was saved, but older artwork for this game could not be removed and may still show.",
+        xhr.status,
+        body.error,
+      );
+    }
+  } catch {
+    // Ignore non-JSON replace-art failures.
+  }
+
+  return new Error("Replace art failed");
+}
+
 export async function replaceArt(
   request: ReplaceArtRequest,
   csrf: string,
@@ -783,7 +804,7 @@ export async function replaceArt(
         resolve();
         return;
       }
-      reject(new Error("Replace art failed"));
+      reject(replaceArtError(xhr));
     });
     xhr.addEventListener("error", () => reject(new Error("Replace art failed")));
     xhr.send(form);

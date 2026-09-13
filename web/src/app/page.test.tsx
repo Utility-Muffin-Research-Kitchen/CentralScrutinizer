@@ -1827,11 +1827,11 @@ describe("Page", () => {
     expect(screen.queryByRole("button", { name: "Pair Browser" })).toBeNull();
   });
 
-  it("replaces art through the dedicated png helper", async () => {
-    const artFile = new File(["png"], "Pokemon Emerald.png", { type: "image/png" });
+  function mockArtFilePicker(artFile: File) {
     const originalCreateElement = document.createElement.bind(document);
+    const picker = { accept: "" };
 
-    vi.spyOn(document, "createElement").mockImplementation(((tagName: string, options?: ElementCreationOptions) => {
+    const spy = vi.spyOn(document, "createElement").mockImplementation(((tagName: string, options?: ElementCreationOptions) => {
       const element = originalCreateElement(tagName, options);
 
       if (tagName.toLowerCase() !== "input") {
@@ -1841,6 +1841,7 @@ describe("Page", () => {
       const input = element as HTMLInputElement;
 
       input.click = () => {
+        picker.accept = input.accept;
         Object.defineProperty(input, "files", {
           configurable: true,
           value: createFileList([artFile]),
@@ -1851,6 +1852,10 @@ describe("Page", () => {
       return input;
     }) as typeof document.createElement);
 
+    return { picker, spy };
+  }
+
+  async function openReplaceArt() {
     mockApi.getSession.mockResolvedValue(pairedSession());
     mockApi.getPlatforms.mockResolvedValue(platformGroups());
     mockApi.getBrowser.mockResolvedValue(romBrowserResponse());
@@ -1862,18 +1867,52 @@ describe("Page", () => {
     fireEvent.click(await screen.findByRole("button", { name: /ROMs/i }));
     fireEvent.click(await screen.findByRole("button", { name: "More actions for Pokemon Emerald.gba" }));
     fireEvent.click(screen.getByRole("menuitem", { name: "Replace Art" }));
+  }
 
-    await screen.findByText("Artwork updated for Pokemon Emerald.gba.");
-    expect(mockApi.replaceArt).toHaveBeenCalledTimes(1);
-    expect(mockApi.replaceArt).toHaveBeenCalledWith(
-      expect.objectContaining({
-        tag: "GBA",
-        path: "Pokemon Emerald.gba",
-        file: artFile,
-      }),
-      "csrf-token",
-      expect.any(Function),
-    );
+  it.each([
+    ["Pokemon Emerald.png", "image/png"],
+    ["Pokemon Emerald.jpg", "image/jpeg"],
+    ["Pokemon Emerald.jpeg", "image/jpeg"],
+    ["Pokemon Emerald.PNG", "image/png"],
+    ["Pokemon Emerald.JPG", "image/jpeg"],
+    ["Pokemon Emerald.JpEg", "image/jpeg"],
+  ])("replaces art with %s through the dedicated helper", async (fileName, type) => {
+    const artFile = new File(["art"], fileName, { type });
+    const { picker, spy } = mockArtFilePicker(artFile);
+
+    mockApi.replaceArt.mockClear();
+    try {
+      await openReplaceArt();
+
+      await screen.findByText("Artwork updated for Pokemon Emerald.gba.");
+      expect(picker.accept.split(",")).toEqual(expect.arrayContaining([".png", ".jpg", ".jpeg"]));
+      expect(mockApi.replaceArt).toHaveBeenCalledTimes(1);
+      expect(mockApi.replaceArt).toHaveBeenCalledWith(
+        expect.objectContaining({
+          tag: "GBA",
+          path: "Pokemon Emerald.gba",
+          file: artFile,
+        }),
+        "csrf-token",
+        expect.any(Function),
+      );
+    } finally {
+      spy.mockRestore();
+    }
+  });
+
+  it("rejects artwork that is not PNG or JPEG", async () => {
+    const { spy } = mockArtFilePicker(new File(["gif"], "Pokemon Emerald.gif", { type: "image/gif" }));
+
+    mockApi.replaceArt.mockClear();
+    try {
+      await openReplaceArt();
+
+      expect(await screen.findByText("Artwork must be a PNG or JPEG file.")).toBeTruthy();
+      expect(mockApi.replaceArt).not.toHaveBeenCalled();
+    } finally {
+      spy.mockRestore();
+    }
   });
 
   it("toggles a database-backed ROM favorite and refreshes the browser", async () => {

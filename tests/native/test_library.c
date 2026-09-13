@@ -4,6 +4,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <strings.h>
 #include <sqlite3.h>
 #include <sys/stat.h>
 #include <sys/types.h>
@@ -305,22 +306,67 @@ static void test_fixture_browser_scopes_and_rejection(void) {
            == CS_BROWSER_LIST_NOT_FOUND);
 }
 
-static void test_rom_thumbnail_resolution_is_png_only(void) {
-    cs_paths paths = {0};
+static int dir_is_case_sensitive(const char *dir) {
+    char upper[PATH_MAX];
+    char lower[PATH_MAX];
+    struct stat st;
+    int sensitive;
+
+    assert(snprintf(upper, sizeof(upper), "%s/CaseProbe", dir) > 0);
+    assert(snprintf(lower, sizeof(lower), "%s/caseprobe", dir) > 0);
+    write_file(upper, "probe");
+    sensitive = stat(lower, &st) != 0;
+    assert(unlink(upper) == 0);
+    return sensitive;
+}
+
+static void expect_rom_thumbnail(cs_paths *paths,
+                                 const cs_platform_info *platform,
+                                 const char *root,
+                                 int case_sensitive,
+                                 const char *expected) {
     cs_browser_result result = {0};
-    char template[] = "/tmp/cs-library-thumb-XXXXXX";
+    const cs_browser_entry *entry;
+
+    assert(cs_browser_list(paths, CS_SCOPE_ROMS, platform, "", 0, NULL, &result) == CS_BROWSER_LIST_OK);
+    entry = find_entry(&result, "Box Art Test.gba");
+    assert(entry != NULL);
+    if (!expected) {
+        assert(entry->thumbnail_path[0] == '\0');
+        return;
+    }
+    if (case_sensitive ? strcmp(entry->thumbnail_path, expected) != 0
+                       : strcasecmp(entry->thumbnail_path, expected) != 0) {
+        fprintf(stderr, "thumbnail: want %s, got %s\n", expected, entry->thumbnail_path);
+        assert(0);
+    }
+    {
+        char absolute[PATH_MAX];
+        struct stat st;
+
+        assert(snprintf(absolute, sizeof(absolute), "%s/%s", root, entry->thumbnail_path) > 0);
+        assert(lstat(absolute, &st) == 0 && S_ISREG(st.st_mode));
+    }
+}
+
+/* Set CS_TEST_TMPDIR to a case-sensitive volume to run the distinct-case
+ * checks; on a case-insensitive volume they are skipped. */
+static void test_rom_thumbnail_resolution_prefers_png_then_jpeg(void) {
+    cs_paths paths = {0};
+    const char *base = getenv("CS_TEST_TMPDIR");
+    char template[PATH_MAX];
     char *root;
     char roms_dir[PATH_MAX];
     char system_dir[PATH_MAX];
     char images_dir[PATH_MAX];
     char image_system_dir[PATH_MAX];
     char rom_file[PATH_MAX];
-    char png_art[PATH_MAX];
-    char jpg_art[PATH_MAX];
+    char art[PATH_MAX];
     cs_platform_info gba_resolved = {0};
     const cs_platform_info *gba = &gba_resolved;
-    const cs_browser_entry *entry;
+    int case_sensitive;
 
+    assert(snprintf(template, sizeof(template), "%s/cs-library-thumb-XXXXXX", base && base[0] ? base : "/tmp") > 0);
     root = mkdtemp(template);
     assert(root != NULL);
 
@@ -329,31 +375,89 @@ static void test_rom_thumbnail_resolution_is_png_only(void) {
     assert(snprintf(images_dir, sizeof(images_dir), "%s/Images", root) > 0);
     assert(snprintf(image_system_dir, sizeof(image_system_dir), "%s/Images/GBA", root) > 0);
     assert(snprintf(rom_file, sizeof(rom_file), "%s/Box Art Test.gba", system_dir) > 0);
-    assert(snprintf(png_art, sizeof(png_art), "%s/Box Art Test.png", image_system_dir) > 0);
-    assert(snprintf(jpg_art, sizeof(jpg_art), "%s/Box Art Test.jpg", image_system_dir) > 0);
 
     make_dir(roms_dir);
     make_dir(system_dir);
     make_dir(images_dir);
     make_dir(image_system_dir);
     write_file(rom_file, "rom");
-    write_file(png_art, "png");
-    write_file(jpg_art, "jpg");
     seed_mock_core(root, "mgba_libretro.so");
+    case_sensitive = dir_is_case_sensitive(image_system_dir);
+
+#define ART(name) (assert(snprintf(art, sizeof(art), "%s/%s", image_system_dir, (name)) > 0), art)
+    write_file(ART("Box Art Test.png"), "png");
+    write_file(ART("Box Art Test.jpg"), "jpg");
+    write_file(ART("Box Art Test.jpeg"), "jpeg");
 
     set_sdcard_root_realpath(root);
     assert(cs_paths_init(&paths) == 0);
     assert(cs_platform_resolve(&paths, "GBA", &gba_resolved) == 0);
-    assert(cs_browser_list(&paths, CS_SCOPE_ROMS, gba, "", 0, NULL, &result) == CS_BROWSER_LIST_OK);
-    entry = find_entry(&result, "Box Art Test.gba");
-    assert(entry != NULL);
-    assert(strcmp(entry->thumbnail_path, "Images/GBA/Box Art Test.png") == 0);
 
-    assert(unlink(png_art) == 0);
-    assert(cs_browser_list(&paths, CS_SCOPE_ROMS, gba, "", 0, NULL, &result) == CS_BROWSER_LIST_OK);
-    entry = find_entry(&result, "Box Art Test.gba");
-    assert(entry != NULL);
-    assert(entry->thumbnail_path[0] == '\0');
+    /* PNG > JPG > JPEG in the same folder. */
+    expect_rom_thumbnail(&paths, gba, root, case_sensitive, "Images/GBA/Box Art Test.png");
+    assert(unlink(ART("Box Art Test.png")) == 0);
+    expect_rom_thumbnail(&paths, gba, root, case_sensitive, "Images/GBA/Box Art Test.jpg");
+    assert(unlink(ART("Box Art Test.jpg")) == 0);
+    expect_rom_thumbnail(&paths, gba, root, case_sensitive, "Images/GBA/Box Art Test.jpeg");
+    assert(unlink(ART("Box Art Test.jpeg")) == 0);
+    expect_rom_thumbnail(&paths, gba, root, case_sensitive, NULL);
+
+    /* Extension case does not matter, and the returned path is the spelling
+     * that resolves. A mixed-case PNG still beats a lower-case JPG. */
+    write_file(ART("Box Art Test.JpG"), "jpg");
+    expect_rom_thumbnail(&paths, gba, root, case_sensitive, "Images/GBA/Box Art Test.JpG");
+    write_file(ART("Box Art Test.pNg"), "png");
+    expect_rom_thumbnail(&paths, gba, root, case_sensitive, "Images/GBA/Box Art Test.pNg");
+    assert(unlink(ART("Box Art Test.pNg")) == 0);
+    assert(unlink(ART("Box Art Test.JpG")) == 0);
+    write_file(ART("Box Art Test.JPEG"), "jpeg");
+    expect_rom_thumbnail(&paths, gba, root, case_sensitive, "Images/GBA/Box Art Test.JPEG");
+    assert(unlink(ART("Box Art Test.JPEG")) == 0);
+
+    if (case_sensitive) {
+        /* Distinct stems: "box art test" art is not "Box Art Test" art. */
+        write_file(ART("box art test.png"), "other stem");
+        expect_rom_thumbnail(&paths, gba, root, case_sensitive, NULL);
+        /* Same format: upper-case before mixed-case spellings. */
+        write_file(ART("Box Art Test.Png"), "mixed");
+        write_file(ART("Box Art Test.PNG"), "upper");
+        expect_rom_thumbnail(&paths, gba, root, case_sensitive, "Images/GBA/Box Art Test.PNG");
+        write_file(ART("Box Art Test.png"), "lower");
+        expect_rom_thumbnail(&paths, gba, root, case_sensitive, "Images/GBA/Box Art Test.png");
+    } else {
+        printf("SKIP distinct-case thumbnail checks (case-insensitive volume)\n");
+    }
+#undef ART
+
+    /* Nested ROMs use art in the matching subfolder, including after Replace
+     * Art. A same-stem cover in the system root must not mask these files. */
+    assert(snprintf(art, sizeof(art), "%s/Box Art Test.png", image_system_dir) > 0);
+    write_file(art, "root art");
+    assert(snprintf(art, sizeof(art), "%s/Hacks/Translated", system_dir) > 0);
+    make_dir(art);
+    assert(snprintf(rom_file, sizeof(rom_file), "%s/Hacks/Translated/Box Art Test.gba", system_dir) > 0);
+    write_file(rom_file, "nested rom");
+    assert(snprintf(art, sizeof(art), "%s/Hacks/Translated", image_system_dir) > 0);
+    make_dir(art);
+    const char *extensions[] = { "png", "JpG", "JPEG" };
+    for (size_t i = 0; i < sizeof(extensions) / sizeof(extensions[0]); i++) {
+        assert(snprintf(art, sizeof(art), "%s/Hacks/Translated/Box Art Test.%s",
+                        image_system_dir, extensions[i]) > 0);
+        write_file(art, "nested art");
+    }
+    for (size_t i = 0; i < sizeof(extensions) / sizeof(extensions[0]); i++) {
+        cs_browser_result result = {0};
+        char expected[PATH_MAX];
+        assert(cs_browser_list(&paths, CS_SCOPE_ROMS, gba, "Hacks/Translated", 0, NULL, &result)
+               == CS_BROWSER_LIST_OK);
+        const cs_browser_entry *entry = find_entry(&result, "Box Art Test.gba");
+        assert(entry != NULL);
+        assert(snprintf(expected, sizeof(expected), "Images/GBA/Hacks/Translated/Box Art Test.%s",
+                        extensions[i]) > 0);
+        assert(strcmp(entry->thumbnail_path, expected) == 0);
+        assert(snprintf(art, sizeof(art), "%s/%s", root, expected) > 0);
+        assert(unlink(art) == 0);
+    }
 
     assert(remove_tree(root) == 0);
 }
@@ -1140,7 +1244,7 @@ int main(void) {
     test_flycast_bios_root();
     test_puae_bios_root();
     test_fixture_browser_scopes_and_rejection();
-    test_rom_thumbnail_resolution_is_png_only();
+    test_rom_thumbnail_resolution_prefers_png_then_jpeg();
     test_library_db_populates_root_rom_listing();
     test_rom_browser_merges_platform_folders_across_sources();
     test_merged_rom_browser_uses_write_root_when_platform_folder_is_missing();

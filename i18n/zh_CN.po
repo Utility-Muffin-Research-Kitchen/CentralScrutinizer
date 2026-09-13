@@ -812,8 +812,11 @@ msgstr "接受的精确文件名"
 msgid "Added"
 msgstr "已添加"
 
-msgid "Artwork must be uploaded as a PNG file."
-msgstr "图片必须以 PNG 文件上传。"
+msgid "Artwork must be a PNG or JPEG file."
+msgstr "图片必须是 PNG 或 JPEG 文件。"
+
+msgid "New artwork was saved, but older artwork for this game could not be removed and may still show."
+msgstr "新图片已保存，但无法删除此游戏的旧图片，旧图片可能仍会显示。"
 
 msgid "Artwork update failed."
 msgstr "图片更新失败。"

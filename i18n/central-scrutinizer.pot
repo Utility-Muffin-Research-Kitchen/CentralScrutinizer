@@ -32,7 +32,7 @@ msgstr ""
 msgid "Allow overwriting existing files"
 msgstr ""
 
-msgid "Artwork must be uploaded as a PNG file."
+msgid "Artwork must be a PNG or JPEG file."
 msgstr ""
 
 msgid "Artwork update failed."
@@ -516,6 +516,9 @@ msgid "Name"
 msgstr ""
 
 msgid "New Folder"
+msgstr ""
+
+msgid "New artwork was saved, but older artwork for this game could not be removed and may still show."
 msgstr ""
 
 msgid "No"

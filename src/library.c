@@ -1,6 +1,8 @@
 #include "cs_library.h"
 #include "cs_util.h"
 
+#include "cs_art.h"
+
 #include "cs_file_ops.h"
 
 #include <ctype.h>
@@ -388,14 +390,15 @@ static int cs_browser_write_breadcrumbs(cs_browser_result *result, const char *r
     return 0;
 }
 
-static int cs_browser_write_thumbnail(const char *root,
+static int cs_browser_write_thumbnail(cs_art_index *art_index,
+                                      const char *root,
                                       const char *images_root,
                                       const cs_platform_info *platform,
                                       const char *entry_relative_path,
                                       char *thumbnail_path,
                                       size_t thumbnail_path_size) {
-    char candidate_relative[CS_PATH_MAX];
-    char candidate_absolute[CS_PATH_MAX];
+    char art_dir[CS_PATH_MAX];
+    char art_name[CS_PATH_MAX];
     char basename[CS_PATH_MAX];
     const char *ext;
     size_t name_len;
@@ -416,18 +419,30 @@ static int cs_browser_write_thumbnail(const char *root,
     if (images_root && images_root[0] != '\0' && platform) {
         const char *image_dir = platform->canonical_image_directory[0] ? platform->canonical_image_directory
                                                                        : platform->primary_code;
+        const char *slash = strrchr(basename, '/');
+        const char *stem = slash ? slash + 1 : basename;
+        char image_relative_dir[CS_PATH_MAX];
+        int found;
 
-        if (CS_SAFE_SNPRINTF(candidate_relative,
-                             sizeof(candidate_relative),
-                             "%s/%s.png",
-                             image_dir,
-                             basename)
-                != 0
-            || cs_join_path(candidate_absolute, sizeof(candidate_absolute), images_root, candidate_relative) != 0) {
+        /* Match filenames in the ROM's corresponding art subfolder. */
+        if (slash) {
+            if (CS_SAFE_SNPRINTF(image_relative_dir, sizeof(image_relative_dir), "%s/%.*s",
+                                 image_dir, (int) (slash - basename), basename) != 0) {
+                return -1;
+            }
+        } else if (CS_SAFE_SNPRINTF(image_relative_dir, sizeof(image_relative_dir), "%s", image_dir) != 0) {
             return -1;
         }
-        if (cs_is_regular_file_not_symlink(candidate_absolute)) {
-            if (CS_SAFE_SNPRINTF(thumbnail_path, thumbnail_path_size, "Images/%s", candidate_relative) != 0) {
+        if (cs_join_path(art_dir, sizeof(art_dir), images_root, image_relative_dir) != 0) {
+            return -1;
+        }
+        /* Same PNG > JPG > JPEG and casing rules as Leaf's launcher (cs_art.h). */
+        found = cs_art_find(art_index, art_dir, stem, art_name, sizeof(art_name));
+        if (found < 0) {
+            return -1;
+        }
+        if (found == 0) {
+            if (CS_SAFE_SNPRINTF(thumbnail_path, thumbnail_path_size, "Images/%s/%s", image_relative_dir, art_name) != 0) {
                 return -1;
             }
             return 0;
@@ -1392,7 +1407,8 @@ static cs_library_db_status cs_browser_list_db_roms(const cs_paths *paths,
                                                     const char *query,
                                                     const cs_browser_sort_options *sort_options,
                                                     const char *root,
-                                                    cs_browser_result *result) {
+                                                    cs_browser_result *result,
+                                                    cs_art_index *art_index) {
     sqlite3 *db = NULL;
     sqlite3_stmt *stmt = NULL;
     cs_browser_db_entry *entries = NULL;
@@ -1502,7 +1518,7 @@ static cs_library_db_status cs_browser_list_db_roms(const cs_paths *paths,
                                              entry->entry.thumbnail_path,
                                              sizeof(entry->entry.thumbnail_path))
             != 0) {
-            (void) cs_browser_write_thumbnail(root,
+            (void) cs_browser_write_thumbnail(art_index, root,
                                               row_source->images_root,
                                               platform,
                                               platform_relative,
@@ -1570,7 +1586,8 @@ static cs_browser_list_status cs_browser_list_merged_rom_filesystem(const cs_pat
                                                                     size_t offset,
                                                                     const char *query,
                                                                     const cs_browser_sort_options *sort_options,
-                                                                    cs_browser_result *result) {
+                                                                    cs_browser_result *result,
+                                                                    cs_art_index *art_index) {
     cs_browser_db_entry *entries = NULL;
     cs_browser_sort_options normalized_sort = cs_browser_normalize_sort_options(sort_options);
     unsigned int path_flags = CS_PATH_FLAG_ALLOW_EMPTY;
@@ -1706,7 +1723,7 @@ static cs_browser_list_status cs_browser_list_merged_rom_filesystem(const cs_pat
             out->sort_direction = normalized_sort.direction;
 
             if (!is_dir
-                && cs_browser_write_thumbnail(source_root,
+                && cs_browser_write_thumbnail(art_index, source_root,
                                               source->images_root,
                                               platform,
                                               platform_relative,
@@ -1772,6 +1789,16 @@ cs_browser_list_status cs_browser_list(const cs_paths *paths,
     return cs_browser_list_with_sort(paths, scope, platform, relative_path, offset, query, NULL, result);
 }
 
+static cs_browser_list_status cs_browser_list_with_sort_indexed(const cs_paths *paths,
+                                                                cs_browser_scope scope,
+                                                                const cs_platform_info *platform,
+                                                                const char *relative_path,
+                                                                size_t offset,
+                                                                const char *query,
+                                                                const cs_browser_sort_options *sort_options,
+                                                                cs_browser_result *result,
+                                                                cs_art_index *art_index);
+
 cs_browser_list_status cs_browser_list_with_sort(const cs_paths *paths,
                                                  cs_browser_scope scope,
                                                  const cs_platform_info *platform,
@@ -1780,6 +1807,25 @@ cs_browser_list_status cs_browser_list_with_sort(const cs_paths *paths,
                                                  const char *query,
                                                  const cs_browser_sort_options *sort_options,
                                                  cs_browser_result *result) {
+    /* One art index per listing: each Images folder is read once rather than
+     * looked up per ROM, which on the FAT card reads the folder per miss. */
+    cs_art_index *art_index = cs_art_index_new();
+    cs_browser_list_status status = cs_browser_list_with_sort_indexed(
+        paths, scope, platform, relative_path, offset, query, sort_options, result, art_index);
+
+    cs_art_index_free(art_index);
+    return status;
+}
+
+static cs_browser_list_status cs_browser_list_with_sort_indexed(const cs_paths *paths,
+                                                                cs_browser_scope scope,
+                                                                const cs_platform_info *platform,
+                                                                const char *relative_path,
+                                                                size_t offset,
+                                                                const char *query,
+                                                                const cs_browser_sort_options *sort_options,
+                                                                cs_browser_result *result,
+                                                                cs_art_index *art_index) {
     char root[CS_PATH_MAX];
     char target_path[CS_PATH_MAX];
     char guard_root[CS_PATH_MAX];
@@ -1850,7 +1896,8 @@ cs_browser_list_status cs_browser_list_with_sort(const cs_paths *paths,
                                                                  query,
                                                                  &normalized_sort,
                                                                  root,
-                                                                 result);
+                                                                 result,
+                                                                 art_index);
 
         if (db_status == CS_LIBRARY_DB_OK) {
             return CS_BROWSER_LIST_OK;
@@ -1867,7 +1914,8 @@ cs_browser_list_status cs_browser_list_with_sort(const cs_paths *paths,
                                                      offset,
                                                      query,
                                                      &normalized_sort,
-                                                     result);
+                                                     result,
+                                                     art_index);
     }
 
     memset(result, 0, sizeof(*result));
@@ -2036,7 +2084,7 @@ cs_browser_list_status cs_browser_list_with_sort(const cs_paths *paths,
         }
 
         if (scope == CS_SCOPE_ROMS && !src->is_dir) {
-            (void) cs_browser_write_thumbnail(root,
+            (void) cs_browser_write_thumbnail(art_index, root,
                                               selected_source ? selected_source->images_root : paths->images_root,
                                               platform,
                                               entry_relative,

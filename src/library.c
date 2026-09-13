@@ -419,18 +419,30 @@ static int cs_browser_write_thumbnail(cs_art_index *art_index,
     if (images_root && images_root[0] != '\0' && platform) {
         const char *image_dir = platform->canonical_image_directory[0] ? platform->canonical_image_directory
                                                                        : platform->primary_code;
+        const char *slash = strrchr(basename, '/');
+        const char *stem = slash ? slash + 1 : basename;
+        char image_relative_dir[CS_PATH_MAX];
         int found;
 
-        if (cs_join_path(art_dir, sizeof(art_dir), images_root, image_dir) != 0) {
+        /* Match filenames in the ROM's corresponding art subfolder. */
+        if (slash) {
+            if (CS_SAFE_SNPRINTF(image_relative_dir, sizeof(image_relative_dir), "%s/%.*s",
+                                 image_dir, (int) (slash - basename), basename) != 0) {
+                return -1;
+            }
+        } else if (CS_SAFE_SNPRINTF(image_relative_dir, sizeof(image_relative_dir), "%s", image_dir) != 0) {
+            return -1;
+        }
+        if (cs_join_path(art_dir, sizeof(art_dir), images_root, image_relative_dir) != 0) {
             return -1;
         }
         /* Same PNG > JPG > JPEG and casing rules as Leaf's launcher (cs_art.h). */
-        found = cs_art_find(art_index, art_dir, basename, art_name, sizeof(art_name));
+        found = cs_art_find(art_index, art_dir, stem, art_name, sizeof(art_name));
         if (found < 0) {
             return -1;
         }
         if (found == 0) {
-            if (CS_SAFE_SNPRINTF(thumbnail_path, thumbnail_path_size, "Images/%s/%s", image_dir, art_name) != 0) {
+            if (CS_SAFE_SNPRINTF(thumbnail_path, thumbnail_path_size, "Images/%s/%s", image_relative_dir, art_name) != 0) {
                 return -1;
             }
             return 0;

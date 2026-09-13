@@ -429,6 +429,36 @@ static void test_rom_thumbnail_resolution_prefers_png_then_jpeg(void) {
     }
 #undef ART
 
+    /* Nested ROMs use art in the matching subfolder, including after Replace
+     * Art. A same-stem cover in the system root must not mask these files. */
+    assert(snprintf(art, sizeof(art), "%s/Box Art Test.png", image_system_dir) > 0);
+    write_file(art, "root art");
+    assert(snprintf(art, sizeof(art), "%s/Hacks/Translated", system_dir) > 0);
+    make_dir(art);
+    assert(snprintf(rom_file, sizeof(rom_file), "%s/Hacks/Translated/Box Art Test.gba", system_dir) > 0);
+    write_file(rom_file, "nested rom");
+    assert(snprintf(art, sizeof(art), "%s/Hacks/Translated", image_system_dir) > 0);
+    make_dir(art);
+    const char *extensions[] = { "png", "JpG", "JPEG" };
+    for (size_t i = 0; i < sizeof(extensions) / sizeof(extensions[0]); i++) {
+        assert(snprintf(art, sizeof(art), "%s/Hacks/Translated/Box Art Test.%s",
+                        image_system_dir, extensions[i]) > 0);
+        write_file(art, "nested art");
+    }
+    for (size_t i = 0; i < sizeof(extensions) / sizeof(extensions[0]); i++) {
+        cs_browser_result result = {0};
+        char expected[PATH_MAX];
+        assert(cs_browser_list(&paths, CS_SCOPE_ROMS, gba, "Hacks/Translated", 0, NULL, &result)
+               == CS_BROWSER_LIST_OK);
+        const cs_browser_entry *entry = find_entry(&result, "Box Art Test.gba");
+        assert(entry != NULL);
+        assert(snprintf(expected, sizeof(expected), "Images/GBA/Hacks/Translated/Box Art Test.%s",
+                        extensions[i]) > 0);
+        assert(strcmp(entry->thumbnail_path, expected) == 0);
+        assert(snprintf(art, sizeof(art), "%s/%s", root, expected) > 0);
+        assert(unlink(art) == 0);
+    }
+
     assert(remove_tree(root) == 0);
 }
 

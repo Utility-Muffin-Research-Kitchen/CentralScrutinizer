@@ -110,6 +110,10 @@ function uploadErrorMessage(code?: string): string | undefined {
       return "Upload target path is invalid.";
     case "upload_source_required":
       return "Open an SD card source before uploading files.";
+    case "storage_read_only":
+      return "Your SD card is read-only, so nothing new can be saved to it. Check the warning on your device.";
+    case "storage_full":
+      return "Your SD card is full.";
     default:
       return undefined;
   }

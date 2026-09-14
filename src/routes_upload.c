@@ -208,6 +208,20 @@ static int cs_write_upload_errno_response(struct mg_connection *conn, const char
     if (errno == EISDIR || errno == ENOTDIR || errno == EINVAL || errno == ENOTEMPTY) {
         return cs_write_upload_conflict_response(conn, "upload_type_conflict", path);
     }
+    /* The card went read-only (the kernel does this after a FAT error) or is
+     * full. Name it, so the client can say what to do instead of a bare 500. */
+    if (errno == EROFS) {
+        return cs_write_json(conn,
+                             503,
+                             "Service Unavailable",
+                             "{\"ok\":false,\"error\":\"storage_read_only\"}");
+    }
+    if (errno == ENOSPC) {
+        return cs_write_json(conn,
+                             507,
+                             "Insufficient Storage",
+                             "{\"ok\":false,\"error\":\"storage_full\"}");
+    }
     /* A staged file could not be renamed onto the destination's filesystem.
      * Uploads stage per source precisely to avoid this, so surface it as its
      * own error rather than a bare 500. */
@@ -1591,6 +1605,9 @@ int cs_route_upload_handler(struct mg_connection *conn, void *cbdata) {
         return cs_write_json(conn, 413, "Payload Too Large", "{\"error\":\"upload_too_large\"}");
     }
     if (cs_upload_prepare_temp_root(&app->paths) != 0) {
+        if (errno == EROFS || errno == ENOSPC) {
+            return cs_write_upload_errno_response(conn, NULL);
+        }
         return cs_write_json(conn, 500, "Internal Server Error", "{\"error\":\"upload_prep_failed\"}");
     }
 
@@ -1669,8 +1686,10 @@ int cs_route_upload_handler(struct mg_connection *conn, void *cbdata) {
                                               upload_dir,
                                               request_state.path_flags)
             != 0) {
+            int saved_errno = errno;
             cs_upload_cleanup_temp_files(&request_state);
-            if (errno == EEXIST || errno == EISDIR || errno == ENOTDIR || errno == EINVAL || errno == ENOTEMPTY) {
+            errno = saved_errno;
+            if (errno == EEXIST || errno == EISDIR || errno == ENOTDIR || errno == EINVAL || errno == ENOTEMPTY || errno == EROFS || errno == ENOSPC) {
                 return cs_write_upload_errno_response(conn, upload_dir);
             }
             return cs_write_upload_bad_request(conn,
@@ -1701,8 +1720,10 @@ int cs_route_upload_handler(struct mg_connection *conn, void *cbdata) {
                                 request_state.path_flags,
                                 &promoted_plan)
             != 0) {
+            int saved_errno = errno;
             cs_upload_cleanup_temp_files(&request_state);
-            if (errno == EEXIST || errno == EISDIR || errno == ENOTDIR || errno == EINVAL || errno == ENOTEMPTY) {
+            errno = saved_errno;
+            if (errno == EEXIST || errno == EISDIR || errno == ENOTDIR || errno == EINVAL || errno == ENOTEMPTY || errno == EROFS || errno == ENOSPC) {
                 char upload_path[CS_PATH_MAX];
 
                 if (cs_upload_join_relative_path(upload_dir,
@@ -1753,10 +1774,12 @@ int cs_route_upload_handler(struct mg_connection *conn, void *cbdata) {
                                                           : cs_upload_promote(&request_state.plans[i]);
         if (promote_status != 0) {
             size_t j;
+            int saved_errno = errno;
 
             for (j = i; j < request_state.plan_count; ++j) {
                 (void) remove(request_state.plans[j].temp_path);
             }
+            errno = saved_errno;
             return cs_write_upload_errno_response(conn, combined_upload_path);
         }
     }

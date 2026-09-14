@@ -233,6 +233,14 @@ static int cs_write_errno_response(struct mg_connection *conn) {
     if (errno == EEXIST || errno == ENOTEMPTY) {
         return cs_write_json(conn, 409, "Conflict", "{\"ok\":false}");
     }
+    if (errno == EROFS) {
+        return cs_write_json(conn, 503, "Service Unavailable",
+                             "{\"ok\":false,\"error\":\"storage_read_only\"}");
+    }
+    if (errno == ENOSPC) {
+        return cs_write_json(conn, 507, "Insufficient Storage",
+                             "{\"ok\":false,\"error\":\"storage_full\"}");
+    }
 
     return cs_write_json(conn, 500, "Internal Server Error", "{\"ok\":false}");
 }
@@ -1056,6 +1064,9 @@ int cs_route_replace_art_handler(struct mg_connection *conn, void *cbdata) {
         return cs_write_json(conn, 500, "Internal Server Error", "{\"error\":\"missing_app\"}");
     }
     if (cs_upload_prepare_temp_root(&app->paths) != 0) {
+        if (errno == EROFS || errno == ENOSPC) {
+            return cs_write_errno_response(conn);
+        }
         return cs_write_json(conn, 500, "Internal Server Error", "{\"error\":\"upload_prep_failed\"}");
     }
 
@@ -1133,7 +1144,9 @@ int cs_route_replace_art_handler(struct mg_connection *conn, void *cbdata) {
     *dot = '\0';
     *slash = '\0';
     if (cs_upload_promote_replace(&plan) != 0) {
+        int saved_errno = errno;
         cs_remove_temp_upload(request_state.temp_path);
+        errno = saved_errno;
         return cs_write_errno_response(conn);
     }
     /* Other artwork for this game would still be picked over (or alongside)

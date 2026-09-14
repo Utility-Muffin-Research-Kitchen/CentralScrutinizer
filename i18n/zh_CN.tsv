@@ -265,6 +265,8 @@ Upload target could not be resolved.	无法解析上传目标。
 Upload path is invalid.	上传路径无效。
 Upload folder could not be prepared.	无法准备上传文件夹。
 Upload target path is invalid.	上传目标路径无效。
+Your SD card is read-only, so nothing new can be saved to it. Check the warning on your device.	SD 卡为只读，无法保存任何新内容。请在设备上查看警告。
+Your SD card is full.	SD 卡已满。
 Could not load folders.	无法加载文件夹。
 1 selection will not be scanned as	1 个选择不会被扫描为
 1 selection will not be scanned as a	1 个选择不会被扫描为

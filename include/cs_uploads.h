@@ -38,6 +38,10 @@ int cs_upload_reserve_temp_path_for(const cs_paths *paths,
                                     const char *filename,
                                     char *buffer,
                                     size_t buffer_len);
+/* EROFS when the filesystem holding path (or its parent directory, for a file
+ * not created yet) is read-only, ENOSPC when it has no free blocks, else 0.
+ * For failures whose errno was lost, such as civetweb storing a form file. */
+int cs_upload_storage_errno(const char *path);
 int cs_upload_promote(const cs_upload_plan *plan);
 int cs_upload_promote_replace(const cs_upload_plan *plan);
 

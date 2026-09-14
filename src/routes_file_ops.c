@@ -27,6 +27,7 @@ typedef struct cs_replace_art_request {
     int file_seen;
     int file_stored;
     int failed;
+    int storage_errno;
     int unsupported_type;
     char art_ext[8];
 } cs_replace_art_request;
@@ -232,6 +233,14 @@ static int cs_write_errno_response(struct mg_connection *conn) {
     }
     if (errno == EEXIST || errno == ENOTEMPTY) {
         return cs_write_json(conn, 409, "Conflict", "{\"ok\":false}");
+    }
+    if (errno == EROFS) {
+        return cs_write_json(conn, 503, "Service Unavailable",
+                             "{\"ok\":false,\"error\":\"storage_read_only\"}");
+    }
+    if (errno == ENOSPC) {
+        return cs_write_json(conn, 507, "Insufficient Storage",
+                             "{\"ok\":false,\"error\":\"storage_full\"}");
     }
 
     return cs_write_json(conn, 500, "Internal Server Error", "{\"ok\":false}");
@@ -564,6 +573,9 @@ static int cs_replace_art_field_found(const char *key,
     staging_root = cs_replace_art_staging_root(state);
     temp_upload_root = cs_paths_temp_upload_root_for(&state->app->paths, staging_root);
     if (!temp_upload_root || cs_upload_prepare_temp_root_for(&state->app->paths, staging_root) != 0) {
+        if (temp_upload_root && (errno == EROFS || errno == ENOSPC)) {
+            state->storage_errno = errno;
+        }
         state->failed = 1;
         return MG_FORM_FIELD_STORAGE_ABORT;
     }
@@ -1056,6 +1068,9 @@ int cs_route_replace_art_handler(struct mg_connection *conn, void *cbdata) {
         return cs_write_json(conn, 500, "Internal Server Error", "{\"error\":\"missing_app\"}");
     }
     if (cs_upload_prepare_temp_root(&app->paths) != 0) {
+        if (errno == EROFS || errno == ENOSPC) {
+            return cs_write_errno_response(conn);
+        }
         return cs_write_json(conn, 500, "Internal Server Error", "{\"error\":\"upload_prep_failed\"}");
     }
 
@@ -1069,7 +1084,17 @@ int cs_route_replace_art_handler(struct mg_connection *conn, void *cbdata) {
 
     handled_fields = mg_handle_form_request(conn, &form_handler);
     if (handled_fields < 0 || request_state.failed || !request_state.file_seen || !request_state.file_stored) {
+        int storage_errno = request_state.storage_errno;
+
+        /* civetweb stores the file itself and drops errno; ask the filesystem. */
+        if (storage_errno == 0 && request_state.file_seen && !request_state.file_stored) {
+            storage_errno = cs_upload_storage_errno(request_state.temp_path);
+        }
         cs_remove_temp_upload(request_state.temp_path);
+        if (storage_errno != 0) {
+            errno = storage_errno;
+            return cs_write_errno_response(conn);
+        }
         if (request_state.unsupported_type) {
             return cs_write_json(conn, 400, "Bad Request", "{\"ok\":false,\"error\":\"unsupported_art_type\"}");
         }
@@ -1133,7 +1158,9 @@ int cs_route_replace_art_handler(struct mg_connection *conn, void *cbdata) {
     *dot = '\0';
     *slash = '\0';
     if (cs_upload_promote_replace(&plan) != 0) {
+        int saved_errno = errno;
         cs_remove_temp_upload(request_state.temp_path);
+        errno = saved_errno;
         return cs_write_errno_response(conn);
     }
     /* Other artwork for this game would still be picked over (or alongside)

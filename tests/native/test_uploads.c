@@ -656,12 +656,27 @@ static void test_uploads_stage_on_the_destination_source(void) {
     remove_tree(sandbox_template);
 }
 
+static void test_storage_errno(void) {
+    char dir[] = "/tmp/cs-storage-errno-XXXXXX";
+    char path[CS_PATH_MAX];
+
+    assert(mkdtemp(dir) != NULL);
+    assert(cs_upload_storage_errno(NULL) == 0);
+    assert(cs_upload_storage_errno("") == 0);
+    assert(cs_upload_storage_errno(dir) == 0);
+    /* A temp file civetweb could not create is judged by its directory. */
+    path_join(path, sizeof(path), dir, ".incoming-1-2-Golden Sun.gba");
+    assert(cs_upload_storage_errno(path) == 0);
+    remove_tree(dir);
+}
+
 int main(void) {
     cs_paths paths;
     cs_upload_plan plan;
 
     setenv("SDCARD_PATH", "fixtures/mock_sdcard", 1);
     assert(cs_paths_init(&paths) == 0);
+    test_storage_errno();
 
     assert(cs_upload_plan_make(&paths,
                                paths.roms_root,

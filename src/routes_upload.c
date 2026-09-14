@@ -51,6 +51,7 @@ typedef struct cs_upload_request {
     unsigned int path_flags;
     int metadata_ready;
     int failed;
+    int storage_errno;
     int source_required;
     int overwrite_existing;
     cs_upload_plan plans[CS_UPLOAD_MAX_FILES];
@@ -207,6 +208,20 @@ static int cs_write_upload_errno_response(struct mg_connection *conn, const char
     }
     if (errno == EISDIR || errno == ENOTDIR || errno == EINVAL || errno == ENOTEMPTY) {
         return cs_write_upload_conflict_response(conn, "upload_type_conflict", path);
+    }
+    /* The card went read-only (the kernel does this after a FAT error) or is
+     * full. Name it, so the client can say what to do instead of a bare 500. */
+    if (errno == EROFS) {
+        return cs_write_json(conn,
+                             503,
+                             "Service Unavailable",
+                             "{\"ok\":false,\"error\":\"storage_read_only\"}");
+    }
+    if (errno == ENOSPC) {
+        return cs_write_json(conn,
+                             507,
+                             "Insufficient Storage",
+                             "{\"ok\":false,\"error\":\"storage_full\"}");
     }
     /* A staged file could not be renamed onto the destination's filesystem.
      * Uploads stage per source precisely to avoid this, so surface it as its
@@ -594,9 +609,14 @@ static int cs_upload_field_found(const char *key,
                                            plan->temp_path,
                                            sizeof(plan->temp_path))
                != 0) {
+        int saved_errno = errno;
+
         if (plan->temp_path[0] != '\0') {
             (void) remove(plan->temp_path);
             plan->temp_path[0] = '\0';
+        }
+        if (saved_errno == EROFS || saved_errno == ENOSPC) {
+            state->storage_errno = saved_errno;
         }
         state->failed = 1;
         return MG_FORM_FIELD_STORAGE_ABORT;
@@ -729,6 +749,28 @@ static int cs_upload_field_store(const char *path, long long file_size, void *us
 
     state->failed = 1;
     return MG_FORM_FIELD_HANDLE_ABORT;
+}
+
+/* A form that failed while staging files: was it the card? civetweb stores
+ * multipart files itself and drops errno, so ask the staging filesystem. */
+static int cs_upload_request_storage_errno(const cs_upload_request *state) {
+    size_t i;
+
+    if (state->storage_errno != 0) {
+        return state->storage_errno;
+    }
+    for (i = 0; i < state->plan_count; ++i) {
+        int err;
+
+        if (state->plans[i].temp_path[0] == '\0') {
+            continue;
+        }
+        err = cs_upload_storage_errno(state->plans[i].temp_path);
+        if (err != 0) {
+            return err;
+        }
+    }
+    return 0;
 }
 
 static int cs_upload_preview_field_store(const char *path, long long file_size, void *user_data) {
@@ -1591,6 +1633,9 @@ int cs_route_upload_handler(struct mg_connection *conn, void *cbdata) {
         return cs_write_json(conn, 413, "Payload Too Large", "{\"error\":\"upload_too_large\"}");
     }
     if (cs_upload_prepare_temp_root(&app->paths) != 0) {
+        if (errno == EROFS || errno == ENOSPC) {
+            return cs_write_upload_errno_response(conn, NULL);
+        }
         return cs_write_json(conn, 500, "Internal Server Error", "{\"error\":\"upload_prep_failed\"}");
     }
 
@@ -1614,9 +1659,14 @@ int cs_route_upload_handler(struct mg_connection *conn, void *cbdata) {
                                          ? "upload_empty"
                                          : "upload_incomplete";
         char detail[192];
+        int storage_errno = cs_upload_request_storage_errno(&request_state);
 
         cs_upload_write_form_failure_detail(detail, sizeof(detail), handled_fields, &request_state);
         cs_upload_cleanup_temp_files(&request_state);
+        if (storage_errno != 0) {
+            errno = storage_errno;
+            return cs_write_upload_errno_response(conn, NULL);
+        }
         return cs_write_upload_bad_request(conn, "upload", error_code, detail);
     }
     if (cs_prepare_upload_metadata(&request_state) != 0) {
@@ -1669,8 +1719,10 @@ int cs_route_upload_handler(struct mg_connection *conn, void *cbdata) {
                                               upload_dir,
                                               request_state.path_flags)
             != 0) {
+            int saved_errno = errno;
             cs_upload_cleanup_temp_files(&request_state);
-            if (errno == EEXIST || errno == EISDIR || errno == ENOTDIR || errno == EINVAL || errno == ENOTEMPTY) {
+            errno = saved_errno;
+            if (errno == EEXIST || errno == EISDIR || errno == ENOTDIR || errno == EINVAL || errno == ENOTEMPTY || errno == EROFS || errno == ENOSPC) {
                 return cs_write_upload_errno_response(conn, upload_dir);
             }
             return cs_write_upload_bad_request(conn,
@@ -1701,8 +1753,10 @@ int cs_route_upload_handler(struct mg_connection *conn, void *cbdata) {
                                 request_state.path_flags,
                                 &promoted_plan)
             != 0) {
+            int saved_errno = errno;
             cs_upload_cleanup_temp_files(&request_state);
-            if (errno == EEXIST || errno == EISDIR || errno == ENOTDIR || errno == EINVAL || errno == ENOTEMPTY) {
+            errno = saved_errno;
+            if (errno == EEXIST || errno == EISDIR || errno == ENOTDIR || errno == EINVAL || errno == ENOTEMPTY || errno == EROFS || errno == ENOSPC) {
                 char upload_path[CS_PATH_MAX];
 
                 if (cs_upload_join_relative_path(upload_dir,
@@ -1753,10 +1807,12 @@ int cs_route_upload_handler(struct mg_connection *conn, void *cbdata) {
                                                           : cs_upload_promote(&request_state.plans[i]);
         if (promote_status != 0) {
             size_t j;
+            int saved_errno = errno;
 
             for (j = i; j < request_state.plan_count; ++j) {
                 (void) remove(request_state.plans[j].temp_path);
             }
+            errno = saved_errno;
             return cs_write_upload_errno_response(conn, combined_upload_path);
         }
     }

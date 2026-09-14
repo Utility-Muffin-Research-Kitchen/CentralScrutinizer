@@ -85,6 +85,24 @@ function csrfHeaders(csrf?: string | null): HeadersInit | undefined {
   return csrf ? { "X-CS-CSRF": csrf } : undefined;
 }
 
+// Shared by uploads and file operations: the card went read-only or filled up.
+function storageErrorMessage(code?: string): string | undefined {
+  switch (code) {
+    case "storage_read_only":
+      return "Your SD card is read-only, so nothing new can be saved to it. Check the warning on your device.";
+    case "storage_full":
+      return "Your SD card is full.";
+    default:
+      return undefined;
+  }
+}
+
+async function fileOperationError(response: Response, fallback: string): Promise<ApiError> {
+  const errorCode = await readErrorCode(response);
+
+  return new ApiError(storageErrorMessage(errorCode) ?? fallback, response.status, errorCode);
+}
+
 function uploadErrorMessage(code?: string): string | undefined {
   switch (code) {
     case "upload_parse_failed":
@@ -111,7 +129,7 @@ function uploadErrorMessage(code?: string): string | undefined {
     case "upload_source_required":
       return "Open an SD card source before uploading files.";
     default:
-      return undefined;
+      return storageErrorMessage(code);
   }
 }
 
@@ -776,6 +794,13 @@ function replaceArtError(xhr: XMLHttpRequest): Error {
         body.error,
       );
     }
+    {
+      const storageMessage = storageErrorMessage(body.error);
+
+      if (storageMessage) {
+        return new ApiError(storageMessage, xhr.status, body.error);
+      }
+    }
   } catch {
     // Ignore non-JSON replace-art failures.
   }
@@ -876,7 +901,7 @@ export async function renameItem(request: RenameRequest, csrf: string): Promise<
       throw new ApiError("The item you tried to rename no longer exists.", response.status, errorCode ?? "path_not_found");
     }
 
-    throw new ApiError("Rename failed", response.status, errorCode);
+    throw new ApiError(storageErrorMessage(errorCode) ?? "Rename failed", response.status, errorCode);
   }
 }
 
@@ -895,7 +920,7 @@ export async function deleteItem(request: MutationRequest, csrf: string): Promis
   });
 
   if (!response.ok) {
-    throw new Error("Delete failed");
+    throw await fileOperationError(response, "Delete failed");
   }
 }
 
@@ -922,7 +947,7 @@ export async function writeTextFile(request: WriteRequest, csrf: string): Promis
   });
 
   if (!response.ok) {
-    throw new Error("Write failed");
+    throw await fileOperationError(response, "Write failed");
   }
 }
 
@@ -941,7 +966,7 @@ export async function createFolder(request: MutationRequest, csrf: string): Prom
   });
 
   if (!response.ok) {
-    throw new Error("Create folder failed");
+    throw await fileOperationError(response, "Create folder failed");
   }
 }
 

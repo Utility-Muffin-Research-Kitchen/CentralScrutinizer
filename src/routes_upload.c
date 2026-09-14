@@ -51,6 +51,7 @@ typedef struct cs_upload_request {
     unsigned int path_flags;
     int metadata_ready;
     int failed;
+    int storage_errno;
     int source_required;
     int overwrite_existing;
     cs_upload_plan plans[CS_UPLOAD_MAX_FILES];
@@ -608,9 +609,14 @@ static int cs_upload_field_found(const char *key,
                                            plan->temp_path,
                                            sizeof(plan->temp_path))
                != 0) {
+        int saved_errno = errno;
+
         if (plan->temp_path[0] != '\0') {
             (void) remove(plan->temp_path);
             plan->temp_path[0] = '\0';
+        }
+        if (saved_errno == EROFS || saved_errno == ENOSPC) {
+            state->storage_errno = saved_errno;
         }
         state->failed = 1;
         return MG_FORM_FIELD_STORAGE_ABORT;
@@ -743,6 +749,28 @@ static int cs_upload_field_store(const char *path, long long file_size, void *us
 
     state->failed = 1;
     return MG_FORM_FIELD_HANDLE_ABORT;
+}
+
+/* A form that failed while staging files: was it the card? civetweb stores
+ * multipart files itself and drops errno, so ask the staging filesystem. */
+static int cs_upload_request_storage_errno(const cs_upload_request *state) {
+    size_t i;
+
+    if (state->storage_errno != 0) {
+        return state->storage_errno;
+    }
+    for (i = 0; i < state->plan_count; ++i) {
+        int err;
+
+        if (state->plans[i].temp_path[0] == '\0') {
+            continue;
+        }
+        err = cs_upload_storage_errno(state->plans[i].temp_path);
+        if (err != 0) {
+            return err;
+        }
+    }
+    return 0;
 }
 
 static int cs_upload_preview_field_store(const char *path, long long file_size, void *user_data) {
@@ -1631,9 +1659,14 @@ int cs_route_upload_handler(struct mg_connection *conn, void *cbdata) {
                                          ? "upload_empty"
                                          : "upload_incomplete";
         char detail[192];
+        int storage_errno = cs_upload_request_storage_errno(&request_state);
 
         cs_upload_write_form_failure_detail(detail, sizeof(detail), handled_fields, &request_state);
         cs_upload_cleanup_temp_files(&request_state);
+        if (storage_errno != 0) {
+            errno = storage_errno;
+            return cs_write_upload_errno_response(conn, NULL);
+        }
         return cs_write_upload_bad_request(conn, "upload", error_code, detail);
     }
     if (cs_prepare_upload_metadata(&request_state) != 0) {

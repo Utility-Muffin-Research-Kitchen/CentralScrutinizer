@@ -6,6 +6,8 @@ import {
   beginUploadFiles,
   beginUploadFilesBatched,
   buildDownloadUrl,
+  createFolder,
+  deleteItem,
   getBrowser,
   getBrowserAll,
   getMacDotfiles,
@@ -18,6 +20,7 @@ import {
   previewUpload,
   previewUploadBatched,
   readTextFile,
+  renameItem,
   replaceArt,
   requestLibraryRescan,
   revokeBrowser,
@@ -1152,6 +1155,7 @@ describe("replaceArt", () => {
       500,
       "New artwork was saved, but older artwork for this game could not be removed and may still show.",
     ],
+    ["storage_read_only", 503, "Your SD card is read-only, so nothing new can be saved to it. Check the warning on your device."],
   ])("reports the %s replace-art error", async (code, status, message) => {
     class FailingXhr extends MockXhr {
       constructor() {
@@ -1169,6 +1173,38 @@ describe("replaceArt", () => {
         "csrf-token",
       ),
     ).rejects.toThrow(message);
+  });
+});
+
+describe("file operation storage errors", () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it.each([
+    ["rename", () => renameItem({ scope: "files", from: "a.txt", to: "b.txt" }, "csrf-token")],
+    ["delete", () => deleteItem({ scope: "files", path: "a.txt" }, "csrf-token")],
+    ["create folder", () => createFolder({ scope: "files", path: "New Folder" }, "csrf-token")],
+  ])("maps a read-only card for %s", async (_name, run) => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue({
+        ok: false,
+        status: 503,
+        json: async () => ({ ok: false, error: "storage_read_only" }),
+      }),
+    );
+
+    await expect(run()).rejects.toMatchObject({
+      code: "storage_read_only",
+      message: "Your SD card is read-only, so nothing new can be saved to it. Check the warning on your device.",
+    });
+  });
+
+  it("keeps the generic message for other delete failures", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ ok: false, status: 500, json: async () => ({ ok: false }) }));
+
+    await expect(deleteItem({ scope: "files", path: "a.txt" }, "csrf-token")).rejects.toThrow("Delete failed");
   });
 });
 

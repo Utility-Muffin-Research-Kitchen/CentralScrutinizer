@@ -10,6 +10,7 @@
 #include <stdio.h>
 #include <string.h>
 #include <sys/stat.h>
+#include <sys/statvfs.h>
 #include <sys/types.h>
 #include <time.h>
 #include <unistd.h>
@@ -698,4 +699,37 @@ cleanup:
     }
 
     return rc;
+}
+
+int cs_upload_storage_errno(const char *path) {
+    struct statvfs vfs;
+
+    if (!path || path[0] == '\0') {
+        return 0;
+    }
+    if (statvfs(path, &vfs) != 0) {
+        char parent[CS_PATH_MAX];
+        const char *slash = strrchr(path, '/');
+        size_t len;
+
+        if (!slash || slash == path) {
+            return 0;
+        }
+        len = (size_t) (slash - path);
+        if (len >= sizeof(parent)) {
+            return 0;
+        }
+        memcpy(parent, path, len);
+        parent[len] = '\0';
+        if (statvfs(parent, &vfs) != 0) {
+            return 0;
+        }
+    }
+    if (vfs.f_flag & ST_RDONLY) {
+        return EROFS;
+    }
+    if (vfs.f_bavail == 0) {
+        return ENOSPC;
+    }
+    return 0;
 }

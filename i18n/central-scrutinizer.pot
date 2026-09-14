@@ -1004,6 +1004,12 @@ msgstr ""
 msgid "Yes"
 msgstr ""
 
+msgid "Your SD card is full."
+msgstr ""
+
+msgid "Your SD card is read-only, so nothing new can be saved to it. Check the warning on your device."
+msgstr ""
+
 msgid "ZIP central directory could not be read."
 msgstr ""
 

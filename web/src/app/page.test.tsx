@@ -95,6 +95,7 @@ vi.mock("../components/mac-dot-clean-tool-view", () => ({
 }));
 
 import Page from "./page";
+import type { PlatformsResponse } from "../lib/types";
 
 function createFileList(files: File[]): FileList {
   return {
@@ -123,7 +124,7 @@ function supportedResources(overrides: Partial<Record<"roms" | "saves" | "states
   };
 }
 
-function platformGroups() {
+function platformGroups(): PlatformsResponse {
   return {
     groups: [
       {
@@ -147,7 +148,7 @@ function platformGroups() {
   };
 }
 
-function portsPlatformGroups() {
+function portsPlatformGroups(): PlatformsResponse {
   return {
     groups: [
       {
@@ -177,7 +178,7 @@ function portsPlatformGroups() {
   };
 }
 
-function platformGroupsWithPorts() {
+function platformGroupsWithPorts(): PlatformsResponse {
   return {
     groups: [...platformGroups().groups, ...portsPlatformGroups().groups],
   };

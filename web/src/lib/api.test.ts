@@ -1214,21 +1214,21 @@ describe("setGameFavorite", () => {
   });
 
   it("posts game favorite updates with the csrf header", async () => {
-    const fetchMock = vi.fn(async () => new Response(JSON.stringify({ ok: true }), { status: 200 }));
+    const fetchMock = vi.fn<typeof fetch>(async () => new Response(JSON.stringify({ ok: true }), { status: 200 }));
 
     vi.stubGlobal("fetch", fetchMock);
 
     await setGameFavorite({ tag: "GBA", path: "Pokemon Emerald.gba", favorite: true }, "csrf-token");
 
     expect(fetchMock).toHaveBeenCalledTimes(1);
-    const [url, options] = fetchMock.mock.calls[0] as [string, RequestInit];
+    const [url, options] = fetchMock.mock.calls[0];
 
     expect(url).toBe("/api/favorite/game");
-    expect(options.method).toBe("POST");
-    expect(options.headers).toEqual({
+    expect(options?.method).toBe("POST");
+    expect(options?.headers).toEqual({
       "Content-Type": "application/x-www-form-urlencoded",
       "X-CS-CSRF": "csrf-token",
     });
-    expect(options.body).toBe("tag=GBA&path=Pokemon+Emerald.gba&favorite=1");
+    expect(options?.body).toBe("tag=GBA&path=Pokemon+Emerald.gba&favorite=1");
   });
 });

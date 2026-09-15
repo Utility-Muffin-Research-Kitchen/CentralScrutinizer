@@ -30,7 +30,7 @@ function makeZipMetadataBytes(
     name: string;
     uncompressedSize?: number;
   }>,
-): Uint8Array {
+): Uint8Array<ArrayBuffer> {
   const encoder = new TextEncoder();
   const centralDirectoryEntries = entries.map((entry) => {
     const rawName = entry.isDirectory && !entry.name.endsWith("/") ? `${entry.name}/` : entry.name;

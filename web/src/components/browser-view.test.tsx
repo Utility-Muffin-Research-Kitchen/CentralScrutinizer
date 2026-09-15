@@ -1253,6 +1253,26 @@ describe("BrowserView", () => {
     expect(within(screen.getByRole("dialog")).getByRole("heading", { name: "one.png" })).toBeTruthy();
   });
 
+  it("keeps the active image when entries are appended and steps into the appended page", () => {
+    const first = imageEntry("one.png");
+    const second = imageEntry("two.png");
+    const appended = imageEntry("three.png");
+    const { rerender } = render(<BrowserView {...previewProps([first, second])} />);
+
+    fireEvent.click(screen.getAllByRole("button", { name: "Preview two.png" })[0]);
+    expect((screen.getByRole("button", { name: "Next image" }) as HTMLButtonElement).disabled).toBe(true);
+
+    rerender(<BrowserView {...previewProps([first, second, appended])} />);
+
+    expect(within(screen.getByRole("dialog")).getByRole("heading", { name: "two.png" })).toBeTruthy();
+    expect((screen.getByRole("button", { name: "Next image" }) as HTMLButtonElement).disabled).toBe(false);
+
+    fireEvent.keyDown(screen.getByRole("dialog"), { key: "ArrowRight" });
+
+    expect(within(screen.getByRole("dialog")).getByRole("heading", { name: "three.png" })).toBeTruthy();
+    expect(mockApi.getBrowser).not.toHaveBeenCalled();
+  });
+
   it("reports a broken image and resets cleanly when stepping to a valid one", async () => {
     render(<BrowserView {...previewProps([imageEntry("broken.png"), imageEntry("good.png")])} />);
 
@@ -1283,7 +1303,13 @@ describe("BrowserView", () => {
 
     render(<BrowserView {...previewProps(entries)} />);
 
-    expect(screen.getAllByRole("button", { name: /^Preview shot-\d+\.png$/ })).toHaveLength(20);
+    const previewButtons = screen.getAllByRole("button", { name: /^Preview shot-\d+\.png$/ });
+    const nameButtons = previewButtons.filter((button) => button.parentElement?.className.includes("min-w-0"));
+    const actionButtons = previewButtons.filter((button) => button.parentElement?.className.includes("justify-end"));
+
+    expect(previewButtons).toHaveLength(20);
+    expect(nameButtons).toHaveLength(10);
+    expect(actionButtons).toHaveLength(10);
   });
 
   it("closes the preview when the active entry leaves and does not reopen it", () => {

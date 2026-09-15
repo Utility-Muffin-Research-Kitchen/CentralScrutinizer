@@ -148,3 +148,78 @@ test("renders a staged JPEG preview from the authenticated download route", asyn
     .poll(() => dialog.locator("img").evaluate((node: HTMLImageElement) => node.complete && node.naturalWidth > 0))
     .toBe(true);
 });
+
+test("keeps background controls unreachable while the preview is open", async ({ page }) => {
+  await pair(page);
+  await page.goto("/?view=files&path=Screenshots");
+
+  const backButton = page.getByRole("button", { name: "Back" });
+  const backBox = await backButton.boundingBox();
+
+  expect(backBox).not.toBeNull();
+
+  await page.getByRole("button", { name: "Preview preview-sample.png" }).first().click();
+
+  const dialog = page.getByRole("dialog");
+
+  await expect(dialog).toBeVisible();
+
+  const centerX = (backBox?.x ?? 0) + (backBox?.width ?? 0) / 2;
+  const centerY = (backBox?.y ?? 0) + (backBox?.height ?? 0) / 2;
+  const hitsBackground = await page.evaluate(
+    ([x, y]) => {
+      const hit = document.elementFromPoint(x, y);
+      const dialogNode = document.querySelector("dialog");
+
+      return Boolean(hit && dialogNode && !dialogNode.contains(hit) && hit !== dialogNode);
+    },
+    [centerX, centerY],
+  );
+
+  expect(hitsBackground).toBe(false);
+
+  // The click lands on the backdrop: it dismisses the preview without activating Back.
+  await page.mouse.click(centerX, centerY);
+  await expect(dialog).toBeHidden();
+  await expect(page).toHaveURL(/view=files/);
+  await expect(page).toHaveURL(/path=Screenshots/);
+  await expect(page.getByRole("button", { name: "Preview preview-sample.png" }).first()).toBeVisible();
+});
+
+test("previews a library image from the More actions menu and returns focus to that button", async ({ page }) => {
+  await pair(page);
+
+  const session = await (await page.request.get("/api/session")).json();
+  const upload = await page.request.post("/api/upload", {
+    headers: { "X-CS-CSRF": session.csrf },
+    multipart: {
+      scope: "bios",
+      tag: "GBA",
+      file: {
+        name: "bios-preview.png",
+        mimeType: "image/png",
+        buffer: readFileSync(new URL("../../fixtures/mock_sdcard/Screenshots/preview-sample.png", import.meta.url)),
+      },
+    },
+  });
+
+  expect(upload.ok()).toBe(true);
+
+  await page.goto("/?view=browser&scope=bios&tag=GBA");
+
+  const moreButton = page.getByRole("button", { name: "More actions for bios-preview.png" });
+
+  await moreButton.click();
+  await page.getByRole("menuitem", { name: "Preview" }).click();
+
+  const dialog = page.getByRole("dialog");
+
+  await expect(dialog.getByRole("heading", { name: "bios-preview.png" })).toBeVisible();
+  await expect
+    .poll(() => dialog.locator("img").evaluate((node: HTMLImageElement) => node.complete && node.naturalWidth > 0))
+    .toBe(true);
+
+  await page.keyboard.press("Escape");
+  await expect(dialog).toBeHidden();
+  await expect(moreButton).toBeFocused();
+});

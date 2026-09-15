@@ -567,4 +567,147 @@ describe("BrowserTable", () => {
     expect(screen.queryByRole("menuitem", { name: "Replace Art" })).toBeNull();
     expect(screen.getByRole("menuitem", { name: "Delete" })).toBeTruthy();
   });
+
+  function entry(overrides: {
+    name: string;
+    path?: string;
+    type?: string;
+    size?: number;
+    modified?: number;
+  }) {
+    return {
+      name: overrides.name,
+      path: overrides.path ?? overrides.name,
+      type: overrides.type ?? "file",
+      size: overrides.size ?? 12,
+      modified: overrides.modified ?? 1_700_000_000,
+      status: "",
+      thumbnailPath: "",
+    };
+  }
+
+  it("shows Preview entry points only for image files when onPreview is set", () => {
+    render(
+      <BrowserTable
+        entries={[
+          entry({ name: "shot.png" }),
+          entry({ name: "readme.txt" }),
+          entry({ name: "rom.gba" }),
+          entry({ name: "album.png", type: "directory" }),
+        ]}
+        onNavigate={vi.fn()}
+        onPreview={vi.fn()}
+        scope="files"
+      />,
+    );
+
+    expect(screen.getAllByRole("button", { name: "Preview shot.png" })).toHaveLength(2);
+    expect(screen.queryByRole("button", { name: "Preview readme.txt" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Preview rom.gba" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Preview album.png" })).toBeNull();
+    expect(screen.getByRole("button", { name: "Open album.png" })).toBeTruthy();
+  });
+
+  it("keeps image names as download links and hides Preview without onPreview", () => {
+    render(
+      <BrowserTable entries={[entry({ name: "shot.png" })]} onNavigate={vi.fn()} scope="files" />,
+    );
+
+    expect(screen.queryByRole("button", { name: "Preview shot.png" })).toBeNull();
+    expect(screen.getByRole("link", { name: "Download shot.png" })).toBeTruthy();
+  });
+
+  it("orders Rename before Preview in the files row action slot", () => {
+    render(
+      <BrowserTable
+        entries={[entry({ name: "shot.png" })]}
+        onNavigate={vi.fn()}
+        onPreview={vi.fn()}
+        onRename={vi.fn()}
+        scope="files"
+      />,
+    );
+
+    const actionContainer = screen.getByRole("button", { name: "Rename shot.png" }).parentElement;
+
+    expect(Array.from(actionContainer?.querySelectorAll("button") ?? []).map((button) => button.getAttribute("aria-label"))).toEqual([
+      "Rename shot.png",
+      "Preview shot.png",
+    ]);
+  });
+
+  it("previews an image from its name button", () => {
+    const onPreview = vi.fn();
+    const imageEntry = entry({ name: "shot.png" });
+
+    render(
+      <BrowserTable entries={[imageEntry]} onNavigate={vi.fn()} onPreview={onPreview} scope="files" />,
+    );
+
+    expect(screen.queryByRole("link", { name: "Download shot.png" })).toBeNull();
+
+    const nameButton = screen
+      .getAllByRole("button", { name: "Preview shot.png" })
+      .find((button) => button.parentElement?.className.includes("min-w-0"));
+
+    expect(nameButton).toBeTruthy();
+    fireEvent.click(nameButton as HTMLElement);
+
+    expect(onPreview).toHaveBeenCalledTimes(1);
+    expect(onPreview.mock.calls[0][0]).toEqual(imageEntry);
+    expect(onPreview.mock.calls[0][1]).toBe(nameButton);
+  });
+
+  it("shows a Preview menu item for library image entries", () => {
+    render(
+      <BrowserTable
+        entries={[entry({ name: "border.png", type: "overlay" })]}
+        onNavigate={vi.fn()}
+        onPreview={vi.fn()}
+        onRename={vi.fn()}
+        scope="overlays"
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "More actions for border.png" }));
+
+    expect(screen.getByRole("menuitem", { name: "Preview" })).toBeTruthy();
+  });
+
+  it("omits the Preview menu item for archives and image-named folders", () => {
+    render(
+      <BrowserTable
+        entries={[
+          entry({ name: "pack.zip", type: "overlay" }),
+          entry({ name: "album.png", type: "directory" }),
+        ]}
+        onNavigate={vi.fn()}
+        onPreview={vi.fn()}
+        onRename={vi.fn()}
+        scope="overlays"
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "More actions for pack.zip" }));
+    expect(screen.queryByRole("menuitem", { name: "Preview" })).toBeNull();
+
+    fireEvent.mouseDown(document.body);
+    fireEvent.click(screen.getByRole("button", { name: "More actions for album.png" }));
+    expect(screen.queryByRole("menuitem", { name: "Preview" })).toBeNull();
+  });
+
+  it("does not create an empty menu on non-image rows for a preview-only callback", () => {
+    const onPreview = vi.fn();
+
+    render(
+      <BrowserTable
+        entries={[entry({ name: "pack.zip", type: "overlay" })]}
+        onNavigate={vi.fn()}
+        onPreview={onPreview}
+        scope="overlays"
+      />,
+    );
+
+    expect(screen.queryByRole("button", { name: "More actions for pack.zip" })).toBeNull();
+  });
 });

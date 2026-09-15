@@ -6,6 +6,7 @@ import {
   beginUploadFiles,
   beginUploadFilesBatched,
   buildDownloadUrl,
+  buildImagePreviewUrl,
   createFolder,
   deleteItem,
   getBrowser,
@@ -103,6 +104,28 @@ describe("buildDownloadUrl", () => {
     expect(buildDownloadUrl("files", "Captures/capture.png", undefined, "csrf-token")).toBe(
       "/api/download?scope=files&path=Captures%2Fcapture.png&csrf=csrf-token",
     );
+  });
+});
+
+describe("buildImagePreviewUrl", () => {
+  it("adds inline=1 while preserving scope, tag, csrf and path encoding", () => {
+    const url = new URL(
+      buildImagePreviewUrl("files", "Screenshots/a b&c#d · \u4e2d\u6587.png", "GBA", "csrf+token"),
+      "http://local",
+    );
+
+    expect(url.pathname).toBe("/api/download");
+    expect(url.searchParams.get("scope")).toBe("files");
+    expect(url.searchParams.get("tag")).toBe("GBA");
+    expect(url.searchParams.get("path")).toBe("Screenshots/a b&c#d · \u4e2d\u6587.png");
+    expect(url.searchParams.get("csrf")).toBe("csrf+token");
+    expect(url.searchParams.get("inline")).toBe("1");
+  });
+
+  it("omits inline from the normal download URL", () => {
+    const url = new URL(buildDownloadUrl("files", "Screenshots/shot.png"), "http://local");
+
+    expect(url.searchParams.has("inline")).toBe(false);
   });
 });
 

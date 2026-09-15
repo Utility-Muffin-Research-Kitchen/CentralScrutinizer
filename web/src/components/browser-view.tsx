@@ -4,6 +4,7 @@ import JSZip from "jszip";
 import { buildDownloadUrl, getBrowserAll } from "../lib/api";
 import { DEFAULT_BROWSER_SORT } from "../lib/browser-sort";
 import { BROWSER_MOVE_DRAG_TYPE } from "../lib/drag-types";
+import { isPreviewableImageFileName } from "../lib/image-preview";
 import { romUploadSupportedFormats } from "../lib/platform-display";
 import type {
   BrowserEntry,
@@ -20,6 +21,7 @@ import { BrowserFilesToolbar } from "./browser-files-toolbar";
 import { BrowserWorkspaceCard } from "./browser-workspace-card";
 import { BrowserTable } from "./browser-table";
 import { DropZone } from "./drop-zone";
+import { ImagePreviewModal } from "./image-preview-modal";
 import { NoticeToast } from "./notice-toast";
 import { TransferBar } from "./transfer-bar";
 import { tFormat, useT } from "../lib/i18n";
@@ -45,10 +47,6 @@ function getFullPath(scope: BrowserScope, response: BrowserResponse): string {
 
 function formatItemCount(count: number, t: (key: string) => string): string {
   return `${count} ${t(count === 1 ? "item" : "items")}`;
-}
-
-function isPreviewableImage(name: string): boolean {
-  return /\.(png|jpe?g|bmp|gif|webp|svg)$/i.test(name);
 }
 
 function normalizeBrowserPath(path?: string | null): string | undefined {
@@ -287,6 +285,7 @@ export function BrowserView({
   notice,
   noticeSource,
   onLoadMore,
+  previewDisabled = false,
   response,
   scope,
   search = "",
@@ -322,6 +321,7 @@ export function BrowserView({
   notice?: string | null;
   noticeSource?: string;
   onLoadMore?: () => void;
+  previewDisabled?: boolean;
   response: BrowserResponse;
   scope: BrowserScope;
   search?: string;
@@ -351,7 +351,9 @@ export function BrowserView({
 }) {
   const t = useT();
   const uploadInputRef = useRef<HTMLInputElement | null>(null);
-  const [previewPath, setPreviewPath] = useState<string | null>(null);
+  const previewReturnFocusRef = useRef<HTMLElement | null>(null);
+  const previewFallbackFocusRef = useRef<HTMLDivElement | null>(null);
+  const [previewEntryPath, setPreviewEntryPath] = useState<string | null>(null);
   const [selectedPaths, setSelectedPaths] = useState<string[]>([]);
   const [bulkDownloadBusy, setBulkDownloadBusy] = useState(false);
   const [localNotice, setLocalNotice] = useState<string | null>(null);
@@ -366,6 +368,13 @@ export function BrowserView({
   const totalCount = Math.max(responseTotalCount, response.entries.length);
   const itemCountLabel = formatItemCount(totalCount, t);
   const entries = response.entries;
+  const imageEntries = entries.filter(
+    (entry) => entry.type !== "directory" && isPreviewableImageFileName(entry.name),
+  );
+  const previewIndex = previewEntryPath
+    ? imageEntries.findIndex((entry) => entry.path === previewEntryPath)
+    : -1;
+  const previewEntry = previewIndex >= 0 ? imageEntries[previewIndex] : null;
   const remaining = Math.max(totalCount - entries.length, 0);
   const canReuseMoveInitialResponse = search.trim().length === 0 && !hasMore;
   const selectedEntries = entries.filter((entry) => selectedPaths.includes(entry.path));
@@ -389,6 +398,25 @@ export function BrowserView({
   }, [entries]);
 
   useEffect(() => {
+    if (!previewEntryPath) {
+      return;
+    }
+    const stillVisible = entries.some(
+      (entry) =>
+        entry.path === previewEntryPath &&
+        entry.type !== "directory" &&
+        isPreviewableImageFileName(entry.name),
+    );
+
+    if (!stillVisible) {
+      closePreview();
+    }
+    // closePreview is intentionally omitted: it is a stable-per-render helper and
+    // including it would re-run the effect on every render.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [entries, previewEntryPath]);
+
+  useEffect(() => {
     if (searchResults) {
       setSelectedPaths([]);
     }
@@ -409,6 +437,40 @@ export function BrowserView({
     }
 
     onDismissNotice?.();
+  }
+
+  function openPreview(entry: BrowserEntry, trigger: HTMLElement) {
+    if (previewDisabled) {
+      return;
+    }
+    previewReturnFocusRef.current = trigger;
+    setPreviewEntryPath(entry.path);
+  }
+
+  function closePreview() {
+    const returnTarget = previewReturnFocusRef.current;
+
+    previewReturnFocusRef.current = null;
+    setPreviewEntryPath(null);
+    window.setTimeout(() => {
+      if (returnTarget && returnTarget.isConnected) {
+        returnTarget.focus();
+        return;
+      }
+      previewFallbackFocusRef.current?.focus();
+    }, 0);
+  }
+
+  function stepPreview(delta: number) {
+    if (previewIndex < 0) {
+      return;
+    }
+    const nextIndex = previewIndex + delta;
+
+    if (nextIndex < 0 || nextIndex >= imageEntries.length) {
+      return;
+    }
+    setPreviewEntryPath(imageEntries[nextIndex].path);
   }
 
   async function handleDownloadSelection() {
@@ -458,7 +520,7 @@ export function BrowserView({
       ignoredDragTypes={BROWSER_MOVE_IGNORED_DRAG_TYPES}
       onDrop={onUploadFiles}
     >
-      <div className="space-y-5">
+      <div className="space-y-5" ref={previewFallbackFocusRef} tabIndex={-1}>
       {isFiles ? (
         <>
           <button
@@ -654,6 +716,8 @@ export function BrowserView({
                 }
               : undefined
           }
+          onPreview={openPreview}
+          previewDisabled={previewDisabled}
           onRename={onRename}
           onReplaceArt={isFiles ? undefined : onReplaceArt}
           onToggleFavorite={isFiles ? undefined : onToggleFavorite}
@@ -701,25 +765,6 @@ export function BrowserView({
         </div>
       ) : null}
       {isFiles ? (
-        <div className="flex flex-wrap gap-2">
-          {entries
-            .filter((entry) => entry.type !== "directory" && isPreviewableImage(entry.name))
-            .slice(0, 8)
-            .map((entry) => (
-              <button
-                key={entry.path}
-                className="rounded-md border border-[var(--border)] px-3 py-2 text-xs"
-                onClick={() => {
-                  setPreviewPath(buildDownloadUrl("files", entry.path, tag, csrf));
-                }}
-                type="button"
-              >
-                Preview {entry.name}
-              </button>
-            ))}
-        </div>
-      ) : null}
-      {isFiles ? (
         <footer className="rounded-lg border border-[var(--border)] bg-[var(--panel)] px-4 py-3 text-sm text-[var(--muted)]">
           <div className="flex flex-col gap-1">
             <p>{itemCountLabel}</p>
@@ -740,17 +785,18 @@ export function BrowserView({
         }}
         type="file"
       />
-      {previewPath ? (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4">
-          <div className="max-h-[90vh] max-w-6xl overflow-hidden rounded-2xl border border-[var(--border)] bg-[var(--panel)]">
-            <div className="flex justify-end p-3">
-              <button className="rounded-md px-3 py-2 text-sm text-[var(--muted)]" onClick={() => setPreviewPath(null)} type="button">
-                {t("Close")}
-              </button>
-            </div>
-            <img alt={t("Preview")} className="max-h-[80vh] w-full object-contain" src={previewPath} />
-          </div>
-        </div>
+      {previewEntry ? (
+        <ImagePreviewModal
+          csrf={csrf}
+          entry={previewEntry}
+          hasNext={imageEntries.length > 1 && previewIndex < imageEntries.length - 1}
+          hasPrevious={imageEntries.length > 1 && previewIndex > 0}
+          onClose={closePreview}
+          onNext={imageEntries.length > 1 ? () => stepPreview(1) : undefined}
+          onPrevious={imageEntries.length > 1 ? () => stepPreview(-1) : undefined}
+          scope={scope}
+          tag={tag}
+        />
       ) : null}
       {moveSelectionEntries ? (
         <BrowserMoveModal

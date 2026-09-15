@@ -1,10 +1,29 @@
-import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 
 import { BrowserView } from "./browser-view";
 
+// jsdom does not implement the native dialog API. These minimal stubs only make
+// the open dialog reachable to queries; they are not evidence of native focus or
+// modal behavior, which the Playwright spec covers in a real browser.
+beforeAll(() => {
+  if (!HTMLDialogElement.prototype.showModal) {
+    HTMLDialogElement.prototype.showModal = function showModal(this: HTMLDialogElement) {
+      this.open = true;
+    };
+    HTMLDialogElement.prototype.close = function close(this: HTMLDialogElement) {
+      this.open = false;
+      this.dispatchEvent(new Event("close"));
+    };
+  }
+});
+
 const mockApi = vi.hoisted(() => ({
   buildDownloadUrl: vi.fn((scope: string, path: string, tag?: string) => `/api/download?scope=${scope}&path=${path}&tag=${tag ?? ""}`),
+  buildImagePreviewUrl: vi.fn(
+    (scope: string, path: string, tag?: string) =>
+      `/api/download?scope=${scope}&path=${path}&tag=${tag ?? ""}&inline=1`,
+  ),
   createFolder: vi.fn(),
   deleteItem: vi.fn(),
   getBrowser: vi.fn(),
@@ -1085,5 +1104,262 @@ describe("BrowserView", () => {
     );
 
     expect(mockApi.buildDownloadUrl).toHaveBeenCalledWith("roms", "Pokemon Emerald.gba", "GBA", undefined);
+  });
+
+  function imageEntry(name: string, modified = 1_700_000_000) {
+    return {
+      name,
+      path: name,
+      type: "file",
+      size: 10,
+      modified,
+      status: "",
+      thumbnailPath: "",
+    };
+  }
+
+  function previewProps(entries: ReturnType<typeof imageEntry>[], overrides: { previewDisabled?: boolean } = {}) {
+    return {
+      busy: false,
+      csrf: "csrf-token",
+      notice: null,
+      onBack: vi.fn(),
+      onCreateFolder: vi.fn(),
+      onDeleteSelection: vi.fn(),
+      onNavigate: vi.fn(),
+      onRefresh: vi.fn(),
+      onRename: vi.fn(),
+      onReplaceArt: vi.fn(),
+      onSearchChange: vi.fn(),
+      onUploadFiles: vi.fn(),
+      response: {
+        scope: "files" as const,
+        title: "Files",
+        rootPath: "SD Card",
+        path: "Screenshots",
+        breadcrumbs: [{ label: "Screenshots", path: "Screenshots" }],
+        totalCount: entries.length,
+        offset: 0,
+        truncated: false,
+        entries,
+      },
+      scope: "files" as const,
+      search: "",
+      tag: "GBA",
+      transfer: { active: false, label: "", progress: 0 },
+      ...overrides,
+    };
+  }
+
+  it("opens an image preview dialog with an inline image and a plain download link", () => {
+    render(<BrowserView {...previewProps([imageEntry("shot.png")])} />);
+
+    fireEvent.click(screen.getAllByRole("button", { name: "Preview shot.png" })[0]);
+
+    const dialog = screen.getByRole("dialog");
+
+    expect(within(dialog).getByRole("heading", { name: "shot.png" })).toBeTruthy();
+
+    const image = dialog.querySelector("img");
+
+    expect(image?.getAttribute("src")).toContain("/api/download");
+    expect(image?.getAttribute("src")).toContain("inline=1");
+
+    const download = within(dialog).getByRole("link", { name: "Download" });
+
+    expect(download.getAttribute("href")).not.toContain("inline");
+  });
+
+  it("opens the preview from the row action slot as well as the name", () => {
+    render(<BrowserView {...previewProps([imageEntry("shot.png")])} />);
+
+    const buttons = screen.getAllByRole("button", { name: "Preview shot.png" });
+    const actionButton = buttons.find((button) => button.parentElement?.className.includes("justify-end"));
+
+    expect(actionButton).toBeTruthy();
+    fireEvent.click(actionButton as HTMLElement);
+
+    expect(within(screen.getByRole("dialog")).getByRole("heading", { name: "shot.png" })).toBeTruthy();
+  });
+
+  it("dismisses on Close and backdrop clicks but not on image clicks", () => {
+    render(<BrowserView {...previewProps([imageEntry("shot.png")])} />);
+
+    fireEvent.click(screen.getAllByRole("button", { name: "Preview shot.png" })[0]);
+
+    const dialog = screen.getByRole("dialog");
+
+    fireEvent.click(dialog.querySelector("img") as HTMLElement);
+    expect(screen.getByRole("dialog")).toBeTruthy();
+
+    fireEvent.click(dialog);
+    expect(screen.queryByRole("dialog")).toBeNull();
+
+    fireEvent.click(screen.getAllByRole("button", { name: "Preview shot.png" })[0]);
+    fireEvent.click(within(screen.getByRole("dialog")).getAllByRole("button", { name: "Close" })[0]);
+    expect(screen.queryByRole("dialog")).toBeNull();
+  });
+
+  it("steps through image entries with arrow keys and stops at the ends", () => {
+    render(
+      <BrowserView
+        {...previewProps([
+          imageEntry("one.png"),
+          imageEntry("note.txt"),
+          { ...imageEntry("dir.png"), type: "directory" },
+          imageEntry("two.png"),
+          imageEntry("three.png"),
+        ])}
+      />,
+    );
+
+    fireEvent.click(screen.getAllByRole("button", { name: "Preview one.png" })[0]);
+
+    expect(within(screen.getByRole("dialog")).getByRole("heading", { name: "one.png" })).toBeTruthy();
+
+    fireEvent.keyDown(screen.getByRole("dialog"), { key: "ArrowLeft" });
+    expect(within(screen.getByRole("dialog")).getByRole("heading", { name: "one.png" })).toBeTruthy();
+
+    fireEvent.keyDown(screen.getByRole("dialog"), { key: "ArrowRight" });
+    expect(within(screen.getByRole("dialog")).getByRole("heading", { name: "two.png" })).toBeTruthy();
+
+    fireEvent.keyDown(screen.getByRole("dialog"), { key: "ArrowRight" });
+    expect(within(screen.getByRole("dialog")).getByRole("heading", { name: "three.png" })).toBeTruthy();
+
+    fireEvent.keyDown(screen.getByRole("dialog"), { key: "ArrowRight" });
+    expect(within(screen.getByRole("dialog")).getByRole("heading", { name: "three.png" })).toBeTruthy();
+    expect(mockApi.getBrowser).not.toHaveBeenCalled();
+  });
+
+  it("hides navigation for a single image", () => {
+    render(<BrowserView {...previewProps([imageEntry("only.png")])} />);
+
+    fireEvent.click(screen.getAllByRole("button", { name: "Preview only.png" })[0]);
+
+    expect(screen.queryByRole("button", { name: "Previous image" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Next image" })).toBeNull();
+  });
+
+  it("keeps the active image path stable when the listing is re-sorted", () => {
+    const first = imageEntry("one.png", 1_700_000_003);
+    const second = imageEntry("two.png", 1_700_000_002);
+    const { rerender } = render(<BrowserView {...previewProps([first, second])} />);
+
+    fireEvent.click(screen.getAllByRole("button", { name: "Preview one.png" })[0]);
+    expect(within(screen.getByRole("dialog")).getByRole("heading", { name: "one.png" })).toBeTruthy();
+
+    rerender(<BrowserView {...previewProps([second, first])} />);
+
+    expect(within(screen.getByRole("dialog")).getByRole("heading", { name: "one.png" })).toBeTruthy();
+  });
+
+  it("reports a broken image and resets cleanly when stepping to a valid one", async () => {
+    render(<BrowserView {...previewProps([imageEntry("broken.png"), imageEntry("good.png")])} />);
+
+    fireEvent.click(screen.getAllByRole("button", { name: "Preview broken.png" })[0]);
+
+    const brokenImage = screen.getByRole("dialog").querySelector("img") as HTMLImageElement;
+
+    fireEvent.error(brokenImage);
+    expect(await screen.findByText("Couldn't load this image.")).toBeTruthy();
+
+    fireEvent.keyDown(screen.getByRole("dialog"), { key: "ArrowRight" });
+
+    expect(screen.queryByText("Couldn't load this image.")).toBeNull();
+    expect(screen.getByText("Loading...")).toBeTruthy();
+
+    const goodImage = screen.getByRole("dialog").querySelector("img") as HTMLImageElement;
+
+    fireEvent.load(goodImage);
+    expect(screen.queryByText("Loading...")).toBeNull();
+
+    fireEvent.error(brokenImage);
+    expect(screen.queryByText("Couldn't load this image.")).toBeNull();
+    expect(screen.getByRole("heading", { name: "good.png" })).toBeTruthy();
+  });
+
+  it("removes the capped preview strip and gives every image its own actions", () => {
+    const entries = Array.from({ length: 10 }, (_, index) => imageEntry(`shot-${index}.png`, 1_700_000_000 + index));
+
+    render(<BrowserView {...previewProps(entries)} />);
+
+    expect(screen.getAllByRole("button", { name: /^Preview shot-\d+\.png$/ })).toHaveLength(20);
+  });
+
+  it("closes the preview when the active entry leaves and does not reopen it", () => {
+    const first = imageEntry("one.png");
+    const second = imageEntry("two.png");
+    const { rerender } = render(<BrowserView {...previewProps([first, second])} />);
+
+    fireEvent.click(screen.getAllByRole("button", { name: "Preview one.png" })[0]);
+    expect(screen.getByRole("dialog")).toBeTruthy();
+
+    rerender(<BrowserView {...previewProps([second])} />);
+    expect(screen.queryByRole("dialog")).toBeNull();
+
+    rerender(<BrowserView {...previewProps([first, second])} />);
+    expect(screen.queryByRole("dialog")).toBeNull();
+  });
+
+  it("disables preview entry points while a transition is loading", () => {
+    render(<BrowserView {...previewProps([imageEntry("shot.png")], { previewDisabled: true })} />);
+
+    const buttons = screen.getAllByRole("button", { name: "Preview shot.png" });
+
+    expect(buttons).toHaveLength(2);
+    for (const button of buttons) {
+      expect((button as HTMLButtonElement).disabled).toBe(true);
+    }
+    expect(screen.queryByRole("link", { name: "Download shot.png" })).toBeNull();
+
+    fireEvent.click(buttons[0]);
+    expect(screen.queryByRole("dialog")).toBeNull();
+  });
+
+  it("returns focus to the More actions button after a library preview closes", async () => {
+    const overlay = {
+      name: "border.png",
+      path: "border.png",
+      type: "overlay",
+      size: 1,
+      modified: 1_700_000_000,
+      status: "",
+      thumbnailPath: "",
+    };
+    const base = previewProps([]);
+
+    render(
+      <BrowserView
+        {...base}
+        scope="overlays"
+        response={{ ...base.response, scope: "overlays" as const, entries: [overlay] }}
+      />,
+    );
+
+    const moreButton = screen.getByRole("button", { name: "More actions for border.png" });
+
+    fireEvent.click(moreButton);
+    fireEvent.click(screen.getByRole("menuitem", { name: "Preview" }));
+
+    expect(screen.getByRole("dialog")).toBeTruthy();
+
+    fireEvent.click(within(screen.getByRole("dialog")).getAllByRole("button", { name: "Close" })[0]);
+
+    await waitFor(() => expect(document.activeElement).toBe(moreButton));
+  });
+
+  it("falls back to a stable browser container when the invoking row is removed", async () => {
+    const first = imageEntry("one.png");
+    const second = imageEntry("two.png");
+    const { rerender, container } = render(<BrowserView {...previewProps([first, second])} />);
+
+    fireEvent.click(screen.getAllByRole("button", { name: "Preview one.png" })[0]);
+    expect(screen.getByRole("dialog")).toBeTruthy();
+
+    rerender(<BrowserView {...previewProps([second])} />);
+
+    const fallback = container.querySelector(".space-y-5") as HTMLElement;
+
+    await waitFor(() => expect(document.activeElement).toBe(fallback));
   });
 });

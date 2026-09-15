@@ -222,6 +222,10 @@ export function buildDownloadUrl(scope: BrowserScope, path: string, tag?: string
   return `/api/download${toQuery({ scope, tag, path, csrf: csrf ?? undefined })}`;
 }
 
+export function buildImagePreviewUrl(scope: BrowserScope, path: string, tag?: string, csrf?: string | null): string {
+  return `/api/download${toQuery({ scope, tag, path, csrf: csrf ?? undefined, inline: "1" })}`;
+}
+
 export function buildLogDownloadUrl(path: string, csrf?: string | null): string {
   return `/api/logs/download${toQuery({ path, csrf: csrf ?? undefined })}`;
 }

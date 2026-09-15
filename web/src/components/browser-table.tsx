@@ -4,11 +4,17 @@ import { useEffect, useRef, useState } from "react";
 import { buildDownloadUrl } from "../lib/api";
 import { DEFAULT_BROWSER_SORT, nextBrowserSort } from "../lib/browser-sort";
 import { BROWSER_MOVE_DRAG_TYPE } from "../lib/drag-types";
+import { isPreviewableImageFileName } from "../lib/image-preview";
 import { isPlaintextFileName } from "../lib/plaintext";
 import type { BrowserEntry, BrowserScope, BrowserSortColumn, BrowserSortState } from "../lib/types";
 import { useT } from "../lib/i18n";
 
 const DASH = "\u2014";
+
+type PreviewHandler = (entry: BrowserEntry, trigger: HTMLElement) => void;
+
+const ROW_ACTION_CLASS =
+  "inline-flex items-center gap-1 rounded-md px-2 py-1 text-xs font-semibold text-[var(--muted)] transition hover:text-[var(--text)] disabled:cursor-not-allowed disabled:opacity-40";
 
 function SortIndicator({ column, sort }: { column: BrowserSortColumn; sort: BrowserSortState }) {
   if (sort.column !== column) {
@@ -123,6 +129,22 @@ function PencilGlyph() {
         strokeLinejoin="round"
         strokeWidth="1.8"
       />
+    </svg>
+  );
+}
+
+function EyeGlyph() {
+  return (
+    <svg aria-hidden="true" viewBox="0 0 24 24" className="h-3.5 w-3.5">
+      <path
+        d="M2.5 12S6 5.5 12 5.5 21.5 12 21.5 12 18 18.5 12 18.5 2.5 12 2.5 12z"
+        fill="none"
+        stroke="currentColor"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        strokeWidth="1.8"
+      />
+      <circle cx="12" cy="12" r="3" fill="none" stroke="currentColor" strokeWidth="1.8" />
     </svg>
   );
 }
@@ -273,22 +295,29 @@ function SelectionCheckbox({
 
 function RowMoreMenu({
   busy,
+  canPreview,
   canReplaceArt,
   onDelete,
+  onPreview,
   onRename,
   onReplaceArt,
   entry,
+  previewDisabled,
 }: {
   busy: boolean;
+  canPreview: boolean;
   canReplaceArt: boolean;
   onDelete?: (entry: BrowserEntry) => void;
+  onPreview?: PreviewHandler;
   onRename?: (entry: BrowserEntry) => void;
   onReplaceArt?: (entry: BrowserEntry) => void;
   entry: BrowserEntry;
+  previewDisabled: boolean;
 }) {
   const t = useT();
   const [open, setOpen] = useState(false);
   const wrapperRef = useRef<HTMLDivElement | null>(null);
+  const moreButtonRef = useRef<HTMLButtonElement | null>(null);
 
   useEffect(() => {
     if (!open) {
@@ -312,13 +341,14 @@ function RowMoreMenu({
     };
   }, [open]);
 
-  if (!onRename && !onDelete && !onReplaceArt) {
+  if (!onRename && !onDelete && !onReplaceArt && !(canPreview && onPreview)) {
     return null;
   }
 
   return (
     <div className="relative" ref={wrapperRef}>
       <button
+        ref={moreButtonRef}
         aria-haspopup="menu"
         aria-expanded={open}
         aria-label={`${t("More actions for")} ${entry.name}`}
@@ -334,6 +364,23 @@ function RowMoreMenu({
           role="menu"
           className="absolute right-0 top-full z-20 mt-1 min-w-[11rem] overflow-hidden rounded-xl border border-[var(--border)] bg-[var(--panel)] shadow-[var(--shadow)]"
         >
+          {canPreview && onPreview ? (
+            <button
+              role="menuitem"
+              className="flex w-full items-center gap-2 px-4 py-2.5 text-left text-sm text-[var(--text)] transition hover:bg-white/[0.05] disabled:cursor-not-allowed disabled:opacity-40"
+              disabled={busy || previewDisabled}
+              onClick={() => {
+                setOpen(false);
+                if (moreButtonRef.current) {
+                  onPreview(entry, moreButtonRef.current);
+                }
+              }}
+              type="button"
+            >
+              <EyeGlyph />
+              {t("Preview")}
+            </button>
+          ) : null}
           {onRename ? (
             <button
               role="menuitem"
@@ -395,9 +442,11 @@ function FilesTable({
   onMoveEntries,
   onNavigate,
   onNavigateParent,
+  onPreview,
   onRename,
   onSelectAll,
   onSelectEntry,
+  previewDisabled = false,
   selectedPaths = [],
   someSelected = false,
   sort,
@@ -413,9 +462,11 @@ function FilesTable({
   onMoveEntries?: (entries: BrowserEntry[], destinationPath: string) => void;
   onNavigate: (path?: string) => void;
   onNavigateParent?: () => void;
+  onPreview?: PreviewHandler;
   onRename?: (entry: BrowserEntry) => void;
   onSelectAll?: (checked: boolean) => void;
   onSelectEntry?: (entry: BrowserEntry, checked: boolean) => void;
+  previewDisabled?: boolean;
   selectedPaths?: string[];
   someSelected?: boolean;
   sort: BrowserSortState;
@@ -511,6 +562,7 @@ function FilesTable({
           const isDir = entry.type === "directory";
           const isSelected = selectedPathSet.has(entry.path);
           const isDropTarget = dropTargetPath === entry.path;
+          const isPreviewable = !isDir && isPreviewableImageFileName(entry.name);
 
           return (
             <div
@@ -596,6 +648,23 @@ function FilesTable({
                       {entry.name}
                     </span>
                   </button>
+                ) : onPreview && isPreviewable ? (
+                  <button
+                    aria-label={`${t("Preview")} ${entry.name}`}
+                    className="flex w-full min-w-0 items-center gap-3 text-left disabled:cursor-not-allowed disabled:opacity-60"
+                    disabled={busy || previewDisabled}
+                    onClick={(event) => {
+                      onPreview(entry, event.currentTarget);
+                    }}
+                    type="button"
+                  >
+                    <span className="shrink-0 text-[var(--muted)] transition group-hover:text-[var(--accent)]">
+                      <FileGlyph />
+                    </span>
+                    <span className="truncate font-medium text-[var(--text)] transition group-hover:text-white">
+                      {entry.name}
+                    </span>
+                  </button>
                 ) : (
                   <a
                     aria-label={`${t("Download")} ${entry.name}`}
@@ -630,6 +699,20 @@ function FilesTable({
                   >
                     <PencilGlyph />
                     {t("Rename")}
+                  </button>
+                ) : null}
+                {onPreview && isPreviewable ? (
+                  <button
+                    aria-label={`${t("Preview")} ${entry.name}`}
+                    className={ROW_ACTION_CLASS}
+                    disabled={busy || previewDisabled}
+                    onClick={(event) => {
+                      onPreview(entry, event.currentTarget);
+                    }}
+                    type="button"
+                  >
+                    <EyeGlyph />
+                    {t("Preview")}
                   </button>
                 ) : null}
                 {onEdit && !isDir && isPlaintextFileName(entry.name) ? (
@@ -675,9 +758,11 @@ function LibraryTable({
   entries,
   onDelete,
   onNavigate,
+  onPreview,
   onRename,
   onReplaceArt,
   onToggleFavorite,
+  previewDisabled = false,
   scope,
   sort,
   onSortChange,
@@ -688,9 +773,11 @@ function LibraryTable({
   entries: BrowserEntry[];
   onDelete?: (entry: BrowserEntry) => void;
   onNavigate: (path?: string) => void;
+  onPreview?: PreviewHandler;
   onRename?: (entry: BrowserEntry) => void;
   onReplaceArt?: (entry: BrowserEntry) => void;
   onToggleFavorite?: (entry: BrowserEntry, favorite: boolean) => void;
+  previewDisabled?: boolean;
   scope: BrowserScope;
   sort: BrowserSortState;
   onSortChange?: (sort: BrowserSortState) => void;
@@ -718,6 +805,7 @@ function LibraryTable({
       ) : (
         entries.map((entry) => {
           const isDir = entry.type === "directory";
+          const canPreview = !isDir && isPreviewableImageFileName(entry.name);
           const canReplaceArt = scope === "roms" && entry.type === "rom";
           const canToggleFavorite =
             scope === "roms" && entry.type === "rom" && Boolean(entry.favoriteSupported) && Boolean(onToggleFavorite);
@@ -790,11 +878,14 @@ function LibraryTable({
                 )}
                 <RowMoreMenu
                   busy={busy}
+                  canPreview={canPreview}
                   canReplaceArt={canReplaceArt}
                   entry={entry}
                   onDelete={onDelete}
+                  onPreview={onPreview}
                   onRename={onRename}
                   onReplaceArt={onReplaceArt}
+                  previewDisabled={previewDisabled}
                 />
               </div>
             </div>
@@ -815,11 +906,13 @@ export function BrowserTable({
   onMoveEntries,
   onNavigate,
   onNavigateParent,
+  onPreview,
   onRename,
   onReplaceArt,
   onToggleFavorite,
   onSelectAll,
   onSelectEntry,
+  previewDisabled = false,
   selectedPaths,
   someSelected = false,
   scope,
@@ -836,11 +929,13 @@ export function BrowserTable({
   onMoveEntries?: (entries: BrowserEntry[], destinationPath: string) => void;
   onNavigate: (path?: string) => void;
   onNavigateParent?: () => void;
+  onPreview?: PreviewHandler;
   onRename?: (entry: BrowserEntry) => void;
   onReplaceArt?: (entry: BrowserEntry) => void;
   onToggleFavorite?: (entry: BrowserEntry, favorite: boolean) => void;
   onSelectAll?: (checked: boolean) => void;
   onSelectEntry?: (entry: BrowserEntry, checked: boolean) => void;
+  previewDisabled?: boolean;
   selectedPaths?: string[];
   someSelected?: boolean;
   scope: BrowserScope;
@@ -860,9 +955,11 @@ export function BrowserTable({
         onMoveEntries={onMoveEntries}
         onNavigate={onNavigate}
         onNavigateParent={onNavigateParent}
+        onPreview={onPreview}
         onRename={onRename}
         onSelectAll={onSelectAll}
         onSelectEntry={onSelectEntry}
+        previewDisabled={previewDisabled}
         selectedPaths={selectedPaths}
         someSelected={someSelected}
         sort={sort}
@@ -879,9 +976,11 @@ export function BrowserTable({
       entries={entries}
       onDelete={onDelete}
       onNavigate={onNavigate}
+      onPreview={onPreview}
       onRename={onRename}
       onReplaceArt={onReplaceArt}
       onToggleFavorite={onToggleFavorite}
+      previewDisabled={previewDisabled}
       scope={scope}
       sort={sort}
       onSortChange={onSortChange}

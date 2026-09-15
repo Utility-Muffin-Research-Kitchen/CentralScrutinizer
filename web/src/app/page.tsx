@@ -1717,6 +1717,7 @@ function PageContent() {
       />
     ) : (showManagedBrowserView || isFileBrowserTool(viewState)) && browser.metadata ? (
       <BrowserView
+        key={browserContextKey ?? "browser"}
         busy={isBusy}
         canUploadFolder={canUploadFolder}
         hasMore={browser.hasMore}
@@ -1724,6 +1725,7 @@ function PageContent() {
         notice={notice}
         noticeSource={noticeSource ?? undefined}
         onLoadMore={browser.loadMore}
+        previewDisabled={browser.isLoading}
         sort={browserSort}
         onBack={() => {
           if (isFileBrowserTool(viewState)) {

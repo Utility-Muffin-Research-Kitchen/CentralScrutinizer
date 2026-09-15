@@ -23,7 +23,10 @@ const mockApi = vi.hoisted(() => ({
   },
   beginUploadFilesBatched: vi.fn(),
   buildDownloadUrl: vi.fn(() => "/api/download?scope=roms&path=Pokemon%20Emerald.gba"),
-  buildImagePreviewUrl: vi.fn(() => "/api/download?scope=roms&path=Pokemon%20Emerald.gba&inline=1"),
+  buildImagePreviewUrl: vi.fn(
+    (_scope: string, _path: string, _tag?: string, _csrf?: string | null) =>
+      "/api/download?scope=roms&path=Pokemon%20Emerald.gba&inline=1",
+  ),
   createFolder: vi.fn(),
   deleteItem: vi.fn(),
   getBrowser: vi.fn(),
@@ -824,6 +827,89 @@ describe("Page", () => {
 
     await waitFor(() => expect(screen.queryByRole("button", { name: "Go to parent folder" })).toBeNull());
     expect(screen.queryByRole("dialog")).toBeNull();
+  });
+
+  it("closes the preview when the library scope or platform tag changes for the same relative filename", async () => {
+    mockApi.getSession.mockResolvedValue(pairedSession());
+
+    const groups = platformGroups();
+    const gba = groups.groups[0].platforms[0];
+
+    groups.groups[0].platforms.push({
+      ...gba,
+      tag: "PS",
+      name: "PlayStation",
+      icon: "PS",
+      romPath: "Roms/PlayStation (PS)",
+      savePath: "Saves/PS",
+      biosPath: "BIOS/PS",
+    });
+    mockApi.getPlatforms.mockResolvedValue(groups);
+
+    const libraryResponse = (scope: string, tag?: string) => ({
+      scope,
+      title: `${scope} ${tag ?? ""}`,
+      rootPath: `${scope}/${tag ?? ""}`,
+      path: "",
+      breadcrumbs: [],
+      totalCount: 1,
+      offset: 0,
+      truncated: false,
+      entries: [
+        { name: "shot.png", path: "shot.png", type: "file", size: 10, modified: 1_700_000_000, status: "", thumbnailPath: "" },
+      ],
+    });
+    let resolvePsBios: ((value: ReturnType<typeof libraryResponse>) => void) | null = null;
+
+    mockApi.getBrowser.mockImplementation((scope: string, _csrf: string, tag?: string) => {
+      if (scope === "bios" && tag === "PS") {
+        return new Promise((resolve) => {
+          resolvePsBios = resolve;
+        });
+      }
+
+      return Promise.resolve(libraryResponse(scope, tag));
+    });
+
+    window.history.replaceState(null, "", "/?view=browser&scope=bios&tag=GBA");
+    render(<Page />);
+
+    async function previewFromMenu() {
+      fireEvent.click(await screen.findByRole("button", { name: "More actions for shot.png" }));
+      fireEvent.click(screen.getByRole("menuitem", { name: "Preview" }));
+    }
+
+    await previewFromMenu();
+    expect(within(screen.getByRole("dialog")).getByRole("heading", { name: "shot.png" })).toBeTruthy();
+    expect(mockApi.buildImagePreviewUrl).toHaveBeenLastCalledWith("bios", "shot.png", "GBA", "csrf-token");
+
+    window.history.replaceState(null, "", "/?view=browser&scope=bios&tag=PS");
+    fireEvent(window, new PopStateEvent("popstate"));
+
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+
+    fireEvent.click(screen.getByRole("button", { name: "More actions for shot.png" }));
+    expect((screen.getByRole("menuitem", { name: "Preview" }) as HTMLButtonElement).disabled).toBe(true);
+    fireEvent.click(screen.getByRole("menuitem", { name: "Preview" }));
+    expect(screen.queryByRole("dialog")).toBeNull();
+    fireEvent.mouseDown(document.body);
+
+    await act(async () => {
+      resolvePsBios?.(libraryResponse("bios", "PS"));
+    });
+
+    await previewFromMenu();
+    expect(within(screen.getByRole("dialog")).getByRole("heading", { name: "shot.png" })).toBeTruthy();
+    expect(mockApi.buildImagePreviewUrl).toHaveBeenLastCalledWith("bios", "shot.png", "PS", "csrf-token");
+
+    window.history.replaceState(null, "", "/?view=browser&scope=saves&tag=PS");
+    fireEvent(window, new PopStateEvent("popstate"));
+
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+    await waitFor(() => expect(mockApi.getBrowser).toHaveBeenCalledWith("saves", "csrf-token", "PS", undefined, expect.anything()));
+
+    await previewFromMenu();
+    expect(mockApi.buildImagePreviewUrl).toHaveBeenLastCalledWith("saves", "shot.png", "PS", "csrf-token");
   });
 
   it("moves browser search into the browser workspace instead of the shell top bar", async () => {

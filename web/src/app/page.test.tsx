@@ -1,5 +1,5 @@
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 
 const mockApi = vi.hoisted(() => ({
   ApiError: class MockApiError extends Error {
@@ -23,6 +23,7 @@ const mockApi = vi.hoisted(() => ({
   },
   beginUploadFilesBatched: vi.fn(),
   buildDownloadUrl: vi.fn(() => "/api/download?scope=roms&path=Pokemon%20Emerald.gba"),
+  buildImagePreviewUrl: vi.fn(() => "/api/download?scope=roms&path=Pokemon%20Emerald.gba&inline=1"),
   createFolder: vi.fn(),
   deleteItem: vi.fn(),
   getBrowser: vi.fn(),
@@ -96,6 +97,20 @@ vi.mock("../components/mac-dot-clean-tool-view", () => ({
 
 import Page from "./page";
 import type { PlatformsResponse } from "../lib/types";
+
+// jsdom does not implement the native dialog API; Playwright covers real focus
+// and modal behavior. The stub only makes the open dialog reachable to queries.
+beforeAll(() => {
+  if (!HTMLDialogElement.prototype.showModal) {
+    HTMLDialogElement.prototype.showModal = function showModal(this: HTMLDialogElement) {
+      this.open = true;
+    };
+    HTMLDialogElement.prototype.close = function close(this: HTMLDialogElement) {
+      this.open = false;
+      this.dispatchEvent(new Event("close"));
+    };
+  }
+});
 
 function createFileList(files: File[]): FileList {
   return {
@@ -714,6 +729,101 @@ describe("Page", () => {
 
     expect(await screen.findByRole("heading", { level: 1, name: "Tools" })).toBeTruthy();
     expect(screen.getByRole("button", { name: /File Browser/ })).toBeTruthy();
+  });
+
+  it("closes the preview immediately when navigating folders and disables preview entry points while loading", async () => {
+    mockApi.getSession.mockResolvedValue(pairedSession());
+    mockApi.getPlatforms.mockResolvedValue(platformGroups());
+
+    let resolveFolder: ((value: ReturnType<typeof fileBrowserResponse>) => void) | null = null;
+
+    mockApi.getBrowser.mockImplementation(
+      (_scope: string, _csrf: string, _tag: string | undefined, path?: string) => {
+        if (path === "Screenshots") {
+          return new Promise((resolve) => {
+            resolveFolder = resolve;
+          });
+        }
+
+        return Promise.resolve(
+          fileBrowserResponse([
+            { name: "shot.png", path: "shot.png", type: "file", size: 10, modified: 1_700_000_000, status: "", thumbnailPath: "" },
+            { name: "Screenshots", path: "Screenshots", type: "directory", size: 0, modified: 1_700_000_100, status: "", thumbnailPath: "" },
+          ]),
+        );
+      },
+    );
+
+    window.history.replaceState(null, "", "/?view=files");
+    render(<Page />);
+
+    fireEvent.click((await screen.findAllByRole("button", { name: "Preview shot.png" }))[0]);
+    expect(screen.getByRole("dialog")).toBeTruthy();
+
+    fireEvent.click(screen.getByRole("button", { name: "Open Screenshots" }));
+
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+
+    const staleButtons = screen.getAllByRole("button", { name: "Preview shot.png" });
+
+    expect(staleButtons.length).toBeGreaterThan(0);
+    for (const button of staleButtons) {
+      expect((button as HTMLButtonElement).disabled).toBe(true);
+    }
+    fireEvent.click(staleButtons[0]);
+    expect(screen.queryByRole("dialog")).toBeNull();
+
+    await act(async () => {
+      resolveFolder?.(
+        fileBrowserResponse([], {
+          path: "Screenshots",
+          breadcrumbs: [{ label: "Screenshots", path: "Screenshots" }],
+        }),
+      );
+    });
+
+    expect(await screen.findByRole("button", { name: "Go to parent folder" })).toBeTruthy();
+  });
+
+  it("closes the preview on Back/Forward context changes and does not reopen it", async () => {
+    mockApi.getSession.mockResolvedValue(pairedSession());
+    mockApi.getPlatforms.mockResolvedValue(platformGroups());
+    mockApi.getBrowser.mockImplementation(
+      (_scope: string, _csrf: string, _tag: string | undefined, path?: string) => {
+        if (path === "Screenshots") {
+          return Promise.resolve(
+            fileBrowserResponse(
+              [{ name: "shot.png", path: "Screenshots/shot.png", type: "file", size: 10, modified: 2, status: "", thumbnailPath: "" }],
+              { path: "Screenshots", breadcrumbs: [{ label: "Screenshots", path: "Screenshots" }] },
+            ),
+          );
+        }
+
+        return Promise.resolve(
+          fileBrowserResponse([
+            { name: "shot.png", path: "shot.png", type: "file", size: 10, modified: 1, status: "", thumbnailPath: "" },
+          ]),
+        );
+      },
+    );
+
+    window.history.replaceState(null, "", "/?view=files");
+    render(<Page />);
+
+    fireEvent.click((await screen.findAllByRole("button", { name: "Preview shot.png" }))[0]);
+    expect(screen.getByRole("dialog")).toBeTruthy();
+
+    window.history.replaceState(null, "", "/?view=files&path=Screenshots");
+    fireEvent(window, new PopStateEvent("popstate"));
+
+    expect(await screen.findByRole("button", { name: "Go to parent folder" })).toBeTruthy();
+    expect(screen.queryByRole("dialog")).toBeNull();
+
+    window.history.replaceState(null, "", "/?view=files");
+    fireEvent(window, new PopStateEvent("popstate"));
+
+    await waitFor(() => expect(screen.queryByRole("button", { name: "Go to parent folder" })).toBeNull());
+    expect(screen.queryByRole("dialog")).toBeNull();
   });
 
   it("moves browser search into the browser workspace instead of the shell top bar", async () => {

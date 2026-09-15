@@ -218,6 +218,9 @@ msgstr ""
 msgid "Could not tail log"
 msgstr ""
 
+msgid "Couldn't load this image."
+msgstr ""
+
 msgid "Create folder failed"
 msgstr ""
 
@@ -521,6 +524,9 @@ msgstr ""
 msgid "New artwork was saved, but older artwork for this game could not be removed and may still show."
 msgstr ""
 
+msgid "Next image"
+msgstr ""
+
 msgid "No"
 msgstr ""
 
@@ -645,6 +651,9 @@ msgid "Preserve full archive path"
 msgstr ""
 
 msgid "Preview"
+msgstr ""
+
+msgid "Previous image"
 msgstr ""
 
 msgid "Primary"

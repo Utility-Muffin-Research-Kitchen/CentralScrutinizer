@@ -1133,3 +1133,12 @@ msgstr "无法读取 ZIP 中央目录。"
 
 msgid "ZIP entry size could not be read."
 msgstr "无法读取 ZIP 条目大小。"
+
+msgid "Couldn't load this image."
+msgstr "无法加载此图片。"
+
+msgid "Previous image"
+msgstr "上一张图片"
+
+msgid "Next image"
+msgstr "下一张图片"

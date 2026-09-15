@@ -794,13 +794,10 @@ msgstr "无法准备上传文件夹。"
 msgid "Upload target path is invalid."
 msgstr "上传目标路径无效。"
 
-# Machine seed for the SD card read-only/full upload errors; fuzzy until the
-# review pass clears it (the .tsv/.json values ship as-is).
-#, fuzzy
+# SD card read-only/full upload errors. Reviewed by AlexL; fuzzy cleared.
 msgid "Your SD card is read-only, so nothing new can be saved to it. Check the warning on your device."
 msgstr "SD 卡为只读，无法保存任何新内容。请在设备上查看警告。"
 
-#, fuzzy
 msgid "Your SD card is full."
 msgstr "SD 卡已满。"
 

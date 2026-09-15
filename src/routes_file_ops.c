@@ -16,6 +16,7 @@
 #include <stdatomic.h>
 #include <stdlib.h>
 #include <string.h>
+#include <strings.h>
 #include <sys/stat.h>
 #include <unistd.h>
 
@@ -845,6 +846,32 @@ int cs_route_create_folder_handler(struct mg_connection *conn, void *cbdata) {
     return cs_write_file_op_result(conn, "create-folder");
 }
 
+static const char *cs_inline_image_content_type(const char *filename) {
+    const char *dot = strrchr(filename, '.');
+    const char *ext = (dot && dot[1] != '\0') ? dot + 1 : NULL;
+
+    if (!ext) {
+        return NULL;
+    }
+    if (strcasecmp(ext, "png") == 0) {
+        return "image/png";
+    }
+    if (strcasecmp(ext, "jpg") == 0 || strcasecmp(ext, "jpeg") == 0) {
+        return "image/jpeg";
+    }
+    if (strcasecmp(ext, "gif") == 0) {
+        return "image/gif";
+    }
+    if (strcasecmp(ext, "webp") == 0) {
+        return "image/webp";
+    }
+    if (strcasecmp(ext, "bmp") == 0) {
+        return "image/bmp";
+    }
+
+    return NULL;
+}
+
 int cs_route_download_handler(struct mg_connection *conn, void *cbdata) {
     const struct mg_request_info *request = mg_get_request_info(conn);
     cs_app *app = (cs_app *) cbdata;
@@ -854,7 +881,11 @@ int cs_route_download_handler(struct mg_connection *conn, void *cbdata) {
     char effective_path[CS_PATH_MAX];
     char root[CS_PATH_MAX];
     char absolute_path[CS_PATH_MAX];
+    char inline_value[8];
     const char *filename;
+    const char *content_type = "application/octet-stream";
+    const char *disposition = "attachment";
+    const char *inline_image_type;
     FILE *file = NULL;
     unsigned int path_flags = 0;
     struct stat st;
@@ -901,6 +932,15 @@ int cs_route_download_handler(struct mg_connection *conn, void *cbdata) {
 
     filename = strrchr(relative_path, '/');
     filename = filename ? filename + 1 : relative_path;
+    if (mg_get_var(request->query_string, strlen(request->query_string), "inline", inline_value, sizeof(inline_value))
+            > 0
+        && strcmp(inline_value, "1") == 0) {
+        inline_image_type = cs_inline_image_content_type(filename);
+        if (inline_image_type) {
+            content_type = inline_image_type;
+            disposition = "inline";
+        }
+    }
     file = fopen(absolute_path, "rb");
     if (!file) {
         return cs_write_json(conn, 404, "Not Found", "{\"ok\":false}");
@@ -908,13 +948,15 @@ int cs_route_download_handler(struct mg_connection *conn, void *cbdata) {
 
     mg_printf(conn,
               "HTTP/1.1 200 OK\r\n"
-              "Content-Type: application/octet-stream\r\n"
+              "Content-Type: %s\r\n"
               CS_SERVER_SECURITY_HEADERS_HTTP
               "Cache-Control: no-store\r\n"
               "Content-Length: %lld\r\n"
-              "Content-Disposition: attachment; filename=\"%s\"\r\n"
+              "Content-Disposition: %s; filename=\"%s\"\r\n"
               "\r\n",
+              content_type,
               (long long) st.st_size,
+              disposition,
               filename);
 
     while ((nread = fread(buffer, 1, sizeof(buffer), file)) > 0) {

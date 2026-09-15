@@ -142,4 +142,37 @@ echo "$MISSING_RESPONSE" | tail -n 1 | grep -q '^404$'
 
 rm -f "$WRITE_TARGET"
 
+PNG_TARGET="$SDCARD_ROOT/notes.png"
+SVG_TARGET="$SDCARD_ROOT/vector.svg"
+printf 'fake-png-bytes' > "$PNG_TARGET"
+printf '<svg xmlns="http://www.w3.org/2000/svg"></svg>' > "$SVG_TARGET"
+
+PNG_INLINE_HEADERS="$(curl -sS -D - -o /dev/null -b "$COOKIE_JAR" -G \
+    --data-urlencode "scope=files" \
+    --data-urlencode "path=notes.png" \
+    --data-urlencode "csrf=$CSRF_TOKEN" \
+    --data-urlencode "inline=1" \
+    http://127.0.0.1:8877/api/download)"
+printf '%s' "$PNG_INLINE_HEADERS" | grep -qi '^Content-Type: image/png'
+printf '%s' "$PNG_INLINE_HEADERS" | grep -qi '^Content-Disposition: inline; filename="notes.png"'
+
+PNG_ATTACH_HEADERS="$(curl -sS -D - -o /dev/null -b "$COOKIE_JAR" -G \
+    --data-urlencode "scope=files" \
+    --data-urlencode "path=notes.png" \
+    --data-urlencode "csrf=$CSRF_TOKEN" \
+    http://127.0.0.1:8877/api/download)"
+printf '%s' "$PNG_ATTACH_HEADERS" | grep -qi '^Content-Type: application/octet-stream'
+printf '%s' "$PNG_ATTACH_HEADERS" | grep -qi '^Content-Disposition: attachment'
+
+SVG_INLINE_HEADERS="$(curl -sS -D - -o /dev/null -b "$COOKIE_JAR" -G \
+    --data-urlencode "scope=files" \
+    --data-urlencode "path=vector.svg" \
+    --data-urlencode "csrf=$CSRF_TOKEN" \
+    --data-urlencode "inline=1" \
+    http://127.0.0.1:8877/api/download)"
+printf '%s' "$SVG_INLINE_HEADERS" | grep -qi '^Content-Type: application/octet-stream'
+printf '%s' "$SVG_INLINE_HEADERS" | grep -qi '^Content-Disposition: attachment'
+
+rm -f "$PNG_TARGET" "$SVG_TARGET"
+
 echo "PASS file ops smoke"

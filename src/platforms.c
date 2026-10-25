@@ -91,6 +91,10 @@ static const cs_platform_identity g_platform_identities[] = {
     {.catalog_id = "PCECD", .tag = "PCECD", .primary_code = "PCECD", .group = "NEC", .icon = "PCE", .fallback_name = "PC Engine CD"},
     {.catalog_id = "PC98", .tag = "PC98", .primary_code = "PC98", .bios_directory = "np2kai", .group = "NEC", .icon = "PC98", .fallback_name = "NEC PC-98"},
     {.catalog_id = "PICO8", .tag = "P8", .primary_code = "P8", .group = "Computer", .icon = "PICO8", .fallback_name = "Pico-8"},
+    /* PokeMini reads its optional bios.min from the BIOS root, which a card's
+       BIOS folder cannot name, so the card has no BIOS action; an empty
+       bios_directory means unsupported. */
+    {.catalog_id = "POKEMINI", .tag = "POKEMINI", .primary_code = "POKEMINI", .bios_directory = "", .group = "Nintendo", .icon = "POKEMINI", .fallback_name = "Pokémon mini"},
     {.catalog_id = "PORTS", .tag = "PORTS", .primary_code = "PORTS", .group = "PortMaster", .icon = "PORTMASTER", .fallback_name = "Ports"},
     {.catalog_id = "PS", .tag = "PS", .primary_code = "PS", .group = "Sony", .icon = "PS", .fallback_name = "Sony PlayStation"},
     {.catalog_id = "PSP", .tag = "PSP", .primary_code = "PSP", .group = "Sony", .icon = "PSP", .fallback_name = "PlayStation Portable"},

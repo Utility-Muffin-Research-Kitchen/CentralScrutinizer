@@ -22,6 +22,7 @@ describe("platform assets", () => {
       "NDS",
       "PICO8",
       "PC98",
+      "POKEMINI",
       "PORTMASTER",
       "PSP",
       "RPGM",

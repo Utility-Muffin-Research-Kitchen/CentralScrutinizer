@@ -233,6 +233,7 @@
       "default_core": "flycast_standalone",
       "alternate_cores": [
         "flycast",
+        "flycast_fast_umrk",
         "km_flycast_xtreme"
       ],
       "rom_root": "Roms/ATOMISWAVE",
@@ -313,6 +314,7 @@
       "default_core": "flycast_standalone",
       "alternate_cores": [
         "flycast",
+        "flycast_fast_umrk",
         "km_flycast_xtreme"
       ],
       "rom_root": "Roms/DC",
@@ -998,6 +1000,7 @@
       "default_core": "flycast_standalone",
       "alternate_cores": [
         "flycast",
+        "flycast_fast_umrk",
         "km_flycast_xtreme"
       ],
       "rom_root": "Roms/NAOMI",
@@ -1335,6 +1338,44 @@
       "image_root": "Images/PICO8",
       "bios_notes": [],
       "legacy_flat_core": "fake08"
+    },
+    {
+      "id": "POKEMINI",
+      "name": "Pok\u00e9mon mini",
+      "patterns": [
+        "POKEMINI",
+        "pokemini",
+        "POKE",
+        "poke",
+        "PKM",
+        "pkm",
+        "POKEMONMINI",
+        "pokemonmini"
+      ],
+      "extensions": [
+        "min"
+      ],
+      "archive_extensions": [
+        "7z",
+        "zip"
+      ],
+      "archive_inner_extensions": [
+        "min"
+      ],
+      "archive_mode": "pass_through",
+      "file_names": [],
+      "ignore_file_names": [
+        "bios.min"
+      ],
+      "playlist_extensions": [],
+      "m3u_generation": "none",
+      "default_core": "pokemini",
+      "alternate_cores": [],
+      "rom_root": "Roms/POKEMINI",
+      "image_root": "Images/POKEMINI",
+      "bios_notes": [
+        "bios.min (optional, user-supplied, place under BIOS; the core's built-in FreeBIOS is used otherwise)"
+      ]
     },
     {
       "id": "PORTS",

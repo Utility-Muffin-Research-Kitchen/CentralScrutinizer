@@ -90,6 +90,20 @@ static void test_ignore_precedence(void) {
     assert(classify1(&neo, "NeoGeo.ZIP") == CS_ROM_ENTRY_IGNORED);  /* casefold */
 }
 
+static void test_pokemini_formats(void) {
+    char *direct[] = { "min" };
+    char *archives[] = { "7z", "zip" };
+    char *ignore[] = { "bios.min" };
+    cs_catalog_system pokemini = make_system(
+        LIST(direct), LIST(archives), "pass_through", EMPTY, EMPTY, LIST(ignore));
+
+    assert(classify1(&pokemini, "Pokemon Pinball Mini (USA, Europe).min") == CS_ROM_ENTRY_ACCEPTED);
+    assert(classify1(&pokemini, "Pokemon Pinball Mini (USA, Europe).zip") == CS_ROM_ENTRY_ACCEPTED);
+    assert(classify1(&pokemini, "game.7z") == CS_ROM_ENTRY_ACCEPTED);
+    assert(classify1(&pokemini, "bios.min") == CS_ROM_ENTRY_IGNORED);
+    assert(classify1(&pokemini, "game.gb") == CS_ROM_ENTRY_UNSUPPORTED);
+}
+
 static void test_playlist_and_exact_and_pico8(void) {
     char *ext[] = { "cue", "bin" };
     char *pl[] = { "m3u" };
@@ -201,6 +215,7 @@ int main(void) {
     test_playlist_and_exact_and_pico8();
     test_pc98_and_flycast_arcade_formats();
     test_amiga_formats();
+    test_pokemini_formats();
     test_archive_mode_variants();
     test_folded_no_archive_leakage();
     test_empty_policy_fails_open();

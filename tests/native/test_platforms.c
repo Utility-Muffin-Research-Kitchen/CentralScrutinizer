@@ -123,6 +123,7 @@ static void write_catalogs(const char *root) {
                "{\"id\":\"NDS\",\"name\":\"Nintendo DS\",\"patterns\":[\"NDS\"],\"extensions\":[],\"default_core\":\"drastic\",\"alternate_cores\":[],\"rom_root\":\"Roms/NDS\"},"
                "{\"id\":\"PC98\",\"name\":\"NEC PC-98\",\"patterns\":[\"PC98\",\"pc98\",\"necpc98\"],\"extensions\":[\"d88\",\"d98\",\"hdi\"],\"archive_extensions\":[\"zip\"],\"archive_mode\":\"pass_through\",\"playlist_extensions\":[],\"default_core\":\"np2kai\",\"alternate_cores\":[],\"rom_root\":\"Roms/PC98\",\"image_root\":\"Images/PC98\"},"
                "{\"id\":\"PICO8\",\"name\":\"Pico-8\",\"patterns\":[\"PICO8\",\"P8\"],\"extensions\":[],\"default_core\":\"fake08\",\"alternate_cores\":[],\"rom_root\":\"Roms/PICO8\"},"
+               "{\"id\":\"POKEMINI\",\"name\":\"Pok\u00e9mon mini\",\"patterns\":[\"POKEMINI\",\"pokemini\",\"POKE\",\"poke\",\"PKM\",\"pkm\"],\"extensions\":[\"min\"],\"archive_extensions\":[\"7z\",\"zip\"],\"archive_mode\":\"pass_through\",\"ignore_file_names\":[\"bios.min\"],\"default_core\":\"pokemini\",\"alternate_cores\":[],\"rom_root\":\"Roms/POKEMINI\",\"image_root\":\"Images/POKEMINI\"},"
                "{\"id\":\"PORTS\",\"name\":\"Ports\",\"patterns\":[\"PORTS\"],\"extensions\":[],\"default_core\":\"ports\",\"alternate_cores\":[],\"rom_root\":\"Roms/PORTS\"},"
                "{\"id\":\"PS\",\"name\":\"PSX\",\"patterns\":[\"PS\",\"PSX\"],\"extensions\":[],\"default_core\":\"pcsx_rearmed\",\"alternate_cores\":[],\"rom_root\":\"Roms/PS\"},"
                "{\"id\":\"PSX\",\"name\":\"PSX\",\"patterns\":[\"PSX\",\"PS\"],\"extensions\":[],\"default_core\":\"pcsx_rearmed\",\"alternate_cores\":[],\"rom_root\":\"Roms/PSX\"},"
@@ -148,6 +149,7 @@ static void write_catalogs(const char *root) {
                "{\"id\":\"gpsp\",\"display_name\":\"gpSP\",\"type\":\"retroarch\",\"file_name\":\"gpsp_libretro.so\",\"info_name\":\"gpsp_libretro.info\",\"path\":null},"
                "{\"id\":\"mgba\",\"display_name\":\"mGBA\",\"type\":\"retroarch\",\"file_name\":\"mgba_libretro.so\",\"info_name\":\"mgba_libretro.info\",\"path\":null},"
                "{\"id\":\"np2kai\",\"display_name\":\"Neko Project II kai\",\"type\":\"retroarch\",\"file_name\":\"np2kai_libretro.so\",\"info_name\":\"np2kai_libretro.info\",\"path\":null},"
+               "{\"id\":\"pokemini\",\"display_name\":\"PokeMini\",\"type\":\"retroarch\",\"file_name\":\"pokemini_libretro.so\",\"info_name\":\"pokemini_libretro.info\",\"path\":null},"
                "{\"id\":\"puae\",\"display_name\":\"PUAE\",\"type\":\"retroarch\",\"file_name\":\"puae_libretro.so\",\"info_name\":\"puae_libretro.info\",\"path\":null},"
                "{\"id\":\"pcsx_rearmed\",\"display_name\":\"PCSX ReARMed\",\"type\":\"retroarch\",\"file_name\":\"pcsx_rearmed_libretro.so\",\"info_name\":\"pcsx_rearmed_libretro.info\",\"path\":null},"
                "{\"id\":\"prosystem\",\"display_name\":\"ProSystem\",\"type\":\"retroarch\",\"file_name\":\"prosystem_libretro.so\",\"info_name\":\"prosystem_libretro.info\",\"path\":null},"
@@ -231,6 +233,13 @@ static void test_static_identity_helpers(void) {
     assert(strcmp(info->group, "Computer") == 0);
     assert(strcmp(info->icon, "AMIGA") == 0);
     assert(strcmp(info->bios_directory, "puae") == 0);
+    info = cs_platform_find("POKEMINI");
+    assert(info != NULL);
+    assert(strcmp(info->group, "Nintendo") == 0);
+    assert(strcmp(info->icon, "POKEMINI") == 0);
+    assert(strcmp(info->bios_directory, "") == 0);
+    assert(!cs_platform_supports_resource(info, "bios"));
+    assert(cs_platform_supports_resource(info, "saves"));
     info = cs_platform_find("ATOMISWAVE");
     assert(info != NULL);
     assert(strcmp(info->group, "Arcade") == 0);
@@ -255,6 +264,7 @@ static void test_new_platform_visibility(void) {
     size_t count = 0;
     const cs_platform_info *pc98;
     const cs_platform_info *amiga;
+    const cs_platform_info *pokemini;
     const cs_platform_info *atomiswave;
     const cs_platform_info *naomi;
     char flycast_launcher[PATH_MAX];
@@ -267,11 +277,13 @@ static void test_new_platform_visibility(void) {
     assert(cs_platform_discover(&paths, platforms, 128, &count) == 0);
     assert(find_platform_entry(platforms, count, "PC98") == NULL);
     assert(find_platform_entry(platforms, count, "AMIGA") == NULL);
+    assert(find_platform_entry(platforms, count, "POKEMINI") == NULL);
     assert(find_platform_entry(platforms, count, "ATOMISWAVE") == NULL);
     assert(find_platform_entry(platforms, count, "NAOMI") == NULL);
 
     write_core(root, "np2kai_libretro.so");
     write_core(root, "puae_libretro.so");
+    write_core(root, "pokemini_libretro.so");
     write_launcher_file(root, "emulators/flycast/launch.sh");
     assert(cs_platform_discover(&paths, platforms, 128, &count) == 0);
 
@@ -286,6 +298,12 @@ static void test_new_platform_visibility(void) {
     assert(strcmp(amiga->canonical_rom_directory, "AMIGA") == 0);
     assert(strcmp(amiga->canonical_image_directory, "AMIGA") == 0);
     assert(strcmp(amiga->bios_directory, "puae") == 0);
+    pokemini = find_platform_entry(platforms, count, "POKEMINI");
+    assert(pokemini != NULL);
+    assert(strcmp(pokemini->name, "Pok\u00e9mon mini") == 0);
+    assert(strcmp(pokemini->canonical_rom_directory, "POKEMINI") == 0);
+    assert(strcmp(pokemini->canonical_image_directory, "POKEMINI") == 0);
+    assert(strcmp(pokemini->bios_directory, "") == 0);
     assert(strcmp(atomiswave->canonical_rom_directory, "ATOMISWAVE") == 0);
     assert(strcmp(naomi->canonical_rom_directory, "NAOMI") == 0);
     assert(strcmp(atomiswave->bios_directory, "dc") == 0);

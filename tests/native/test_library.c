@@ -636,6 +636,85 @@ static void test_library_db_populates_root_rom_listing(void) {
     assert(remove_tree(root) == 0);
 }
 
+static void test_library_db_count_leaves_out_missing_second_card(void) {
+    cs_paths paths = {0};
+    cs_platform_info gba;
+    char template[] = "/tmp/cs-library-count-XXXXXX";
+    char *root;
+    char primary[PATH_MAX];
+    char primary_resolved[PATH_MAX];
+    char card[PATH_MAX];
+    char card_roms[PATH_MAX];
+    char state_dir[PATH_MAX];
+    char db_path[PATH_MAX];
+    char source_list[PATH_MAX * 2 + 2];
+    sqlite3 *db = NULL;
+    char *err = NULL;
+    int count = 0;
+
+    root = mkdtemp(template);
+    assert(root != NULL);
+    assert(snprintf(primary, sizeof(primary), "%s/primary", root) > 0);
+    assert(snprintf(card, sizeof(card), "%s/card", root) > 0);
+    assert(snprintf(card_roms, sizeof(card_roms), "%s/card/Roms", root) > 0);
+    assert(snprintf(state_dir, sizeof(state_dir), "%s/primary/.umrk/mlp1", root) > 0);
+    assert(snprintf(db_path, sizeof(db_path), "%s/library.db", state_dir) > 0);
+    make_dir(primary);
+    make_dir_p(state_dir);
+    assert(realpath(primary, primary_resolved) != NULL);
+    assert(snprintf(source_list, sizeof(source_list), "%s:%s", primary_resolved, card) > 0);
+
+    assert(sqlite3_open(db_path, &db) == SQLITE_OK);
+    assert(sqlite3_exec(db,
+                        "CREATE TABLE games ("
+                        "id INTEGER PRIMARY KEY,"
+                        "system TEXT NOT NULL,"
+                        "name TEXT NOT NULL,"
+                        "source_id TEXT NOT NULL,"
+                        "rom_path TEXT NOT NULL UNIQUE"
+                        ");"
+                        "INSERT INTO games (system, name, source_id, rom_path) VALUES "
+                        "('GBA', 'Zelda', 'primary', 'Roms/GBA/Zelda.gba'),"
+                        "('GBA', 'Metroid', 'primary', 'Roms/GBA/Metroid.gba'),"
+                        "('GBA', 'Zelda', 'secondary_sd', '/old/mount/Roms/GBA/Zelda.gba'),"
+                        "('GBA', 'Mario', 'secondary_sd', '/old/mount/Roms/GBA/Mario.gba'),"
+                        "('GBA', 'Wario', 'secondary_sd', '/old/mount/Roms/GBA/Wario.gba');",
+                        NULL,
+                        NULL,
+                        &err)
+           == SQLITE_OK);
+    assert(err == NULL);
+    assert(sqlite3_close(db) == SQLITE_OK);
+
+    set_sdcard_root_realpath(primary);
+    assert(setenv("UMRK_INTERNAL_DATA_PATH", state_dir, 1) == 0);
+    assert(setenv("SDCARD_PATHS", source_list, 1) == 0);
+    gba = make_test_platform("GBA", "GBA", "GBA");
+
+    /* The card is out. */
+    assert(cs_paths_init(&paths) == 0);
+    assert(paths.source_count == 1);
+    assert(cs_library_db_count_roms_for_platform(&paths, &gba, &count) == 0);
+    assert(count == 2);
+
+    /* Mounted, but with no Roms folder. */
+    make_dir(card);
+    assert(setenv("CS_SOURCE_TEST_AVAILABLE", "all", 1) == 0);
+    memset(&paths, 0, sizeof(paths));
+    assert(cs_paths_init(&paths) == 0);
+    assert(paths.source_count == 2);
+    assert(cs_library_db_count_roms_for_platform(&paths, &gba, &count) == 0);
+    assert(count == 2);
+
+    /* The card is back. */
+    make_dir(card_roms);
+    assert(cs_library_db_count_roms_for_platform(&paths, &gba, &count) == 0);
+    assert(count == 5);
+
+    unsetenv("SDCARD_PATHS");
+    unsetenv("CS_SOURCE_TEST_AVAILABLE");
+}
+
 static void test_rom_browser_merges_platform_folders_across_sources(void) {
     cs_paths paths = {0};
     cs_browser_result result = {0};
@@ -1246,6 +1325,7 @@ int main(void) {
     test_fixture_browser_scopes_and_rejection();
     test_rom_thumbnail_resolution_prefers_png_then_jpeg();
     test_library_db_populates_root_rom_listing();
+    test_library_db_count_leaves_out_missing_second_card();
     test_rom_browser_merges_platform_folders_across_sources();
     test_merged_rom_browser_uses_write_root_when_platform_folder_is_missing();
     test_symlink_entries_are_skipped();

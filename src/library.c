@@ -1266,12 +1266,23 @@ static cs_browser_list_status cs_browser_list_source_virtual_root(const cs_paths
     return CS_BROWSER_LIST_OK;
 }
 
+/* The library keeps a missing card's rows so they return with the card, and the
+ * browser leaves those games out. A second source counts only while it is mounted
+ * with a Roms folder, the same rule the launcher uses for its lists. */
+static int cs_library_db_second_source_present(const cs_paths *paths) {
+    struct stat st;
+
+    return paths->source_count > 1 && stat(paths->sources[1].roms_root, &st) == 0 && S_ISDIR(st.st_mode);
+}
+
 int cs_library_db_count_roms_for_platform(const cs_paths *paths, const cs_platform_info *platform, int *count_out) {
     sqlite3 *db = NULL;
     sqlite3_stmt *stmt = NULL;
     cs_library_db_status open_status;
     static const char *sql =
         "SELECT COUNT(*) FROM games WHERE system IN (?, ?, ?, ?, ?, ?);";
+    static const char *primary_sql =
+        "SELECT COUNT(*) FROM games WHERE system IN (?, ?, ?, ?, ?, ?) AND source_id = 'primary';";
 
     if (!paths || !platform || !count_out) {
         return -1;
@@ -1283,7 +1294,10 @@ int cs_library_db_count_roms_for_platform(const cs_paths *paths, const cs_platfo
         return -1;
     }
 
-    if (sqlite3_prepare_v2(db, sql, -1, &stmt, NULL) != SQLITE_OK) {
+    /* A library from before source_id has no rows from a second card to leave out. */
+    if ((cs_library_db_second_source_present(paths)
+         || sqlite3_prepare_v2(db, primary_sql, -1, &stmt, NULL) != SQLITE_OK)
+        && sqlite3_prepare_v2(db, sql, -1, &stmt, NULL) != SQLITE_OK) {
         sqlite3_close(db);
         return -1;
     }

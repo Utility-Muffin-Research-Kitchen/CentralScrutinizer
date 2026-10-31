@@ -2,6 +2,7 @@
 
 #include "cs_platforms.h"
 
+#include <errno.h>
 #include <limits.h>
 #include <sqlite3.h>
 #include <stdio.h>
@@ -153,12 +154,13 @@ static void cs_metadata_add_nullable(cJSON *object, const char *name, const char
 
 cs_metadata_status cs_metadata_list_games(const cs_paths *paths,
                                           const cs_platform_info *platform,
+                                          int include_descriptions,
                                           cJSON *out) {
     sqlite3 *db = NULL;
     sqlite3_stmt *stmt = NULL;
     cs_metadata_library library;
     cJSON *games;
-    char sql[1400];
+    char sql[1800];
     int written;
     int step_rc;
 
@@ -176,12 +178,19 @@ cs_metadata_status cs_metadata_list_games(const cs_paths *paths,
     written = snprintf(
         sql,
         sizeof(sql),
-        "SELECT g.source_id, g.rom_relpath, g.name, manual.value, imported.value "
+        "SELECT g.source_id, g.rom_relpath, g.name, manual.value, imported.value%s "
         "FROM games g "
         "LEFT JOIN game_settings manual ON manual.game_id=g.id AND manual.key='" CS_METADATA_KEY_TITLE "' "
         "LEFT JOIN game_settings imported ON imported.game_id=g.id AND imported.key='imported_display_name' "
+        "%s"
         "WHERE g.system IN (?, ?, ?, ?, ?, ?) AND (g.source_id='" CS_METADATA_SOURCE_PRIMARY "'%s)%s "
         "ORDER BY g.id;",
+        include_descriptions ? ", own.value, scraped.value" : "",
+        include_descriptions
+            ? "LEFT JOIN game_settings own ON own.game_id=g.id AND own.key='" CS_METADATA_KEY_DESCRIPTION "' "
+              "LEFT JOIN game_settings scraped ON scraped.game_id=g.id "
+              "AND scraped.key='" CS_METADATA_KEY_SCRAPED_DESCRIPTION "' "
+            : "",
         library.second_card_listed ? " OR g.source_id='" CS_METADATA_SOURCE_SECONDARY "'" : "",
         library.has_hidden_roms
             ? " AND NOT EXISTS (SELECT 1 FROM hidden_roms h WHERE h.source_id=g.source_id "
@@ -216,6 +225,12 @@ cs_metadata_status cs_metadata_list_games(const cs_paths *paths,
         cJSON_AddStringToObject(game, "title", manual && manual[0] != '\0' ? manual : default_title);
         cJSON_AddStringToObject(game, "defaultTitle", default_title);
         cs_metadata_add_nullable(game, "titleOverride", manual);
+        if (include_descriptions) {
+            cs_metadata_add_nullable(game, "descriptionOverride", (const char *) sqlite3_column_text(stmt, 5));
+            cJSON_AddStringToObject(game,
+                                    "defaultDescription",
+                                    cs_metadata_blank((const char *) sqlite3_column_text(stmt, 6)));
+        }
     }
     sqlite3_finalize(stmt);
     sqlite3_close(db);
@@ -618,6 +633,266 @@ cs_metadata_status cs_metadata_apply(const cs_paths *paths,
 
 failed:
     cJSON_Delete(conflicts);
+    sqlite3_exec(db, "ROLLBACK;", NULL, NULL, NULL);
+    sqlite3_close(db);
+    return CS_METADATA_INTERNAL;
+}
+
+/* The file names, under the same folder as CS's settings. */
+static int cs_metadata_undo_path(const cs_paths *paths, const char *suffix, char *path, size_t path_size) {
+    int written;
+
+    if (!paths || paths->shared_state_root[0] == '\0') {
+        return -1;
+    }
+    written = snprintf(path, path_size, "%s/library-metadata-undo.json%s", paths->shared_state_root, suffix);
+    return written < 0 || (size_t) written >= path_size ? -1 : 0;
+}
+
+static int cs_metadata_ensure_dir(const char *path) {
+    char buffer[CS_PATH_MAX];
+
+    if (snprintf(buffer, sizeof(buffer), "%s", path) >= (int) sizeof(buffer)) {
+        return -1;
+    }
+    for (char *cursor = buffer + 1; *cursor != '\0'; ++cursor) {
+        if (*cursor == '/') {
+            *cursor = '\0';
+            if (mkdir(buffer, 0775) != 0 && errno != EEXIST) {
+                return -1;
+            }
+            *cursor = '/';
+        }
+    }
+    return mkdir(buffer, 0775) != 0 && errno != EEXIST ? -1 : 0;
+}
+
+cJSON *cs_metadata_undo_build(const cs_platform_info *platform, const cJSON *changes, int allow_description) {
+    cJSON *root = cJSON_CreateObject();
+    cJSON *entries = root ? cJSON_AddArrayToObject(root, "entries") : NULL;
+    const cJSON *change;
+
+    if (!platform || !entries) {
+        cJSON_Delete(root);
+        return NULL;
+    }
+    cJSON_AddStringToObject(root, "tag", platform->tag);
+    cJSON_ArrayForEach(change, changes) {
+        cs_metadata_change parsed;
+        cJSON *entry;
+        const cJSON *field = cJSON_GetObjectItemCaseSensitive(change, "field");
+
+        if (cs_metadata_parse_change(change, allow_description, &parsed)) {
+            cJSON_Delete(root);
+            return NULL;
+        }
+        entry = cJSON_CreateObject();
+        if (!entry || !cJSON_AddItemToArray(entries, entry)) {
+            cJSON_Delete(entry);
+            free(parsed.value);
+            cJSON_Delete(root);
+            return NULL;
+        }
+        cJSON_AddStringToObject(entry, "source", parsed.source);
+        cJSON_AddStringToObject(entry, "path", parsed.path);
+        cs_metadata_add_nullable(entry, "cardKey", parsed.card_key);
+        cJSON_AddStringToObject(entry, "field", field->valuestring);
+        /* Undo puts back the raw prior override, or deletes it if there wasn't one, and
+         * only where the apply's own value is still there. */
+        cs_metadata_add_nullable(entry, "value", parsed.expected);
+        cs_metadata_add_nullable(entry, "expected", parsed.value);
+        free(parsed.value);
+    }
+    return root;
+}
+
+int cs_metadata_undo_prepare(const cs_paths *paths, const cJSON *snapshot) {
+    char path[CS_PATH_MAX];
+    char *body;
+    FILE *file;
+    int rc = -1;
+
+    if (!snapshot || cs_metadata_undo_path(paths, ".new", path, sizeof(path)) != 0
+        || cs_metadata_ensure_dir(paths->shared_state_root) != 0) {
+        return -1;
+    }
+    body = cJSON_PrintUnformatted(snapshot);
+    if (!body) {
+        return -1;
+    }
+    file = fopen(path, "wb");
+    if (file) {
+        size_t len = strlen(body);
+
+        rc = fwrite(body, 1, len, file) == len && fflush(file) == 0 && fsync(fileno(file)) == 0 ? 0 : -1;
+        if (fclose(file) != 0) {
+            rc = -1;
+        }
+        if (rc != 0) {
+            unlink(path);
+        }
+    }
+    cJSON_free(body);
+    return rc;
+}
+
+int cs_metadata_undo_commit(const cs_paths *paths) {
+    char prepared[CS_PATH_MAX];
+    char path[CS_PATH_MAX];
+
+    if (cs_metadata_undo_path(paths, ".new", prepared, sizeof(prepared)) != 0
+        || cs_metadata_undo_path(paths, "", path, sizeof(path)) != 0) {
+        return -1;
+    }
+    return rename(prepared, path);
+}
+
+void cs_metadata_undo_discard(const cs_paths *paths) {
+    char path[CS_PATH_MAX];
+
+    if (cs_metadata_undo_path(paths, ".new", path, sizeof(path)) == 0) {
+        unlink(path);
+    }
+}
+
+void cs_metadata_undo_clear(const cs_paths *paths) {
+    char path[CS_PATH_MAX];
+
+    if (cs_metadata_undo_path(paths, "", path, sizeof(path)) == 0) {
+        unlink(path);
+    }
+}
+
+cJSON *cs_metadata_undo_read(const cs_paths *paths, const char *tag) {
+    char path[CS_PATH_MAX];
+    FILE *file;
+    long size;
+    char *body;
+    cJSON *root = NULL;
+    const cJSON *stored_tag;
+
+    if (!tag || cs_metadata_undo_path(paths, "", path, sizeof(path)) != 0) {
+        return NULL;
+    }
+    file = fopen(path, "rb");
+    if (!file) {
+        return NULL;
+    }
+    if (fseek(file, 0, SEEK_END) == 0 && (size = ftell(file)) > 0 && fseek(file, 0, SEEK_SET) == 0) {
+        body = malloc((size_t) size + 1);
+        if (body) {
+            if (fread(body, 1, (size_t) size, file) == (size_t) size) {
+                body[size] = '\0';
+                root = cJSON_Parse(body);
+            }
+            free(body);
+        }
+    }
+    fclose(file);
+    stored_tag = cJSON_GetObjectItemCaseSensitive(root, "tag");
+    if (!cJSON_IsString(stored_tag) || strcmp(stored_tag->valuestring, tag) != 0
+        || !cJSON_IsArray(cJSON_GetObjectItemCaseSensitive(root, "entries"))) {
+        cJSON_Delete(root);
+        return NULL;
+    }
+    return root;
+}
+
+static void cs_metadata_add_skipped(cJSON *skipped, const char *path, const char *field, const char *reason) {
+    cJSON *row = cJSON_CreateObject();
+
+    if (!row) {
+        return;
+    }
+    cJSON_AddStringToObject(row, "path", path);
+    cJSON_AddStringToObject(row, "field", field);
+    cJSON_AddStringToObject(row, "reason", reason);
+    if (!cJSON_AddItemToArray(skipped, row)) {
+        cJSON_Delete(row);
+    }
+}
+
+cs_metadata_status cs_metadata_undo_apply(const cs_paths *paths,
+                                          const cs_platform_info *platform,
+                                          const cJSON *snapshot,
+                                          int *restored_out,
+                                          cJSON *skipped) {
+    sqlite3 *db = NULL;
+    cs_metadata_library library;
+    const cJSON *entry;
+    int restored = 0;
+
+    if (!paths || !platform || !snapshot || !restored_out || !cJSON_IsArray(skipped)) {
+        return CS_METADATA_INTERNAL;
+    }
+    *restored_out = 0;
+    if (cs_metadata_open(paths, SQLITE_OPEN_READWRITE, &db) != 0) {
+        return CS_METADATA_UNAVAILABLE;
+    }
+    if (sqlite3_exec(db, "BEGIN IMMEDIATE;", NULL, NULL, NULL) != SQLITE_OK) {
+        sqlite3_close(db);
+        return CS_METADATA_INTERNAL;
+    }
+    if (cs_metadata_read_library(paths, db, &library) != 0) {
+        sqlite3_exec(db, "ROLLBACK;", NULL, NULL, NULL);
+        sqlite3_close(db);
+        return CS_METADATA_UNAVAILABLE;
+    }
+
+    cJSON_ArrayForEach(entry, cJSON_GetObjectItemCaseSensitive(snapshot, "entries")) {
+        const cJSON *source = cJSON_GetObjectItemCaseSensitive(entry, "source");
+        const cJSON *path = cJSON_GetObjectItemCaseSensitive(entry, "path");
+        const cJSON *card_key = cJSON_GetObjectItemCaseSensitive(entry, "cardKey");
+        const cJSON *field = cJSON_GetObjectItemCaseSensitive(entry, "field");
+        const cJSON *value = cJSON_GetObjectItemCaseSensitive(entry, "value");
+        const cJSON *expected = cJSON_GetObjectItemCaseSensitive(entry, "expected");
+        const char *key;
+        const char *reason;
+        char *current = NULL;
+        int game_id = 0;
+        int found;
+
+        if (!cJSON_IsString(source) || !cJSON_IsString(path) || !cJSON_IsString(field)) {
+            continue;
+        }
+        key = strcmp(field->valuestring, "description") == 0 ? CS_METADATA_KEY_DESCRIPTION : CS_METADATA_KEY_TITLE;
+        reason = cs_metadata_check_identity(db,
+                                            &library,
+                                            platform,
+                                            source->valuestring,
+                                            path->valuestring,
+                                            cJSON_IsString(card_key) ? card_key->valuestring : NULL,
+                                            &game_id);
+        if (reason) {
+            cs_metadata_add_skipped(skipped, path->valuestring, field->valuestring, reason);
+            continue;
+        }
+        found = cs_metadata_read_setting(db, game_id, key, &current);
+        if (found < 0) {
+            goto failed;
+        }
+        if (!cs_metadata_expected_matches(cJSON_IsString(expected) ? expected->valuestring : NULL,
+                                          found ? current : NULL)) {
+            cs_metadata_add_skipped(skipped, path->valuestring, field->valuestring, "changed_since");
+            free(current);
+            continue;
+        }
+        free(current);
+        /* The raw value as it was, which an override written elsewhere may have had
+         * with spacing or emptiness the editor wouldn't produce. */
+        if (cs_metadata_write_setting(db, game_id, key, cJSON_IsString(value) ? value->valuestring : NULL) != 0) {
+            goto failed;
+        }
+        restored++;
+    }
+    if (sqlite3_exec(db, "COMMIT;", NULL, NULL, NULL) != SQLITE_OK) {
+        goto failed;
+    }
+    sqlite3_close(db);
+    *restored_out = restored;
+    return CS_METADATA_OK;
+
+failed:
     sqlite3_exec(db, "ROLLBACK;", NULL, NULL, NULL);
     sqlite3_close(db);
     return CS_METADATA_INTERNAL;

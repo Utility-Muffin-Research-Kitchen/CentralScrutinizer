@@ -11,8 +11,9 @@
 #include <stdlib.h>
 #include <string.h>
 
-/* Roomy for a whole system's titles, while one bad request can't exhaust the handheld. */
-#define CS_METADATA_BODY_MAX (4u * 1024u * 1024u)
+/* Roomy for a whole system's titles and descriptions, while one bad request can't
+ * exhaust the handheld. */
+#define CS_METADATA_BODY_MAX (16u * 1024u * 1024u)
 
 /* Takes out. A list of several thousand titles is too long for one printf. */
 static int cs_metadata_write_object(struct mg_connection *conn, int status, const char *reason, cJSON *out) {
@@ -52,7 +53,9 @@ int cs_route_library_games_handler(struct mg_connection *conn, void *cbdata) {
     cs_jawaka_library_caps caps;
     cs_metadata_status status;
     char tag[64];
+    char descriptions[8] = "";
     cJSON *out;
+    cJSON *undo;
     int guard_status = cs_routes_guard_get_strict(conn, cbdata);
 
     if (guard_status != 0) {
@@ -65,17 +68,24 @@ int cs_route_library_games_handler(struct mg_connection *conn, void *cbdata) {
     if (cs_platform_resolve(&app->paths, tag, &platform) != 0) {
         return cs_routes_write_json(conn, 404, "Not Found", "{\"error\":\"platform_not_found\"}");
     }
+    (void) mg_get_var(request->query_string, strlen(request->query_string), "descriptions", descriptions,
+                      sizeof(descriptions));
     out = cJSON_CreateObject();
     if (!out) {
         return cs_routes_write_json(conn, 500, "Internal Server Error", "{\"error\":\"internal\"}");
     }
-    status = cs_metadata_list_games(&app->paths, &platform, out);
+    cs_jawaka_read_library_caps(&caps);
+    status = cs_metadata_list_games(&app->paths, &platform, caps.user_synopsis && descriptions[0] == '1', out);
     if (status != CS_METADATA_OK) {
         cJSON_Delete(out);
         return cs_metadata_write_status_error(conn, status);
     }
-    cs_jawaka_read_library_caps(&caps);
     cJSON_AddBoolToObject(out, "descriptionSupported", caps.user_synopsis);
+    undo = cs_metadata_undo_read(&app->paths, platform.tag);
+    cJSON_AddNumberToObject(out,
+                            "undoCount",
+                            undo ? cJSON_GetArraySize(cJSON_GetObjectItemCaseSensitive(undo, "entries")) : 0);
+    cJSON_Delete(undo);
     return cs_metadata_write_object(conn, 200, "OK", out);
 }
 
@@ -156,6 +166,8 @@ int cs_route_library_metadata_handler(struct mg_connection *conn, void *cbdata) 
     cJSON *out;
     const char *problem = NULL;
     char *body;
+    int undoable;
+    int undo_kept = 0;
     int saved = 0;
     int guard_status = cs_routes_guard_post(conn, cbdata);
 
@@ -184,8 +196,30 @@ int cs_route_library_metadata_handler(struct mg_connection *conn, void *cbdata) 
         return cs_routes_write_json(conn, 409, "Conflict", "{\"error\":\"scan_running\"}");
     }
 
+    /* Written and synced first: without a way back, a bulk apply doesn't start. */
+    undoable = cJSON_IsTrue(cJSON_GetObjectItemCaseSensitive(root, "undoable")) && cJSON_GetArraySize(changes) > 0;
+    if (undoable) {
+        cJSON *snapshot = cs_metadata_undo_build(&platform, changes, caps.user_synopsis);
+
+        /* A malformed change has no snapshot, and the apply below reports why. */
+        if (snapshot && cs_metadata_undo_prepare(&app->paths, snapshot) != 0) {
+            cJSON_Delete(snapshot);
+            cJSON_Delete(root);
+            return cs_routes_write_json(conn, 500, "Internal Server Error", "{\"error\":\"undo_unavailable\"}");
+        }
+        undoable = snapshot != NULL;
+        cJSON_Delete(snapshot);
+    }
+
     status = cs_metadata_apply(&app->paths, &platform, changes, caps.user_synopsis, &saved, &conflicts, &problem);
     cJSON_Delete(root);
+    if (undoable) {
+        if (status == CS_METADATA_OK) {
+            undo_kept = cs_metadata_undo_commit(&app->paths) == 0;
+        } else {
+            cs_metadata_undo_discard(&app->paths);
+        }
+    }
     out = cJSON_CreateObject();
     if (status == CS_METADATA_INVALID) {
         cJSON_AddStringToObject(out, "error", problem ? problem : "invalid_request");
@@ -204,5 +238,65 @@ int cs_route_library_metadata_handler(struct mg_connection *conn, void *cbdata) 
     cJSON_AddBoolToObject(out, "ok", 1);
     cJSON_AddNumberToObject(out, "saved", saved);
     cJSON_AddBoolToObject(out, "refreshed", saved == 0 || cs_jawaka_notify_library_metadata(&caps) == 0);
+    cJSON_AddBoolToObject(out, "undoKept", undo_kept);
+    return cs_metadata_write_object(conn, 200, "OK", out);
+}
+
+int cs_route_library_undo_handler(struct mg_connection *conn, void *cbdata) {
+    cs_app *app = (cs_app *) cbdata;
+    cs_platform_info platform = {0};
+    cs_jawaka_library_caps caps;
+    cs_metadata_status status;
+    const cJSON *tag;
+    cJSON *root;
+    cJSON *snapshot;
+    cJSON *skipped;
+    cJSON *out;
+    char *body;
+    int restored = 0;
+    int guard_status = cs_routes_guard_post(conn, cbdata);
+
+    if (guard_status != 0) {
+        return guard_status;
+    }
+    body = cs_metadata_read_body(conn);
+    root = body ? cJSON_Parse(body) : NULL;
+    free(body);
+    tag = cJSON_GetObjectItemCaseSensitive(root, "tag");
+    if (!cJSON_IsString(tag)) {
+        cJSON_Delete(root);
+        return cs_routes_write_json(conn, 400, "Bad Request", "{\"error\":\"invalid_request\"}");
+    }
+    if (cs_platform_resolve(&app->paths, tag->valuestring, &platform) != 0) {
+        cJSON_Delete(root);
+        return cs_routes_write_json(conn, 404, "Not Found", "{\"error\":\"platform_not_found\"}");
+    }
+    cJSON_Delete(root);
+
+    cs_jawaka_read_library_caps(&caps);
+    if (caps.scan_busy) {
+        return cs_routes_write_json(conn, 409, "Conflict", "{\"error\":\"scan_running\"}");
+    }
+    snapshot = cs_metadata_undo_read(&app->paths, platform.tag);
+    if (!snapshot) {
+        return cs_routes_write_json(conn, 404, "Not Found", "{\"error\":\"nothing_to_undo\"}");
+    }
+    out = cJSON_CreateObject();
+    skipped = out ? cJSON_AddArrayToObject(out, "skipped") : NULL;
+    if (!skipped) {
+        cJSON_Delete(snapshot);
+        cJSON_Delete(out);
+        return cs_routes_write_json(conn, 500, "Internal Server Error", "{\"error\":\"internal\"}");
+    }
+    status = cs_metadata_undo_apply(&app->paths, &platform, snapshot, &restored, skipped);
+    cJSON_Delete(snapshot);
+    if (status != CS_METADATA_OK) {
+        cJSON_Delete(out);
+        return cs_metadata_write_status_error(conn, status);
+    }
+    cs_metadata_undo_clear(&app->paths);
+    cJSON_AddBoolToObject(out, "ok", 1);
+    cJSON_AddNumberToObject(out, "restored", restored);
+    cJSON_AddBoolToObject(out, "refreshed", restored == 0 || cs_jawaka_notify_library_metadata(&caps) == 0);
     return cs_metadata_write_object(conn, 200, "OK", out);
 }

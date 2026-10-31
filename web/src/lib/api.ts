@@ -24,6 +24,7 @@ import type {
   LibraryGamesResponse,
   LibraryMetadataChange,
   LibraryMetadataResult,
+  LibraryUndoResult,
 } from "./types";
 import { tFormat } from "./i18n";
 
@@ -456,8 +457,12 @@ export async function getSaveStates(tag: string, csrf: string): Promise<SaveStat
   return expectJson<SaveStatesResponse>(response, "Save-state lookup failed");
 }
 
-export async function getLibraryGames(tag: string, csrf: string): Promise<LibraryGamesResponse> {
-  const response = await fetch(`/api/library/games${toQuery({ tag })}`, {
+export async function getLibraryGames(
+  tag: string,
+  csrf: string,
+  options?: { descriptions?: boolean },
+): Promise<LibraryGamesResponse> {
+  const response = await fetch(`/api/library/games${toQuery({ tag, descriptions: options?.descriptions ? "1" : undefined })}`, {
     headers: csrfHeaders(csrf),
   });
 
@@ -481,6 +486,7 @@ export async function saveLibraryMetadata(
   tag: string,
   changes: LibraryMetadataChange[],
   csrf: string,
+  options?: { undoable?: boolean },
 ): Promise<LibraryMetadataResult> {
   const response = await fetch("/api/library/metadata", {
     method: "POST",
@@ -488,10 +494,23 @@ export async function saveLibraryMetadata(
       "Content-Type": "application/json",
       "X-CS-CSRF": csrf,
     },
-    body: JSON.stringify({ tag, changes }),
+    body: JSON.stringify({ tag, changes, undoable: options?.undoable === true }),
   });
 
   return expectJson<LibraryMetadataResult>(response, "Could not save game info");
+}
+
+export async function undoLibraryMetadata(tag: string, csrf: string): Promise<LibraryUndoResult> {
+  const response = await fetch("/api/library/undo", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "X-CS-CSRF": csrf,
+    },
+    body: JSON.stringify({ tag }),
+  });
+
+  return expectJson<LibraryUndoResult>(response, "Could not undo the last bulk change");
 }
 
 export async function getLogs(csrf: string): Promise<LogsResponse> {

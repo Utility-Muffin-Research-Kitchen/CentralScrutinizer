@@ -11,6 +11,7 @@ import { LogsToolView } from "../components/logs-tool-view";
 import { MacDotCleanToolView } from "../components/mac-dot-clean-tool-view";
 import { PairScreen } from "../components/pair-screen";
 import { PlatformView } from "../components/platform-view";
+import { LibraryEditorView } from "../components/library-editor-view";
 import { SaveStatesView } from "../components/save-states-view";
 import { TerminalToolView } from "../components/terminal-tool-view";
 import { ToolsView } from "../components/tools-view";
@@ -720,7 +721,7 @@ function PageContent() {
   }, []);
 
   useEffect(() => {
-    if (viewState.view !== "browser" && viewState.view !== "states") {
+    if (viewState.view !== "browser" && viewState.view !== "states" && viewState.view !== "game-info") {
       return;
     }
 
@@ -731,7 +732,8 @@ function PageContent() {
 
     if (
       (viewState.view === "browser" && !platformSupportsBrowserScope(platform, viewState.scope)) ||
-      (viewState.view === "states" && !platformSupportsResource(platform, "states"))
+      (viewState.view === "states" && !platformSupportsResource(platform, "states")) ||
+      (viewState.view === "game-info" && !platformSupportsResource(platform, "roms"))
     ) {
       navigate({ view: "platform", destination: "library", tag: platform.tag }, true);
     }
@@ -901,7 +903,10 @@ function PageContent() {
   }
 
   const activePlatform =
-    viewState.view === "platform" || viewState.view === "states" || viewState.view === "browser"
+    viewState.view === "platform" ||
+    viewState.view === "states" ||
+    viewState.view === "browser" ||
+    viewState.view === "game-info"
       ? findPlatform(platformGroups, viewState.tag)
       : undefined;
   const visiblePlatformGroups = filterPlatformGroups(
@@ -918,11 +923,14 @@ function PageContent() {
   const fallbackToPlatformView =
     !!activePlatform &&
     ((viewState.view === "browser" && !platformSupportsBrowserScope(activePlatform, viewState.scope)) ||
-      (viewState.view === "states" && !platformSupportsResource(activePlatform, "states")));
+      (viewState.view === "states" && !platformSupportsResource(activePlatform, "states")) ||
+      (viewState.view === "game-info" && !platformSupportsResource(activePlatform, "roms")));
   const showPlatformView =
     !!activePlatform && (viewState.view === "platform" || fallbackToPlatformView);
   const showStatesView =
     viewState.view === "states" && !!activePlatform && platformSupportsResource(activePlatform, "states");
+  const showGameInfoView =
+    viewState.view === "game-info" && !!activePlatform && platformSupportsResource(activePlatform, "roms");
   const showManagedBrowserView =
     viewState.view === "browser" && !!activePlatform && platformSupportsBrowserScope(activePlatform, viewState.scope);
   const terminalEnabled = session.capabilities?.terminal ?? false;
@@ -1597,6 +1605,17 @@ function PageContent() {
         title: activePlatformDisplayName ?? activePlatform.name,
       };
     }
+    if (showGameInfoView && activePlatform) {
+      return {
+        destination: "library" as const,
+        description: t("Titles and descriptions"),
+        searchKey: "library" as const,
+        searchPlaceholder: t("Search platforms..."),
+        showPageHeader: false,
+        showSearch: false,
+        title: t("Game Info"),
+      };
+    }
     if (showStatesView && activePlatform) {
       return {
         destination: "library" as const,
@@ -1694,6 +1713,9 @@ function PageContent() {
         onBack={() => {
           navigate({ view: "dashboard", destination: "library" });
         }}
+        onOpenGameInfo={() => {
+          navigate({ view: "game-info", destination: "library", tag: activePlatform.tag });
+        }}
         onOpenResource={(resource: PlatformResource) => {
           if (resource === "states") {
             navigate({ view: "states", destination: "library", tag: activePlatform.tag });
@@ -1703,6 +1725,15 @@ function PageContent() {
           navigate({ view: "browser", destination: "library", scope: resource, tag: activePlatform.tag });
         }}
         platform={activePlatform}
+      />
+    ) : showGameInfoView && activePlatform ? (
+      <LibraryEditorView
+        csrf={session.csrf}
+        onBack={() => {
+          navigate({ view: "platform", destination: "library", tag: activePlatform.tag });
+        }}
+        platform={activePlatform}
+        platformName={activePlatformDisplayName ?? activePlatform.name}
       />
     ) : showStatesView && activePlatform ? (
       <SaveStatesView

@@ -381,3 +381,31 @@ ZIP entry size could not be read.	无法读取 ZIP 条目大小。
 Couldn't load this image.	无法加载此图片。
 Previous image	上一张图片
 Next image	下一张图片
+Game Info	游戏信息
+Titles and descriptions	标题和简介
+Edit game info	编辑游戏信息
+Edited	已编辑
+Title	标题
+Description	简介
+Reset title	恢复默认标题
+Reset description	恢复默认简介
+This title is too long.	标题太长。
+Line breaks show as spaces on the handheld. Rescraping keeps your description.	换行符在掌机上会显示为空格。重新抓取不会覆盖你的简介。
+Editing descriptions needs a newer version of Leaf.	编辑简介需要更新版本的 Leaf。
+Change the title and description the handheld shows for a game. Your files aren't renamed, so saves keep working.	更改掌机上显示的游戏标题和简介。文件不会被重命名，因此存档不受影响。
+Back to {name}	返回{name}
+Loading games...	正在加载游戏...
+Search games	搜索游戏
+Search games...	搜索游戏...
+No games found.	未找到游戏。
+Second card	第二张 SD 卡
+Show more ({count} left)	显示更多（还剩 {count} 个）
+Could not load this system's games.	无法加载此系统的游戏。
+Could not load this game's description.	无法加载此游戏的简介。
+Could not save your changes.	无法保存你的更改。
+This version of Leaf can't edit game info yet, or its library isn't ready.	此版本的 Leaf 暂不支持编辑游戏信息，或游戏库尚未就绪。
+Leaf is scanning the library. Try again when the scan finishes.	Leaf 正在扫描游戏库。请在扫描完成后重试。
+This game changed somewhere else, such as on the handheld. Your text is still here: save again to replace that change.	此游戏已在其他地方（例如掌机上）被更改。你输入的内容仍然保留：再次保存即可覆盖该更改。
+That game isn't available any more. The second card may have been swapped.	该游戏已不可用。第二张 SD 卡可能已被更换。
+Saved.	已保存。
+Saved. The handheld will show this after its next library refresh.	已保存。掌机将在下次刷新游戏库后显示此更改。

@@ -56,6 +56,9 @@ msgstr ""
 msgid "Back to logs"
 msgstr ""
 
+msgid "Back to {name}"
+msgstr ""
+
 msgid "Background mode failed and the foreground server could not be restored."
 msgstr ""
 
@@ -108,6 +111,9 @@ msgid "Central Scrutinizer"
 msgstr ""
 
 msgid "Central Scrutinizer terminal"
+msgstr ""
+
+msgid "Change the title and description the handheld shows for a game. Your files aren't renamed, so saves keep working."
 msgstr ""
 
 msgid "Cheats"
@@ -194,6 +200,12 @@ msgstr ""
 msgid "Could not load save states."
 msgstr ""
 
+msgid "Could not load this game's description."
+msgstr ""
+
+msgid "Could not load this system's games."
+msgstr ""
+
 msgid "Could not prepare background mode."
 msgstr ""
 
@@ -204,6 +216,9 @@ msgid "Could not save the background keep-awake setting."
 msgstr ""
 
 msgid "Could not save the terminal setting."
+msgstr ""
+
+msgid "Could not save your changes."
 msgstr ""
 
 msgid "Could not scan for macOS dotfiles."
@@ -261,6 +276,9 @@ msgid "Deleted"
 msgstr ""
 
 msgid "Deleting"
+msgstr ""
+
+msgid "Description"
 msgstr ""
 
 msgid "Destination"
@@ -330,6 +348,15 @@ msgid "Edit"
 msgstr ""
 
 msgid "Edit contents of"
+msgstr ""
+
+msgid "Edit game info"
+msgstr ""
+
+msgid "Edited"
+msgstr ""
+
+msgid "Editing descriptions needs a newer version of Leaf."
 msgstr ""
 
 msgid "Enable"
@@ -407,6 +434,9 @@ msgstr ""
 msgid "Folder needed but a file already exists"
 msgstr ""
 
+msgid "Game Info"
+msgstr ""
+
 msgid "Go to parent folder"
 msgstr ""
 
@@ -428,6 +458,9 @@ msgstr ""
 msgid "Last Updated"
 msgstr ""
 
+msgid "Leaf is scanning the library. Try again when the scan finishes."
+msgstr ""
+
 msgid "Library"
 msgstr ""
 
@@ -440,6 +473,9 @@ msgstr ""
 msgid "Library rescan failed"
 msgstr ""
 
+msgid "Line breaks show as spaces on the handheld. Rescraping keeps your description."
+msgstr ""
+
 msgid "Load more"
 msgstr ""
 
@@ -450,6 +486,9 @@ msgid "Loading file contents..."
 msgstr ""
 
 msgid "Loading folders..."
+msgstr ""
+
+msgid "Loading games..."
 msgstr ""
 
 msgid "Loading more platforms..."
@@ -537,6 +576,9 @@ msgid "No files found in this directory."
 msgstr ""
 
 msgid "No folders in this location."
+msgstr ""
+
+msgid "No games found."
 msgstr ""
 
 msgid "No log files found."
@@ -716,6 +758,12 @@ msgstr ""
 msgid "Rescan"
 msgstr ""
 
+msgid "Reset description"
+msgstr ""
+
+msgid "Reset title"
+msgstr ""
+
 msgid "Retry"
 msgstr ""
 
@@ -747,6 +795,12 @@ msgid "Save failed. Please try again."
 msgstr ""
 
 msgid "Saved"
+msgstr ""
+
+msgid "Saved."
+msgstr ""
+
+msgid "Saved. The handheld will show this after its next library refresh."
 msgstr ""
 
 msgid "Saves"
@@ -794,6 +848,12 @@ msgstr ""
 msgid "Search current folder"
 msgstr ""
 
+msgid "Search games"
+msgstr ""
+
+msgid "Search games..."
+msgstr ""
+
 msgid "Search in current folder"
 msgstr ""
 
@@ -801,6 +861,9 @@ msgid "Search platforms..."
 msgstr ""
 
 msgid "Search results truncated at 200 matches."
+msgstr ""
+
+msgid "Second card"
 msgstr ""
 
 msgid "Select"
@@ -828,6 +891,9 @@ msgid "Shortcuts and maintenance utilities for this device."
 msgstr ""
 
 msgid "Show empty consoles"
+msgstr ""
+
+msgid "Show more ({count} left)"
 msgstr ""
 
 msgid "Show sample paths"
@@ -869,6 +935,9 @@ msgstr ""
 msgid "Terminal session closed."
 msgstr ""
 
+msgid "That game isn't available any more. The second card may have been swapped."
+msgstr ""
+
 msgid "That name is already in use in this folder."
 msgstr ""
 
@@ -899,6 +968,9 @@ msgstr ""
 msgid "This extraction would replace existing files."
 msgstr ""
 
+msgid "This game changed somewhere else, such as on the handheld. Your text is still here: save again to replace that change."
+msgstr ""
+
 msgid "This opens a real shell on the device. Use it only when you understand the commands you are running."
 msgstr ""
 
@@ -906,6 +978,18 @@ msgid "This screen refreshes automatically after a client pairs. Press Y to gene
 msgstr ""
 
 msgid "This system"
+msgstr ""
+
+msgid "This title is too long."
+msgstr ""
+
+msgid "This version of Leaf can't edit game info yet, or its library isn't ready."
+msgstr ""
+
+msgid "Title"
+msgstr ""
+
+msgid "Titles and descriptions"
 msgstr ""
 
 msgid "Tools"

@@ -794,7 +794,6 @@ msgstr "无法准备上传文件夹。"
 msgid "Upload target path is invalid."
 msgstr "上传目标路径无效。"
 
-# SD card read-only/full upload errors. Reviewed by AlexL; fuzzy cleared.
 msgid "Your SD card is read-only, so nothing new can be saved to it. Check the warning on your device."
 msgstr "SD 卡为只读，无法保存任何新内容。请在设备上查看警告。"
 
@@ -1142,3 +1141,87 @@ msgstr "上一张图片"
 
 msgid "Next image"
 msgstr "下一张图片"
+
+msgid "Game Info"
+msgstr "游戏信息"
+
+msgid "Titles and descriptions"
+msgstr "标题和简介"
+
+msgid "Edit game info"
+msgstr "编辑游戏信息"
+
+msgid "Edited"
+msgstr "已编辑"
+
+msgid "Title"
+msgstr "标题"
+
+msgid "Description"
+msgstr "简介"
+
+msgid "Reset title"
+msgstr "恢复默认标题"
+
+msgid "Reset description"
+msgstr "恢复默认简介"
+
+msgid "This title is too long."
+msgstr "标题太长。"
+
+msgid "Line breaks show as spaces on the handheld. Rescraping keeps your description."
+msgstr "换行符在掌机上会显示为空格。重新抓取不会覆盖你的简介。"
+
+msgid "Editing descriptions needs a newer version of Leaf."
+msgstr "编辑简介需要更新版本的 Leaf。"
+
+msgid "Change the title and description the handheld shows for a game. Your files aren't renamed, so saves keep working."
+msgstr "更改掌机上显示的游戏标题和简介。文件不会被重命名，因此存档不受影响。"
+
+msgid "Back to {name}"
+msgstr "返回{name}"
+
+msgid "Loading games..."
+msgstr "正在加载游戏..."
+
+msgid "Search games"
+msgstr "搜索游戏"
+
+msgid "Search games..."
+msgstr "搜索游戏..."
+
+msgid "No games found."
+msgstr "未找到游戏。"
+
+msgid "Second card"
+msgstr "第二张 SD 卡"
+
+msgid "Show more ({count} left)"
+msgstr "显示更多（还剩 {count} 个）"
+
+msgid "Could not load this system's games."
+msgstr "无法加载此系统的游戏。"
+
+msgid "Could not load this game's description."
+msgstr "无法加载此游戏的简介。"
+
+msgid "Could not save your changes."
+msgstr "无法保存你的更改。"
+
+msgid "This version of Leaf can't edit game info yet, or its library isn't ready."
+msgstr "此版本的 Leaf 暂不支持编辑游戏信息，或游戏库尚未就绪。"
+
+msgid "Leaf is scanning the library. Try again when the scan finishes."
+msgstr "Leaf 正在扫描游戏库。请在扫描完成后重试。"
+
+msgid "This game changed somewhere else, such as on the handheld. Your text is still here: save again to replace that change."
+msgstr "此游戏已在其他地方（例如掌机上）被更改。你输入的内容仍然保留：再次保存即可覆盖该更改。"
+
+msgid "That game isn't available any more. The second card may have been swapped."
+msgstr "该游戏已不可用。第二张 SD 卡可能已被更换。"
+
+msgid "Saved."
+msgstr "已保存。"
+
+msgid "Saved. The handheld will show this after its next library refresh."
+msgstr "已保存。掌机将在下次刷新游戏库后显示此更改。"

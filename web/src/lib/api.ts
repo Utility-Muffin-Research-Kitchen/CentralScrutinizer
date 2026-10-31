@@ -20,6 +20,10 @@ import type {
   UploadPreviewResponse,
   UploadRequest,
   WriteRequest,
+  LibraryGameDescription,
+  LibraryGamesResponse,
+  LibraryMetadataChange,
+  LibraryMetadataResult,
 } from "./types";
 import { tFormat } from "./i18n";
 
@@ -450,6 +454,44 @@ export async function getSaveStates(tag: string, csrf: string): Promise<SaveStat
   });
 
   return expectJson<SaveStatesResponse>(response, "Save-state lookup failed");
+}
+
+export async function getLibraryGames(tag: string, csrf: string): Promise<LibraryGamesResponse> {
+  const response = await fetch(`/api/library/games${toQuery({ tag })}`, {
+    headers: csrfHeaders(csrf),
+  });
+
+  return expectJson<LibraryGamesResponse>(response, "Game list lookup failed");
+}
+
+export async function getLibraryGame(
+  tag: string,
+  source: string,
+  path: string,
+  csrf: string,
+): Promise<LibraryGameDescription> {
+  const response = await fetch(`/api/library/game${toQuery({ tag, source, path })}`, {
+    headers: csrfHeaders(csrf),
+  });
+
+  return expectJson<LibraryGameDescription>(response, "Game lookup failed");
+}
+
+export async function saveLibraryMetadata(
+  tag: string,
+  changes: LibraryMetadataChange[],
+  csrf: string,
+): Promise<LibraryMetadataResult> {
+  const response = await fetch("/api/library/metadata", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "X-CS-CSRF": csrf,
+    },
+    body: JSON.stringify({ tag, changes }),
+  });
+
+  return expectJson<LibraryMetadataResult>(response, "Could not save game info");
 }
 
 export async function getLogs(csrf: string): Promise<LogsResponse> {

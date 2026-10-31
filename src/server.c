@@ -57,6 +57,9 @@ int cs_route_platforms_handler(struct mg_connection *conn, void *cbdata);
 int cs_route_platform_icon_handler(struct mg_connection *conn, void *cbdata);
 int cs_route_browser_handler(struct mg_connection *conn, void *cbdata);
 int cs_route_game_favorite_handler(struct mg_connection *conn, void *cbdata);
+int cs_route_library_games_handler(struct mg_connection *conn, void *cbdata);
+int cs_route_library_game_handler(struct mg_connection *conn, void *cbdata);
+int cs_route_library_metadata_handler(struct mg_connection *conn, void *cbdata);
 int cs_route_states_handler(struct mg_connection *conn, void *cbdata);
 int cs_route_logs_handler(struct mg_connection *conn, void *cbdata);
 int cs_route_logs_download_handler(struct mg_connection *conn, void *cbdata);
@@ -143,6 +146,15 @@ static int cs_server_begin_request(struct mg_connection *conn) {
     }
     if (strcmp(uri, "/api/favorite/game") == 0) {
         return cs_route_game_favorite_handler(conn, app);
+    }
+    if (strcmp(uri, "/api/library/games") == 0) {
+        return cs_route_library_games_handler(conn, app);
+    }
+    if (strcmp(uri, "/api/library/game") == 0) {
+        return cs_route_library_game_handler(conn, app);
+    }
+    if (strcmp(uri, "/api/library/metadata") == 0) {
+        return cs_route_library_metadata_handler(conn, app);
     }
     if (strcmp(uri, "/api/states") == 0) {
         return cs_route_states_handler(conn, app);

@@ -6,9 +6,11 @@ type Card = { key: PlatformResource; label: string; glyph: string; count: number
 export function ResourceCardGrid({
   platform,
   onSelect,
+  onOpenGameInfo,
 }: {
   platform: PlatformSummary;
   onSelect: (resource: PlatformResource) => void;
+  onOpenGameInfo?: () => void;
 }) {
   const t = useT();
   const cards = ([
@@ -41,6 +43,20 @@ export function ResourceCardGrid({
           </button>
         );
       })}
+      {onOpenGameInfo && platform.supportedResources.roms ? (
+        <button
+          aria-label={t("Game Info")}
+          className="group flex cursor-pointer flex-col items-center gap-4 rounded-xl border border-[var(--border)] bg-[var(--panel)] p-8 transition hover:border-[var(--accent)]/50 hover:shadow-md hover:shadow-[var(--accent-soft)]"
+          onClick={onOpenGameInfo}
+          type="button"
+        >
+          <div className="flex h-14 w-14 items-center justify-center rounded-xl bg-[var(--bg)] text-xs font-black uppercase tracking-[0.2em] text-[var(--muted)] group-hover:bg-[var(--accent-soft)] group-hover:text-[var(--accent)]">
+            TXT
+          </div>
+          <span className="text-lg font-semibold group-hover:text-[var(--accent)]">{t("Game Info")}</span>
+          <span className="-mt-2 text-xs text-[var(--muted)]">{t("Titles and descriptions")}</span>
+        </button>
+      ) : null}
     </div>
   );
 }

@@ -19,6 +19,39 @@ export type PlatformResource = "roms" | "saves" | "states" | "bios" | "overlays"
 
 export type SupportedResources = Record<PlatformResource, boolean>;
 
+export type LibraryGame = {
+  source: string;
+  path: string;
+  cardKey: string | null;
+  title: string;
+  defaultTitle: string;
+  titleOverride: string | null;
+};
+
+export type LibraryGamesResponse = {
+  games: LibraryGame[];
+  descriptionSupported: boolean;
+};
+
+export type LibraryGameDescription = {
+  descriptionOverride: string | null;
+  defaultDescription: string;
+};
+
+export type LibraryMetadataChange = {
+  source: string;
+  path: string;
+  cardKey: string | null;
+  field: "title" | "description";
+  value: string | null;
+  expected: string | null;
+};
+
+export type LibraryMetadataResult = {
+  saved: number;
+  refreshed: boolean;
+};
+
 export type RomUploadPolicy = {
   enforced: boolean;
   extensions: string[];

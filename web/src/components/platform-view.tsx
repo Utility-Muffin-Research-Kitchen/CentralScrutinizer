@@ -6,10 +6,12 @@ export function PlatformView({
   platform,
   onBack,
   onOpenResource,
+  onOpenGameInfo,
 }: {
   platform: PlatformSummary;
   onBack: () => void;
   onOpenResource: (resource: PlatformResource) => void;
+  onOpenGameInfo?: () => void;
 }) {
   const t = useT();
   return (
@@ -22,7 +24,7 @@ export function PlatformView({
         <span aria-hidden="true">←</span>
         {t("Back to Library")}
       </button>
-      <ResourceCardGrid onSelect={onOpenResource} platform={platform} />
+      <ResourceCardGrid onOpenGameInfo={onOpenGameInfo} onSelect={onOpenResource} platform={platform} />
     </div>
   );
 }

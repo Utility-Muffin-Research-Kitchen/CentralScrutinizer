@@ -7,6 +7,7 @@ export type AppViewState =
   | { view: "dashboard"; destination: "library" }
   | { view: "platform"; destination: "library"; tag: string }
   | { view: "states"; destination: "library"; tag: string }
+  | { view: "game-info"; destination: "library"; tag: string }
   | {
       view: "browser";
       destination: "library";
@@ -43,6 +44,9 @@ export function readViewState(search: string): AppViewState {
   if (view === "states" && tag) {
     return { view: "states", destination: "library", tag };
   }
+  if (view === "game-info" && tag) {
+    return { view: "game-info", destination: "library", tag };
+  }
   if (view === "browser" && tag && scope && scope !== "files") {
     return { view: "browser", destination: "library", scope, tag, path };
   }
@@ -78,7 +82,7 @@ export function writeViewState(
   if (state.view === "platform") {
     params.set("tag", state.tag);
   }
-  if (state.view === "states") {
+  if (state.view === "states" || state.view === "game-info") {
     params.set("tag", state.tag);
   }
   if (state.view === "browser") {

@@ -310,6 +310,64 @@ static int cs_jawaka_wait_for_library_rescan(const char *socket_path,
     return -1;
 }
 
+void cs_jawaka_read_library_caps(cs_jawaka_library_caps *caps) {
+    char socket_path[CS_PATH_MAX];
+    char *response_text = NULL;
+    cJSON *response;
+    const cJSON *list;
+    const cJSON *item;
+
+    memset(caps, 0, sizeof(*caps));
+    if (cs_jawaka_socket_path(socket_path, sizeof(socket_path)) != 0
+        || cs_ipc_request(socket_path, "{\"type\":\"library-status\"}", &response_text) != 0) {
+        return;
+    }
+    response = cJSON_Parse(response_text);
+    free(response_text);
+    if (!response || !cs_json_type_is(response, "library-status")) {
+        cJSON_Delete(response);
+        return;
+    }
+    caps->reachable = 1;
+    caps->scan_busy = cJSON_IsTrue(cJSON_GetObjectItemCaseSensitive(response, "scan_running"))
+                      || cJSON_IsTrue(cJSON_GetObjectItemCaseSensitive(response, "pending_rescan"));
+    list = cJSON_GetObjectItemCaseSensitive(response, "metadata_caps");
+    cJSON_ArrayForEach(item, list) {
+        if (cJSON_IsString(item) && strcmp(item->valuestring, "user_synopsis") == 0) {
+            caps->user_synopsis = 1;
+        } else if (cJSON_IsString(item) && strcmp(item->valuestring, "metadata_changed") == 0) {
+            caps->metadata_changed = 1;
+        }
+    }
+    cJSON_Delete(response);
+}
+
+int cs_jawaka_notify_library_metadata(const cs_jawaka_library_caps *caps) {
+    char socket_path[CS_PATH_MAX];
+    char *response_text = NULL;
+    cJSON *response;
+    int rc = -1;
+
+    if (!caps || !caps->reachable || cs_jawaka_socket_path(socket_path, sizeof(socket_path)) != 0) {
+        return -1;
+    }
+    /* A release without the message reloads only after a scan. */
+    if (cs_ipc_request(socket_path,
+                       caps->metadata_changed ? "{\"type\":\"library-metadata-changed\"}"
+                                              : "{\"type\":\"scan-library\"}",
+                       &response_text)
+        != 0) {
+        return -1;
+    }
+    response = cJSON_Parse(response_text);
+    free(response_text);
+    if (response && cs_json_type_is(response, "ok")) {
+        rc = 0;
+    }
+    cJSON_Delete(response);
+    return rc;
+}
+
 int cs_jawaka_request_library_rescan(char *status, size_t status_size) {
     char socket_path[CS_PATH_MAX];
     char *response_text = NULL;

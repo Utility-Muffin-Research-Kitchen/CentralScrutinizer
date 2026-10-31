@@ -678,7 +678,8 @@ static void test_library_db_count_leaves_out_missing_second_card(void) {
                         "('GBA', 'Metroid', 'primary', 'Roms/GBA/Metroid.gba'),"
                         "('GBA', 'Zelda', 'secondary_sd', '/old/mount/Roms/GBA/Zelda.gba'),"
                         "('GBA', 'Mario', 'secondary_sd', '/old/mount/Roms/GBA/Mario.gba'),"
-                        "('GBA', 'Wario', 'secondary_sd', '/old/mount/Roms/GBA/Wario.gba');",
+                        "('GBA', 'Wario', 'secondary_sd', '/old/mount/Roms/GBA/Wario.gba'),"
+                        "('GBA', 'Parked', 'card-1', '/.leaf-parked/card-1/GBA/Parked.gba');",
                         NULL,
                         NULL,
                         &err)
@@ -713,6 +714,83 @@ static void test_library_db_count_leaves_out_missing_second_card(void) {
 
     unsetenv("SDCARD_PATHS");
     unsetenv("CS_SOURCE_TEST_AVAILABLE");
+}
+
+/* Leaf keeps another second card's rows with a rom_path that can't exist. They must not
+ * reach the browser or a favorite toggle, even at a path a live row also has. */
+static void test_library_db_skips_parked_rows(void) {
+    cs_paths paths = {0};
+    cs_browser_result result = {0};
+    cs_platform_info gba;
+    char template[] = "/tmp/cs-library-parked-XXXXXX";
+    char *root;
+    char system_dir[PATH_MAX];
+    char rom[PATH_MAX];
+    char state_dir[PATH_MAX];
+    char db_path[PATH_MAX];
+    sqlite3 *db = NULL;
+    sqlite3_stmt *stmt = NULL;
+    char *err = NULL;
+    int count = 0;
+
+    root = mkdtemp(template);
+    assert(root != NULL);
+    assert(snprintf(system_dir, sizeof(system_dir), "%s/Roms/GBA", root) > 0);
+    assert(snprintf(rom, sizeof(rom), "%s/Zelda.gba", system_dir) > 0);
+    assert(snprintf(state_dir, sizeof(state_dir), "%s/.umrk/mlp1", root) > 0);
+    assert(snprintf(db_path, sizeof(db_path), "%s/library.db", state_dir) > 0);
+    make_dir_p(system_dir);
+    make_dir_p(state_dir);
+    write_sized_file(rom, 7);
+
+    assert(sqlite3_open(db_path, &db) == SQLITE_OK);
+    assert(sqlite3_exec(db,
+                        "CREATE TABLE games ("
+                        "id INTEGER PRIMARY KEY,"
+                        "system TEXT NOT NULL,"
+                        "name TEXT NOT NULL,"
+                        "source_id TEXT NOT NULL,"
+                        "rom_path TEXT NOT NULL,"
+                        "image_path TEXT"
+                        ");"
+                        "CREATE TABLE favorites ("
+                        "kind TEXT NOT NULL CHECK (kind IN ('game','app')),"
+                        "target_id INTEGER NOT NULL,"
+                        "added_at INTEGER NOT NULL,"
+                        "PRIMARY KEY (kind, target_id)"
+                        ");"
+                        "INSERT INTO games (id, system, name, source_id, rom_path) VALUES "
+                        "(1, 'GBA', 'Live Zelda', 'primary', 'Roms/GBA/Zelda.gba'),"
+                        "(2, 'GBA', 'Parked Zelda', 'card-1', '/.leaf-parked/card-1/GBA/Zelda.gba'),"
+                        "(3, 'GBA', 'Parked Other', 'card-1', '/.leaf-parked/card-1/GBA/Other.gba');",
+                        NULL,
+                        NULL,
+                        &err)
+           == SQLITE_OK);
+    assert(err == NULL);
+    assert(sqlite3_close(db) == SQLITE_OK);
+    db = NULL;
+
+    set_sdcard_root_realpath(root);
+    assert(setenv("UMRK_INTERNAL_DATA_PATH", state_dir, 1) == 0);
+    assert(cs_paths_init(&paths) == 0);
+    gba = make_test_platform("GBA", "GBA", "GBA");
+
+    assert(cs_library_db_count_roms_for_platform(&paths, &gba, &count) == 0);
+    assert(count == 1);
+    assert(cs_browser_list(&paths, CS_SCOPE_ROMS, &gba, "", 0, NULL, &result) == CS_BROWSER_LIST_OK);
+    assert(result.count == 1);
+    assert(strcmp(result.entries[0].name, "Zelda.gba") == 0);
+
+    assert(cs_library_db_set_game_favorite(&paths, &gba, "Zelda.gba", 1) == 0);
+    assert(sqlite3_open(db_path, &db) == SQLITE_OK);
+    assert(sqlite3_prepare_v2(db, "SELECT COUNT(*), MIN(target_id) FROM favorites WHERE kind = 'game';",
+                              -1, &stmt, NULL) == SQLITE_OK);
+    assert(sqlite3_step(stmt) == SQLITE_ROW);
+    assert(sqlite3_column_int(stmt, 0) == 1);
+    assert(sqlite3_column_int(stmt, 1) == 1);
+    sqlite3_finalize(stmt);
+    assert(sqlite3_close(db) == SQLITE_OK);
 }
 
 static void test_rom_browser_merges_platform_folders_across_sources(void) {
@@ -1326,6 +1404,7 @@ int main(void) {
     test_rom_thumbnail_resolution_prefers_png_then_jpeg();
     test_library_db_populates_root_rom_listing();
     test_library_db_count_leaves_out_missing_second_card();
+    test_library_db_skips_parked_rows();
     test_rom_browser_merges_platform_folders_across_sources();
     test_merged_rom_browser_uses_write_root_when_platform_folder_is_missing();
     test_symlink_entries_are_skipped();

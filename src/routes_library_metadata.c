@@ -81,6 +81,75 @@ int cs_route_library_games_handler(struct mg_connection *conn, void *cbdata) {
         return cs_metadata_write_status_error(conn, status);
     }
     cJSON_AddBoolToObject(out, "descriptionSupported", caps.user_synopsis);
+    cJSON_AddBoolToObject(out, "orderSupported", caps.sort_rank && caps.folder_rows);
+    undo = cs_metadata_undo_read(&app->paths, platform.tag);
+    cJSON_AddNumberToObject(out,
+                            "undoCount",
+                            undo ? cJSON_GetArraySize(cJSON_GetObjectItemCaseSensitive(undo, "entries")) : 0);
+    cJSON_Delete(undo);
+    return cs_metadata_write_object(conn, 200, "OK", out);
+}
+
+int cs_route_library_order_handler(struct mg_connection *conn, void *cbdata) {
+    cs_app *app = (cs_app *) cbdata;
+    const struct mg_request_info *request = mg_get_request_info(conn);
+    cs_platform_info platform = {0};
+    cs_jawaka_library_caps caps;
+    cs_metadata_status status;
+    char tag[64];
+    char folder[CS_PATH_MAX] = "";
+    char system[128];
+    size_t query_len;
+    cJSON *rows_reply;
+    cJSON *out;
+    cJSON *undo;
+    int guard_status = cs_routes_guard_get_strict(conn, cbdata);
+
+    if (guard_status != 0) {
+        return guard_status;
+    }
+    query_len = request && request->query_string ? strlen(request->query_string) : 0;
+    if (query_len == 0 || mg_get_var(request->query_string, query_len, "tag", tag, sizeof(tag)) <= 0) {
+        return cs_routes_write_json(conn, 400, "Bad Request", "{\"error\":\"missing_tag\"}");
+    }
+    (void) mg_get_var(request->query_string, query_len, "folder", folder, sizeof(folder));
+    if (cs_platform_resolve(&app->paths, tag, &platform) != 0) {
+        return cs_routes_write_json(conn, 404, "Not Found", "{\"error\":\"platform_not_found\"}");
+    }
+    cs_jawaka_read_library_caps(&caps);
+    if (!caps.sort_rank || !caps.folder_rows) {
+        return cs_routes_write_json(conn, 409, "Conflict", "{\"error\":\"order_unsupported\"}");
+    }
+    status = cs_metadata_system_id(&app->paths, &platform, system, sizeof(system));
+    if (status != CS_METADATA_OK) {
+        return cs_metadata_write_status_error(conn, status);
+    }
+    /* The launcher's own folder model, so what's arranged here is what the handheld shows. */
+    rows_reply = system[0] ? cs_jawaka_read_folder_rows(system, folder) : NULL;
+    if (!rows_reply) {
+        return cs_routes_write_json(conn, 503, "Service Unavailable", "{\"error\":\"rows_unavailable\"}");
+    }
+    status = cs_metadata_add_card_keys(&app->paths, cJSON_GetObjectItemCaseSensitive(rows_reply, "rows"));
+    if (status != CS_METADATA_OK) {
+        cJSON_Delete(rows_reply);
+        return cs_metadata_write_status_error(conn, status);
+    }
+    out = cJSON_CreateObject();
+    if (!out) {
+        cJSON_Delete(rows_reply);
+        return cs_routes_write_json(conn, 500, "Internal Server Error", "{\"error\":\"internal\"}");
+    }
+    cJSON_AddBoolToObject(out,
+                          "showFolders",
+                          cJSON_IsTrue(cJSON_GetObjectItemCaseSensitive(rows_reply, "show_folders")));
+    cJSON_AddItemToObject(out, "folder", cJSON_DetachItemFromObjectCaseSensitive(rows_reply, "folder"));
+    if (cJSON_GetObjectItemCaseSensitive(rows_reply, "parent")) {
+        cJSON_AddItemToObject(out, "parent", cJSON_DetachItemFromObjectCaseSensitive(rows_reply, "parent"));
+    } else {
+        cJSON_AddNullToObject(out, "parent");
+    }
+    cJSON_AddItemToObject(out, "rows", cJSON_DetachItemFromObjectCaseSensitive(rows_reply, "rows"));
+    cJSON_Delete(rows_reply);
     undo = cs_metadata_undo_read(&app->paths, platform.tag);
     cJSON_AddNumberToObject(out,
                             "undoCount",
@@ -166,6 +235,7 @@ int cs_route_library_metadata_handler(struct mg_connection *conn, void *cbdata) 
     cJSON *out;
     const char *problem = NULL;
     char *body;
+    unsigned allowed;
     int undoable;
     int undo_kept = 0;
     int saved = 0;
@@ -197,9 +267,11 @@ int cs_route_library_metadata_handler(struct mg_connection *conn, void *cbdata) 
     }
 
     /* Written and synced first: without a way back, a bulk apply doesn't start. */
+    allowed = (caps.user_synopsis ? CS_METADATA_ALLOW_DESCRIPTION : 0u)
+              | (caps.sort_rank && caps.folder_rows ? CS_METADATA_ALLOW_ORDER : 0u);
     undoable = cJSON_IsTrue(cJSON_GetObjectItemCaseSensitive(root, "undoable")) && cJSON_GetArraySize(changes) > 0;
     if (undoable) {
-        cJSON *snapshot = cs_metadata_undo_build(&platform, changes, caps.user_synopsis);
+        cJSON *snapshot = cs_metadata_undo_build(&platform, changes, allowed);
 
         /* A malformed change has no snapshot, and the apply below reports why. */
         if (snapshot && cs_metadata_undo_prepare(&app->paths, snapshot) != 0) {
@@ -211,7 +283,7 @@ int cs_route_library_metadata_handler(struct mg_connection *conn, void *cbdata) 
         cJSON_Delete(snapshot);
     }
 
-    status = cs_metadata_apply(&app->paths, &platform, changes, caps.user_synopsis, &saved, &conflicts, &problem);
+    status = cs_metadata_apply(&app->paths, &platform, changes, allowed, &saved, &conflicts, &problem);
     cJSON_Delete(root);
     if (undoable) {
         if (status == CS_METADATA_OK) {

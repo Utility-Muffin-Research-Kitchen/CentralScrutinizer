@@ -337,9 +337,42 @@ void cs_jawaka_read_library_caps(cs_jawaka_library_caps *caps) {
             caps->user_synopsis = 1;
         } else if (cJSON_IsString(item) && strcmp(item->valuestring, "metadata_changed") == 0) {
             caps->metadata_changed = 1;
+        } else if (cJSON_IsString(item) && strcmp(item->valuestring, "sort_rank") == 0) {
+            caps->sort_rank = 1;
+        } else if (cJSON_IsString(item) && strcmp(item->valuestring, "folder_rows") == 0) {
+            caps->folder_rows = 1;
         }
     }
     cJSON_Delete(response);
+}
+
+cJSON *cs_jawaka_read_folder_rows(const char *system, const char *folder) {
+    char socket_path[CS_PATH_MAX];
+    char *request_text;
+    char *response_text = NULL;
+    cJSON *request = cJSON_CreateObject();
+    cJSON *response = NULL;
+
+    if (!request || !system) {
+        cJSON_Delete(request);
+        return NULL;
+    }
+    cJSON_AddStringToObject(request, "type", "library-folder-rows");
+    cJSON_AddStringToObject(request, "system", system);
+    cJSON_AddStringToObject(request, "folder", folder ? folder : "");
+    request_text = cJSON_PrintUnformatted(request);
+    cJSON_Delete(request);
+    if (request_text && cs_jawaka_socket_path(socket_path, sizeof(socket_path)) == 0
+        && cs_ipc_request(socket_path, request_text, &response_text) == 0) {
+        response = cJSON_Parse(response_text);
+        free(response_text);
+    }
+    cJSON_free(request_text);
+    if (response && !cs_json_type_is(response, "library-folder-rows")) {
+        cJSON_Delete(response);
+        return NULL;
+    }
+    return response;
 }
 
 int cs_jawaka_notify_library_metadata(const cs_jawaka_library_caps *caps) {

@@ -13,6 +13,7 @@
 #include "cs_paths.h"
 
 #define LIVE_CARD "card-key-live"
+#define ALLOW_ALL (CS_METADATA_ALLOW_DESCRIPTION | CS_METADATA_ALLOW_ORDER)
 
 typedef struct {
     char primary[PATH_MAX];
@@ -62,6 +63,8 @@ static const char *const kLibrarySql =
     "CREATE TABLE library_cards (id INTEGER PRIMARY KEY, card_key TEXT NOT NULL UNIQUE,"
     " is_live INTEGER NOT NULL DEFAULT 0, live_digest TEXT, label TEXT NOT NULL DEFAULT '',"
     " last_seen INTEGER NOT NULL);"
+    "CREATE TABLE system_settings (system TEXT NOT NULL, key TEXT NOT NULL, value TEXT NOT NULL,"
+    " updated_at INTEGER NOT NULL, PRIMARY KEY (system, key));"
     "INSERT INTO library_cards (card_key, is_live, last_seen) VALUES ('" LIVE_CARD "', 1, 1);"
     "INSERT INTO games (id, system, name, source_id, rom_relpath, rom_path) VALUES"
     " (1, 'GBA', 'Zelda', 'primary', 'GBA/Zelda.gba', 'Roms/GBA/Zelda.gba'),"
@@ -136,7 +139,7 @@ static cJSON *make_change(const char *source,
 }
 
 /* Applies one change. A conflict's reason is copied out, and "" means it saved. */
-static cs_metadata_status apply_one(fixture *fx, cJSON *change, int allow_description, char *reason, size_t size) {
+static cs_metadata_status apply_one(fixture *fx, cJSON *change, unsigned allowed, char *reason, size_t size) {
     cJSON *changes = cJSON_CreateArray();
     cJSON *conflicts = NULL;
     const char *problem = NULL;
@@ -144,7 +147,7 @@ static cs_metadata_status apply_one(fixture *fx, cJSON *change, int allow_descri
     cs_metadata_status status;
 
     cJSON_AddItemToArray(changes, change);
-    status = cs_metadata_apply(&fx->paths, &fx->gba, changes, allow_description, &saved, &conflicts, &problem);
+    status = cs_metadata_apply(&fx->paths, &fx->gba, changes, allowed, &saved, &conflicts, &problem);
     snprintf(reason, size, "%s", "");
     if (status == CS_METADATA_OK) {
         assert(saved == 1 && !conflicts);
@@ -425,7 +428,7 @@ static void test_malformed_changes(void) {
 
     memset(too_long, 'x', sizeof(too_long) - 1);
     too_long[sizeof(too_long) - 1] = '\0';
-    assert(apply_one(&fx, make_change("primary", "GBA/Zelda.gba", NULL, "description", too_long, NULL), 1, reason,
+    assert(apply_one(&fx, make_change("primary", "GBA/Zelda.gba", NULL, "description", too_long, NULL), CS_METADATA_ALLOW_DESCRIPTION, reason,
                      sizeof(reason))
            == CS_METADATA_INVALID);
 
@@ -454,7 +457,7 @@ static void test_description_override(void) {
     assert(strcmp(cJSON_GetObjectItemCaseSensitive(out, "defaultDescription")->valuestring, "Scraped text") == 0);
     cJSON_Delete(out);
 
-    assert(apply_one(&fx, make_change("primary", "GBA/Zelda.gba", NULL, "description", "Mine\n\nToo", NULL), 1, reason,
+    assert(apply_one(&fx, make_change("primary", "GBA/Zelda.gba", NULL, "description", "Mine\n\nToo", NULL), CS_METADATA_ALLOW_DESCRIPTION, reason,
                      sizeof(reason))
            == CS_METADATA_OK);
     expect_setting(&fx, 1, "user_synopsis", "Mine Too");
@@ -465,7 +468,7 @@ static void test_description_override(void) {
     assert(strcmp(cJSON_GetObjectItemCaseSensitive(out, "descriptionOverride")->valuestring, "Mine Too") == 0);
     cJSON_Delete(out);
 
-    assert(apply_one(&fx, make_change("primary", "GBA/Zelda.gba", NULL, "description", NULL, "Mine Too"), 1, reason,
+    assert(apply_one(&fx, make_change("primary", "GBA/Zelda.gba", NULL, "description", NULL, "Mine Too"), CS_METADATA_ALLOW_DESCRIPTION, reason,
                      sizeof(reason))
            == CS_METADATA_OK);
     expect_setting(&fx, 1, "user_synopsis", NULL);
@@ -501,7 +504,7 @@ static void test_list_includes_descriptions_on_request(void) {
 
 /* Apply through the same steps the route takes, keeping the snapshot on success. */
 static cs_metadata_status bulk_apply(fixture *fx, cJSON *changes) {
-    cJSON *snapshot = cs_metadata_undo_build(&fx->gba, changes, 1);
+    cJSON *snapshot = cs_metadata_undo_build(&fx->gba, changes, ALLOW_ALL);
     cJSON *conflicts = NULL;
     const char *problem = NULL;
     int saved = 0;
@@ -510,7 +513,7 @@ static cs_metadata_status bulk_apply(fixture *fx, cJSON *changes) {
     assert(snapshot);
     assert(cs_metadata_undo_prepare(&fx->paths, snapshot) == 0);
     cJSON_Delete(snapshot);
-    status = cs_metadata_apply(&fx->paths, &fx->gba, changes, 1, &saved, &conflicts, &problem);
+    status = cs_metadata_apply(&fx->paths, &fx->gba, changes, ALLOW_ALL, &saved, &conflicts, &problem);
     if (status == CS_METADATA_OK) {
         assert(cs_metadata_undo_commit(&fx->paths) == 0);
     } else {
@@ -622,6 +625,127 @@ static void test_rejected_apply_keeps_previous_undo(void) {
     expect_setting(&fx, 1, "display_name", NULL);
 }
 
+static cJSON *folder_change(const char *path, const char *value, const char *expected) {
+    cJSON *change = cJSON_CreateObject();
+
+    cJSON_AddStringToObject(change, "path", path);
+    cJSON_AddStringToObject(change, "field", "folderRank");
+    if (value) {
+        cJSON_AddStringToObject(change, "value", value);
+    } else {
+        cJSON_AddNullToObject(change, "value");
+    }
+    if (expected) {
+        cJSON_AddStringToObject(change, "expected", expected);
+    } else {
+        cJSON_AddNullToObject(change, "expected");
+    }
+    return change;
+}
+
+static void expect_folder_rank(const fixture *fx, const char *key, const char *want) {
+    sqlite3 *db = NULL;
+    sqlite3_stmt *stmt = NULL;
+    int found;
+
+    assert(sqlite3_open(fx->db_path, &db) == SQLITE_OK);
+    assert(sqlite3_prepare_v2(db, "SELECT value FROM system_settings WHERE system='GBA' AND key=?;", -1, &stmt, NULL)
+           == SQLITE_OK);
+    sqlite3_bind_text(stmt, 1, key, -1, SQLITE_STATIC);
+    found = sqlite3_step(stmt) == SQLITE_ROW;
+    if (!want) {
+        assert(!found);
+    } else {
+        assert(found && strcmp((const char *) sqlite3_column_text(stmt, 0), want) == 0);
+    }
+    sqlite3_finalize(stmt);
+    assert(sqlite3_close(db) == SQLITE_OK);
+}
+
+static void test_ranks(void) {
+    fixture fx;
+    char reason[64];
+    cJSON *changes = cJSON_CreateArray();
+    cJSON *skipped = NULL;
+    char system[64];
+
+    fixture_init(&fx, kLibrarySql);
+    assert(cs_metadata_system_id(&fx.paths, &fx.gba, system, sizeof(system)) == CS_METADATA_OK);
+    assert(strcmp(system, "GBA") == 0);
+
+    /* A daemon that can't honor them doesn't get them. */
+    assert(apply_one(&fx, make_change("primary", "GBA/Zelda.gba", NULL, "rank", "1", NULL), CS_METADATA_ALLOW_DESCRIPTION,
+                     reason, sizeof(reason))
+           == CS_METADATA_INVALID);
+    assert(strcmp(reason, "order_unsupported") == 0);
+    assert(apply_one(&fx, folder_change("Hacks", "1", NULL), CS_METADATA_ALLOW_DESCRIPTION, reason, sizeof(reason))
+           == CS_METADATA_INVALID);
+
+    /* Only positive whole numbers. */
+    assert(apply_one(&fx, make_change("primary", "GBA/Zelda.gba", NULL, "rank", "0", NULL), ALLOW_ALL, reason, sizeof(reason))
+           == CS_METADATA_INVALID);
+    assert(strcmp(reason, "invalid_rank") == 0);
+    assert(apply_one(&fx, make_change("primary", "GBA/Zelda.gba", NULL, "rank", "1x", NULL), ALLOW_ALL, reason, sizeof(reason))
+           == CS_METADATA_INVALID);
+    assert(apply_one(&fx, folder_change("/abs", "1", NULL), ALLOW_ALL, reason, sizeof(reason)) == CS_METADATA_INVALID);
+
+    /* A game and a folder in one apply; the folder's key is the merged, lowercase path. */
+    cJSON_AddItemToArray(changes, make_change("primary", "GBA/Zelda.gba", NULL, "rank", "2", NULL));
+    cJSON_AddItemToArray(changes, folder_change("Hacks/Translated", "1", NULL));
+    assert(bulk_apply(&fx, changes) == CS_METADATA_OK);
+    expect_setting(&fx, 1, "sort_rank", "2");
+    expect_folder_rank(&fx, "folder_rank:hacks/translated", "1");
+
+    /* Stale ranks are rejected, for folders too. */
+    assert(apply_one(&fx, folder_change("Hacks/Translated", "3", "9"), ALLOW_ALL, reason, sizeof(reason))
+           == CS_METADATA_CONFLICT);
+    assert(strcmp(reason, "stale") == 0);
+    assert(apply_one(&fx, make_change("primary", "GBA/Zelda.gba", NULL, "rank", "3", "9"), ALLOW_ALL, reason, sizeof(reason))
+           == CS_METADATA_CONFLICT);
+
+    /* Junk isn't a pin to the launcher, so it can't block a save either. */
+    exec_sql(fx.db_path, "INSERT INTO game_settings VALUES (6, 'sort_rank', 'soon', 1);");
+    assert(apply_one(&fx, make_change("primary", "GBA/imported.gba", NULL, "rank", "4", NULL), ALLOW_ALL, reason, sizeof(reason))
+           == CS_METADATA_OK);
+    expect_setting(&fx, 6, "sort_rank", "4");
+
+    /* Undo takes a rank back out, and a folder's. */
+    assert(undo_now(&fx, &skipped) == 2);
+    cJSON_Delete(skipped);
+    expect_setting(&fx, 1, "sort_rank", NULL);
+    expect_folder_rank(&fx, "folder_rank:hacks/translated", NULL);
+
+    /* A rank on a game or folder that isn't listed stays when another level is saved. */
+    exec_sql(fx.db_path,
+             "INSERT INTO game_settings VALUES (3, 'sort_rank', '1', 1);"
+             "INSERT INTO system_settings VALUES ('GBA', 'folder_rank:gone', '1', 1);");
+    assert(apply_one(&fx, make_change("primary", "GBA/Zelda.gba", NULL, "rank", "1", NULL), ALLOW_ALL, reason, sizeof(reason))
+           == CS_METADATA_OK);
+    expect_setting(&fx, 3, "sort_rank", "1");
+    expect_folder_rank(&fx, "folder_rank:gone", "1");
+}
+
+static void test_card_keys_on_rows(void) {
+    fixture fx;
+    cJSON *rows = cJSON_CreateArray();
+    cJSON *primary = cJSON_CreateObject();
+    cJSON *second = cJSON_CreateObject();
+    cJSON *folder = cJSON_CreateObject();
+
+    fixture_init(&fx, kLibrarySql);
+    cJSON_AddStringToObject(primary, "source", "primary");
+    cJSON_AddStringToObject(second, "source", "secondary_sd");
+    cJSON_AddStringToObject(folder, "kind", "folder");
+    cJSON_AddItemToArray(rows, primary);
+    cJSON_AddItemToArray(rows, second);
+    cJSON_AddItemToArray(rows, folder);
+    assert(cs_metadata_add_card_keys(&fx.paths, rows) == CS_METADATA_OK);
+    assert(cJSON_IsNull(cJSON_GetObjectItemCaseSensitive(primary, "cardKey")));
+    assert(strcmp(cJSON_GetObjectItemCaseSensitive(second, "cardKey")->valuestring, LIVE_CARD) == 0);
+    assert(!cJSON_GetObjectItemCaseSensitive(folder, "cardKey"));
+    cJSON_Delete(rows);
+}
+
 /* A library from before source_id can't identify a row the way the editor needs. */
 static void test_old_library_is_unavailable(void) {
     fixture fx;
@@ -663,6 +787,8 @@ int main(void) {
     test_undo_restores_raw_state();
     test_undo_keeps_later_edits();
     test_rejected_apply_keeps_previous_undo();
+    test_ranks();
+    test_card_keys_on_rows();
     test_old_library_is_unavailable();
     return 0;
 }

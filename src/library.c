@@ -1283,6 +1283,10 @@ int cs_library_db_count_roms_for_platform(const cs_paths *paths, const cs_platfo
         "SELECT COUNT(*) FROM games WHERE system IN (?, ?, ?, ?, ?, ?);";
     static const char *primary_sql =
         "SELECT COUNT(*) FROM games WHERE system IN (?, ?, ?, ?, ?, ?) AND source_id = 'primary';";
+    /* A card-<n> row belongs to a second card that isn't in the slot. Leaf keeps it so
+     * it returns with that card, and the browser can't reach its rom_path. */
+    static const char *present_sql =
+        "SELECT COUNT(*) FROM games WHERE system IN (?, ?, ?, ?, ?, ?) AND substr(source_id, 1, 5) <> 'card-';";
 
     if (!paths || !platform || !count_out) {
         return -1;
@@ -1295,8 +1299,8 @@ int cs_library_db_count_roms_for_platform(const cs_paths *paths, const cs_platfo
     }
 
     /* A library from before source_id has no rows from a second card to leave out. */
-    if ((cs_library_db_second_source_present(paths)
-         || sqlite3_prepare_v2(db, primary_sql, -1, &stmt, NULL) != SQLITE_OK)
+    if (sqlite3_prepare_v2(db, cs_library_db_second_source_present(paths) ? present_sql : primary_sql,
+                           -1, &stmt, NULL) != SQLITE_OK
         && sqlite3_prepare_v2(db, sql, -1, &stmt, NULL) != SQLITE_OK) {
         sqlite3_close(db);
         return -1;

@@ -26,11 +26,15 @@ export type LibraryGame = {
   title: string;
   defaultTitle: string;
   titleOverride: string | null;
+  /* Only when the list was asked for descriptions. */
+  descriptionOverride?: string | null;
+  defaultDescription?: string;
 };
 
 export type LibraryGamesResponse = {
   games: LibraryGame[];
   descriptionSupported: boolean;
+  undoCount: number;
 };
 
 export type LibraryGameDescription = {
@@ -50,6 +54,13 @@ export type LibraryMetadataChange = {
 export type LibraryMetadataResult = {
   saved: number;
   refreshed: boolean;
+  undoKept: boolean;
+};
+
+export type LibraryUndoResult = {
+  restored: number;
+  refreshed: boolean;
+  skipped: { path: string; field: string; reason: string }[];
 };
 
 export type RomUploadPolicy = {

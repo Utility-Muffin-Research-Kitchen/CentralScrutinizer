@@ -208,6 +208,79 @@ expect_status "$(post "$DESCRIPTION")" 200 '"saved":1'
 [ "$(db_value user_synopsis)" = "Mine" ]
 [ "$(db_value ss.synopsis)" = "Scraped text" ]
 
+# A bulk apply can be undone, down to a row that had no override at all.
+set_daemon '{"caps":["user_synopsis","metadata_changed"]}'
+python3 -I -c 'import os, sqlite3
+db = sqlite3.connect(os.environ["DB"])
+db.execute("DELETE FROM game_settings WHERE key IN (\"display_name\", \"user_synopsis\")")
+db.execute("INSERT INTO games (id, system, name, source_id, rom_relpath, rom_path) VALUES (2, \"GBA\", \"Other\", \"primary\", \"GBA/Other.gba\", \"Roms/GBA/Other.gba\")")
+db.execute("INSERT INTO game_settings VALUES (2, \"display_name\", \"Raw  spacing\", 1)")
+db.commit()'
+db_value_2() {
+    python3 -I -c 'import os, sqlite3
+row = sqlite3.connect(os.environ["DB"]).execute("SELECT value FROM game_settings WHERE game_id=2 AND key=\"display_name\"").fetchone()
+print(row[0] if row else "<none>")'
+}
+games_response() {
+    curl -sf -b "$COOKIE_JAR" -H "X-CS-CSRF: $CSRF" "$BASE/api/library/games?tag=GBA$1"
+}
+undo() {
+    curl -s -b "$COOKIE_JAR" -H "X-CS-CSRF: $CSRF" -H 'Content-Type: application/json' \
+        -X POST "$BASE/api/library/undo" -d "$1" -w '\n%{http_code}'
+}
+printf '%s' "$(games_response '')" | grep -Fq '"undoCount":0'
+expect_status "$(undo '{"tag":"GBA"}')" 404 '"error":"nothing_to_undo"'
+
+BULK='{"tag":"GBA","undoable":true,"changes":[
+  {"source":"primary","path":"GBA/Zelda.gba","cardKey":null,"field":"title","value":"Bulk One","expected":null},
+  {"source":"primary","path":"GBA/Other.gba","cardKey":null,"field":"title","value":"Bulk Two","expected":"Raw  spacing"},
+  {"source":"primary","path":"GBA/Zelda.gba","cardKey":null,"field":"description","value":"Bulk words","expected":null}]}'
+expect_status "$(post "$BULK")" 200 '"undoKept":true'
+[ "$(db_value display_name)" = "Bulk One" ]
+printf '%s' "$(games_response '')" | grep -Fq '"undoCount":3'
+
+# The list carries descriptions only when asked.
+if printf '%s' "$(games_response '')" | grep -Fq 'defaultDescription'; then
+    echo "descriptions were sent without being asked for" >&2
+    exit 1
+fi
+printf '%s' "$(games_response '&descriptions=1')" | grep -Fq '"defaultDescription":"Scraped text"'
+printf '%s' "$(games_response '&descriptions=1')" | grep -Fq '"descriptionOverride":"Bulk words"'
+
+# A rejected bulk apply saves nothing and leaves the undo for the last good one.
+expect_status "$(post "$BULK")" 409 '"reason":"stale"'
+printf '%s' "$(games_response '')" | grep -Fq '"undoCount":3'
+[ "$(db_value display_name)" = "Bulk One" ]
+
+# A plain save leaves it too, and undo leaves a later edit alone, naming the row.
+LATER='{"tag":"GBA","changes":[{"source":"primary","path":"GBA/Other.gba","cardKey":null,"field":"title","value":"Later","expected":"Bulk Two"}]}'
+expect_status "$(post "$LATER")" 200 '"undoKept":false'
+printf '%s' "$(games_response '')" | grep -Fq '"undoCount":3'
+
+: > "$FAKE_LOG"
+RESPONSE="$(undo '{"tag":"GBA"}')"
+expect_status "$RESPONSE" 200 '"restored":2'
+printf '%s' "$RESPONSE" | grep -Fq '"path":"GBA/Other.gba"'
+printf '%s' "$RESPONSE" | grep -Fq '"reason":"changed_since"'
+[ "$(db_value display_name)" = "<none>" ]
+[ "$(db_value user_synopsis)" = "<none>" ]
+[ "$(db_value_2)" = "Later" ]
+grep -Fxq 'library-metadata-changed' "$FAKE_LOG"
+printf '%s' "$(games_response '')" | grep -Fq '"undoCount":0'
+
+# Undo waits out a scan, and a snapshot that can't be written stops a bulk apply.
+ONE='{"tag":"GBA","undoable":true,"changes":[{"source":"primary","path":"GBA/Zelda.gba","cardKey":null,"field":"title","value":"Again","expected":null}]}'
+expect_status "$(post "$ONE")" 200 '"undoKept":true'
+set_daemon '{"caps":["user_synopsis","metadata_changed"],"scan":true}'
+expect_status "$(undo '{"tag":"GBA"}')" 409 '"error":"scan_running"'
+set_daemon '{"caps":["user_synopsis","metadata_changed"]}'
+expect_status "$(undo '{"tag":"GBA"}')" 200 '"restored":1'
+STATE_DIR="$SDCARD_ROOT/.userdata/mlp1/CentralScrutinizer"
+mkdir "$STATE_DIR/library-metadata-undo.json.new"
+expect_status "$(post "$ONE")" 500 '"error":"undo_unavailable"'
+rmdir "$STATE_DIR/library-metadata-undo.json.new"
+[ "$(db_value display_name)" = "<none>" ]
+
 # With no daemon at all the save stands, and isn't reported as a refresh.
 kill "$DAEMON_PID" 2>/dev/null || true
 wait "$DAEMON_PID" 2>/dev/null || true
@@ -220,7 +293,7 @@ expect_status "$(post "$(title_change '"Offline"' null)")" 200 '"refreshed":fals
 expect_status "$(post 'not json')" 400 '"error":"invalid_request"'
 expect_status "$(post '{"tag":"GBA"}')" 400 '"error":"invalid_request"'
 expect_status "$(post '{"tag":"NOPE","changes":[]}')" 404 '"error":"platform_not_found"'
-python3 -I -c 'print("x" * (4 * 1024 * 1024 + 1), end="")' > "$WORK_DIR/too-big"
+python3 -I -c 'print("x" * (16 * 1024 * 1024 + 1), end="")' > "$WORK_DIR/too-big"
 curl -s -b "$COOKIE_JAR" -H "X-CS-CSRF: $CSRF" -X POST "$BASE/api/library/metadata" \
     --data-binary "@$WORK_DIR/too-big" -w '\n%{http_code}' | tail -n 1 | grep -q '^400$'
 

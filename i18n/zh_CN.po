@@ -1169,9 +1169,6 @@ msgstr "恢复默认简介"
 msgid "This title is too long."
 msgstr "标题太长。"
 
-msgid "Line breaks show as spaces on the handheld. Rescraping keeps your description."
-msgstr "换行符在掌机上会显示为空格。重新抓取不会覆盖你的简介。"
-
 msgid "Editing descriptions needs a newer version of Leaf."
 msgstr "编辑简介需要更新版本的 Leaf。"
 
@@ -1225,3 +1222,117 @@ msgstr "已保存。"
 
 msgid "Saved. The handheld will show this after its next library refresh."
 msgstr "已保存。掌机将在下次刷新游戏库后显示此更改。"
+
+msgid "Review changes"
+msgstr "查看更改"
+
+msgid "Changes: {count}. Untick any you don't want."
+msgstr "共 {count} 项更改。取消勾选不需要的项。"
+
+msgid "Titles shared by more than one game afterwards: {count}"
+msgstr "更改后被多个游戏共用的标题：{count}"
+
+msgid "Rows left out: {count}"
+msgstr "未包含的行：{count}"
+
+msgid "No game with this file"
+msgstr "没有对应此文件的游戏"
+
+msgid "From a different second card"
+msgstr "来自另一张第二 SD 卡"
+
+msgid "Too long"
+msgstr "太长"
+
+msgid "Would leave the title empty"
+msgstr "会使标题变为空"
+
+msgid "Listed more than once"
+msgstr "重复列出"
+
+msgid "This version of Leaf can't show its description"
+msgstr "此版本的 Leaf 无法显示其简介"
+
+msgid "Nothing would change."
+msgstr "不会有任何更改。"
+
+msgid "(empty)"
+msgstr "（空）"
+
+msgid "Include {name}"
+msgstr "包含 {name}"
+
+msgid "Apply changes ({count})"
+msgstr "应用更改（{count}）"
+
+msgid "That regular expression isn't valid."
+msgstr "该正则表达式无效。"
+
+msgid "Nothing was saved, because the undo copy couldn't be written to the SD card."
+msgstr "未保存任何内容，因为无法将撤销副本写入 SD 卡。"
+
+msgid "Changes saved: {count}."
+msgstr "已保存的更改：{count}。"
+
+msgid "The handheld will show them after its next library refresh."
+msgstr "掌机将在下次刷新游戏库后显示这些更改。"
+
+msgid "These changes can't be undone, because the undo copy couldn't be kept."
+msgstr "这些更改无法撤销，因为未能保留撤销副本。"
+
+msgid "Nothing was saved, because some of these games changed since the preview. Please try again."
+msgstr "未保存任何内容，因为部分游戏在预览后已被更改。请重试。"
+
+msgid "Could not export this system's games."
+msgstr "无法导出此系统的游戏。"
+
+msgid "That file needs source and rom_relpath columns, and a title or description column."
+msgstr "该文件需要 source 和 rom_relpath 列，以及 title 或 description 列。"
+
+msgid "Could not read that file."
+msgstr "无法读取该文件。"
+
+msgid "Changes undone: {count}."
+msgstr "已撤销的更改：{count}。"
+
+msgid "Left alone because they changed since or their card is out ({count}): {names}"
+msgstr "因之后已被更改或所在的卡未插入而未处理（{count}）：{names}"
+
+msgid "Find and replace"
+msgstr "查找和替换"
+
+msgid "Strip region and version tags"
+msgstr "移除地区和版本标记"
+
+msgid "Export CSV"
+msgstr "导出 CSV"
+
+msgid "Import CSV"
+msgstr "导入 CSV"
+
+msgid "CSV file to import"
+msgstr "要导入的 CSV 文件"
+
+msgid "Undo last bulk change ({count})"
+msgstr "撤销上次批量更改（{count}）"
+
+msgid "Find and replace and tag stripping act on the games shown below ({count}). Use the search to narrow them."
+msgstr "查找替换和移除标记只作用于下方显示的游戏（{count}）。可用搜索缩小范围。"
+
+msgid "Find"
+msgstr "查找"
+
+msgid "Replace with"
+msgstr "替换为"
+
+msgid "Regular expression"
+msgstr "正则表达式"
+
+msgid "Match case"
+msgstr "区分大小写"
+
+msgid "Preview changes"
+msgstr "预览更改"
+
+msgid "The handheld shows descriptions in the Grid home layout. Line breaks show as spaces there, and rescraping keeps your description."
+msgstr "掌机在网格主屏布局中显示简介。换行符在那里会显示为空格，重新抓取不会覆盖你的简介。"

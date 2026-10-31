@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 
+import { LibraryBulkTools } from "./library-bulk-tools";
 import { ApiError, getLibraryGame, getLibraryGames, saveLibraryMetadata } from "../lib/api";
 import {
   buildMetadataChanges,
@@ -197,7 +198,7 @@ function GameInfoEditor({
               />
               <p className={`text-xs ${descriptionBytes > DESCRIPTION_MAX_BYTES ? "text-[var(--accent)]" : "text-[var(--muted)]"}`}>
                 {descriptionBytes.toLocaleString()} / {DESCRIPTION_MAX_BYTES.toLocaleString()} {t("bytes")}.{" "}
-                {t("Line breaks show as spaces on the handheld. Rescraping keeps your description.")}
+                {t("The handheld shows descriptions in the Grid home layout. Line breaks show as spaces there, and rescraping keeps your description.")}
               </p>
             </div>
           ) : (
@@ -248,6 +249,7 @@ export function LibraryEditorView({
   const t = useT();
   const [games, setGames] = useState<LibraryGame[]>([]);
   const [descriptionSupported, setDescriptionSupported] = useState(false);
+  const [undoCount, setUndoCount] = useState(0);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
@@ -265,6 +267,7 @@ export function LibraryEditorView({
 
     setGames(sorted);
     setDescriptionSupported(response.descriptionSupported);
+    setUndoCount(response.undoCount ?? 0);
     return sorted;
   }
 
@@ -331,6 +334,16 @@ export function LibraryEditorView({
         </p>
       ) : (
         <div className="space-y-3">
+          {csrf ? (
+            <LibraryBulkTools
+              csrf={csrf}
+              onChanged={reload}
+              onNotice={setNotice}
+              platform={platform}
+              shownGames={matches}
+              undoCount={undoCount}
+            />
+          ) : null}
           <input
             aria-label={t("Search games")}
             className="w-full rounded-md border border-[var(--border)] bg-[var(--panel)] px-3 py-2 text-sm text-[var(--text)]"

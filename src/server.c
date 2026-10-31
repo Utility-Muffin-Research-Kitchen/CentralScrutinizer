@@ -60,6 +60,7 @@ int cs_route_game_favorite_handler(struct mg_connection *conn, void *cbdata);
 int cs_route_library_games_handler(struct mg_connection *conn, void *cbdata);
 int cs_route_library_game_handler(struct mg_connection *conn, void *cbdata);
 int cs_route_library_metadata_handler(struct mg_connection *conn, void *cbdata);
+int cs_route_library_undo_handler(struct mg_connection *conn, void *cbdata);
 int cs_route_states_handler(struct mg_connection *conn, void *cbdata);
 int cs_route_logs_handler(struct mg_connection *conn, void *cbdata);
 int cs_route_logs_download_handler(struct mg_connection *conn, void *cbdata);
@@ -155,6 +156,9 @@ static int cs_server_begin_request(struct mg_connection *conn) {
     }
     if (strcmp(uri, "/api/library/metadata") == 0) {
         return cs_route_library_metadata_handler(conn, app);
+    }
+    if (strcmp(uri, "/api/library/undo") == 0) {
+        return cs_route_library_undo_handler(conn, app);
     }
     if (strcmp(uri, "/api/states") == 0) {
         return cs_route_states_handler(conn, app);

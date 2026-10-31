@@ -2,6 +2,9 @@
 msgid ""
 msgstr "Content-Type: text/plain; charset=UTF-8\n"
 
+msgid "(empty)"
+msgstr ""
+
 msgid "1 selection will not be scanned as"
 msgstr ""
 
@@ -30,6 +33,9 @@ msgid "Added"
 msgstr ""
 
 msgid "Allow overwriting existing files"
+msgstr ""
+
+msgid "Apply changes ({count})"
 msgstr ""
 
 msgid "Artwork must be a PNG or JPEG file."
@@ -98,6 +104,9 @@ msgstr ""
 msgid "Bundle Size"
 msgstr ""
 
+msgid "CSV file to import"
+msgstr ""
+
 msgid "Can't rename"
 msgstr ""
 
@@ -114,6 +123,15 @@ msgid "Central Scrutinizer terminal"
 msgstr ""
 
 msgid "Change the title and description the handheld shows for a game. Your files aren't renamed, so saves keep working."
+msgstr ""
+
+msgid "Changes saved: {count}."
+msgstr ""
+
+msgid "Changes undone: {count}."
+msgstr ""
+
+msgid "Changes: {count}. Untick any you don't want."
 msgstr ""
 
 msgid "Cheats"
@@ -188,6 +206,9 @@ msgstr ""
 msgid "Could not download {name}"
 msgstr ""
 
+msgid "Could not export this system's games."
+msgstr ""
+
 msgid "Could not generate a pairing QR code."
 msgstr ""
 
@@ -207,6 +228,9 @@ msgid "Could not load this system's games."
 msgstr ""
 
 msgid "Could not prepare background mode."
+msgstr ""
+
+msgid "Could not read that file."
 msgstr ""
 
 msgid "Could not save setting."
@@ -386,6 +410,9 @@ msgstr ""
 msgid "Exit"
 msgstr ""
 
+msgid "Export CSV"
+msgstr ""
+
 msgid "Extract"
 msgstr ""
 
@@ -425,6 +452,15 @@ msgstr ""
 msgid "Files path"
 msgstr ""
 
+msgid "Find"
+msgstr ""
+
+msgid "Find and replace"
+msgstr ""
+
+msgid "Find and replace and tag stripping act on the games shown below ({count}). Use the search to narrow them."
+msgstr ""
+
 msgid "Folder"
 msgstr ""
 
@@ -432,6 +468,9 @@ msgid "Folder name"
 msgstr ""
 
 msgid "Folder needed but a file already exists"
+msgstr ""
+
+msgid "From a different second card"
 msgstr ""
 
 msgid "Game Info"
@@ -444,6 +483,12 @@ msgid "Hide sample paths"
 msgstr ""
 
 msgid "How would you like to extract the contents?"
+msgstr ""
+
+msgid "Import CSV"
+msgstr ""
+
+msgid "Include {name}"
 msgstr ""
 
 msgid "Keep Awake in Background"
@@ -461,6 +506,9 @@ msgstr ""
 msgid "Leaf is scanning the library. Try again when the scan finishes."
 msgstr ""
 
+msgid "Left alone because they changed since or their card is out ({count}): {names}"
+msgstr ""
+
 msgid "Library"
 msgstr ""
 
@@ -473,7 +521,7 @@ msgstr ""
 msgid "Library rescan failed"
 msgstr ""
 
-msgid "Line breaks show as spaces on the handheld. Rescraping keeps your description."
+msgid "Listed more than once"
 msgstr ""
 
 msgid "Load more"
@@ -519,6 +567,9 @@ msgid "Malformed platforms stream"
 msgstr ""
 
 msgid "Manage content by platform and jump into system-specific workspaces."
+msgstr ""
+
+msgid "Match case"
 msgstr ""
 
 msgid "Missing session csrf token."
@@ -578,6 +629,9 @@ msgstr ""
 msgid "No folders in this location."
 msgstr ""
 
+msgid "No game with this file"
+msgstr ""
+
 msgid "No games found."
 msgstr ""
 
@@ -600,6 +654,15 @@ msgid "Nothing found in this folder."
 msgstr ""
 
 msgid "Nothing to move."
+msgstr ""
+
+msgid "Nothing was saved, because some of these games changed since the preview. Please try again."
+msgstr ""
+
+msgid "Nothing was saved, because the undo copy couldn't be written to the SD card."
+msgstr ""
+
+msgid "Nothing would change."
 msgstr ""
 
 msgid "Notice"
@@ -695,6 +758,9 @@ msgstr ""
 msgid "Preview"
 msgstr ""
 
+msgid "Preview changes"
+msgstr ""
+
 msgid "Previous image"
 msgstr ""
 
@@ -728,6 +794,9 @@ msgstr ""
 msgid "Refresh"
 msgstr ""
 
+msgid "Regular expression"
+msgstr ""
+
 msgid "Removed"
 msgstr ""
 
@@ -752,6 +821,9 @@ msgstr ""
 msgid "Replace Art"
 msgstr ""
 
+msgid "Replace with"
+msgstr ""
+
 msgid "Replaceable file conflicts"
 msgstr ""
 
@@ -767,10 +839,16 @@ msgstr ""
 msgid "Retry"
 msgstr ""
 
+msgid "Review changes"
+msgstr ""
+
 msgid "Revoke Trusted Browsers"
 msgstr ""
 
 msgid "Root"
+msgstr ""
+
+msgid "Rows left out: {count}"
 msgstr ""
 
 msgid "Run"
@@ -911,6 +989,9 @@ msgstr ""
 msgid "Status"
 msgstr ""
 
+msgid "Strip region and version tags"
+msgstr ""
+
 msgid "Supported:"
 msgstr ""
 
@@ -935,10 +1016,16 @@ msgstr ""
 msgid "Terminal session closed."
 msgstr ""
 
+msgid "That file needs source and rom_relpath columns, and a title or description column."
+msgstr ""
+
 msgid "That game isn't available any more. The second card may have been swapped."
 msgstr ""
 
 msgid "That name is already in use in this folder."
+msgstr ""
+
+msgid "That regular expression isn't valid."
 msgstr ""
 
 msgid "The Central Scrutinizer"
@@ -950,6 +1037,12 @@ msgstr ""
 msgid "The handheld app is unavailable."
 msgstr ""
 
+msgid "The handheld shows descriptions in the Grid home layout. Line breaks show as spaces there, and rescraping keeps your description."
+msgstr ""
+
+msgid "The handheld will show them after its next library refresh."
+msgstr ""
+
 msgid "The item you tried to rename no longer exists."
 msgstr ""
 
@@ -957,6 +1050,9 @@ msgid "The scan found"
 msgstr ""
 
 msgid "The session starts in the SD card root and uses the device shell through a PTY-backed websocket."
+msgstr ""
+
+msgid "These changes can't be undone, because the undo copy couldn't be kept."
 msgstr ""
 
 msgid "These conflicts need a different destination or manual cleanup before extraction can continue."
@@ -986,10 +1082,19 @@ msgstr ""
 msgid "This version of Leaf can't edit game info yet, or its library isn't ready."
 msgstr ""
 
+msgid "This version of Leaf can't show its description"
+msgstr ""
+
 msgid "Title"
 msgstr ""
 
 msgid "Titles and descriptions"
+msgstr ""
+
+msgid "Titles shared by more than one game afterwards: {count}"
+msgstr ""
+
+msgid "Too long"
 msgstr ""
 
 msgid "Tools"
@@ -1005,6 +1110,9 @@ msgid "Trusted clients are remembered. Pairing codes refresh after each use. Pre
 msgstr ""
 
 msgid "URL"
+msgstr ""
+
+msgid "Undo last bulk change ({count})"
 msgstr ""
 
 msgid "Unsupported ROM bundles"
@@ -1086,6 +1194,9 @@ msgid "Work is paused until the device app reconnects. This page keeps retrying 
 msgstr ""
 
 msgid "Workspace"
+msgstr ""
+
+msgid "Would leave the title empty"
 msgstr ""
 
 msgid "Wrap contents under a new folder named after the archive"

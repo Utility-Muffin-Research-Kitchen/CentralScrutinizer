@@ -214,7 +214,7 @@ static void test_list_covers_listed_games(void) {
 
     fixture_init(&fx, kLibrarySql);
     exec_sql(fx.db_path, "INSERT INTO game_settings VALUES (1, 'display_name', 'My Zelda', 1);");
-    assert(cs_metadata_list_games(&fx.paths, &fx.gba, out) == CS_METADATA_OK);
+    assert(cs_metadata_list_games(&fx.paths, &fx.gba, 0, out) == CS_METADATA_OK);
     games = cJSON_GetObjectItemCaseSensitive(out, "games");
 
     /* Not the parked card's game, the hidden game or the other system's. */
@@ -341,7 +341,7 @@ static void test_card_identity(void) {
     assert(snprintf(second_roms, sizeof(second_roms), "%s/Roms", fx.secondary) > 0);
     assert(rmdir(second_roms) == 0);
     out = cJSON_CreateObject();
-    assert(cs_metadata_list_games(&fx.paths, &fx.gba, out) == CS_METADATA_OK);
+    assert(cs_metadata_list_games(&fx.paths, &fx.gba, 0, out) == CS_METADATA_OK);
     assert(!find_game(cJSON_GetObjectItemCaseSensitive(out, "games"), "secondary_sd", "GBA/Zelda.gba"));
     cJSON_Delete(out);
     assert(apply_one(&fx, make_change("secondary_sd", "GBA/Zelda.gba", LIVE_CARD, "title", "Other", "Mine"), 0, reason,
@@ -359,7 +359,7 @@ static void test_no_card_registry_means_primary_only(void) {
 
     fixture_init(&fx, kLibrarySql);
     exec_sql(fx.db_path, "DROP TABLE library_cards; DROP TABLE hidden_roms;");
-    assert(cs_metadata_list_games(&fx.paths, &fx.gba, out) == CS_METADATA_OK);
+    assert(cs_metadata_list_games(&fx.paths, &fx.gba, 0, out) == CS_METADATA_OK);
     assert(!find_game(cJSON_GetObjectItemCaseSensitive(out, "games"), "secondary_sd", "GBA/Zelda.gba"));
     assert(find_game(cJSON_GetObjectItemCaseSensitive(out, "games"), "primary", "GBA/Zelda.gba"));
     cJSON_Delete(out);
@@ -476,6 +476,152 @@ static void test_description_override(void) {
     cJSON_Delete(out);
 }
 
+static void test_list_includes_descriptions_on_request(void) {
+    fixture fx;
+    cJSON *out = cJSON_CreateObject();
+    const cJSON *game;
+
+    fixture_init(&fx, kLibrarySql);
+    exec_sql(fx.db_path, "INSERT INTO game_settings VALUES (6, 'user_synopsis', 'Mine', 1);");
+    assert(cs_metadata_list_games(&fx.paths, &fx.gba, 1, out) == CS_METADATA_OK);
+    game = find_game(cJSON_GetObjectItemCaseSensitive(out, "games"), "primary", "GBA/Zelda.gba");
+    assert(cJSON_IsNull(cJSON_GetObjectItemCaseSensitive(game, "descriptionOverride")));
+    assert(strcmp(cJSON_GetObjectItemCaseSensitive(game, "defaultDescription")->valuestring, "Scraped text") == 0);
+    game = find_game(cJSON_GetObjectItemCaseSensitive(out, "games"), "primary", "GBA/imported.gba");
+    assert(strcmp(cJSON_GetObjectItemCaseSensitive(game, "descriptionOverride")->valuestring, "Mine") == 0);
+    assert(strcmp(cJSON_GetObjectItemCaseSensitive(game, "defaultDescription")->valuestring, "") == 0);
+    cJSON_Delete(out);
+
+    out = cJSON_CreateObject();
+    assert(cs_metadata_list_games(&fx.paths, &fx.gba, 0, out) == CS_METADATA_OK);
+    game = find_game(cJSON_GetObjectItemCaseSensitive(out, "games"), "primary", "GBA/Zelda.gba");
+    assert(!cJSON_GetObjectItemCaseSensitive(game, "defaultDescription"));
+    cJSON_Delete(out);
+}
+
+/* Apply through the same steps the route takes, keeping the snapshot on success. */
+static cs_metadata_status bulk_apply(fixture *fx, cJSON *changes) {
+    cJSON *snapshot = cs_metadata_undo_build(&fx->gba, changes, 1);
+    cJSON *conflicts = NULL;
+    const char *problem = NULL;
+    int saved = 0;
+    cs_metadata_status status;
+
+    assert(snapshot);
+    assert(cs_metadata_undo_prepare(&fx->paths, snapshot) == 0);
+    cJSON_Delete(snapshot);
+    status = cs_metadata_apply(&fx->paths, &fx->gba, changes, 1, &saved, &conflicts, &problem);
+    if (status == CS_METADATA_OK) {
+        assert(cs_metadata_undo_commit(&fx->paths) == 0);
+    } else {
+        cs_metadata_undo_discard(&fx->paths);
+    }
+    cJSON_Delete(conflicts);
+    cJSON_Delete(changes);
+    return status;
+}
+
+static int undo_now(fixture *fx, cJSON **skipped_out) {
+    cJSON *snapshot = cs_metadata_undo_read(&fx->paths, "GBA");
+    cJSON *skipped = cJSON_CreateArray();
+    int restored = -1;
+
+    assert(snapshot);
+    assert(cs_metadata_undo_apply(&fx->paths, &fx->gba, snapshot, &restored, skipped) == CS_METADATA_OK);
+    cJSON_Delete(snapshot);
+    cs_metadata_undo_clear(&fx->paths);
+    *skipped_out = skipped;
+    return restored;
+}
+
+static void test_undo_restores_raw_state(void) {
+    fixture fx;
+    cJSON *changes = cJSON_CreateArray();
+    cJSON *skipped = NULL;
+
+    fixture_init(&fx, kLibrarySql);
+    /* Spacing and emptiness the editor wouldn't write itself. */
+    exec_sql(fx.db_path,
+             "INSERT INTO game_settings VALUES (1, 'display_name', 'My  Zelda', 1);"
+             "INSERT INTO game_settings VALUES (6, 'display_name', '', 1);");
+    cJSON_AddItemToArray(changes, make_change("primary", "GBA/Zelda.gba", NULL, "title", "New", "My  Zelda"));
+    cJSON_AddItemToArray(changes, make_change("primary", "GBA/imported.gba", NULL, "title", "New 2", ""));
+    cJSON_AddItemToArray(changes, make_change("secondary_sd", "GBA/Zelda.gba", LIVE_CARD, "title", "New 3", NULL));
+    cJSON_AddItemToArray(changes, make_change("primary", "GBA/Zelda.gba", NULL, "description", "Words", NULL));
+    assert(bulk_apply(&fx, changes) == CS_METADATA_OK);
+    expect_setting(&fx, 1, "display_name", "New");
+    expect_setting(&fx, 2, "display_name", "New 3");
+    expect_setting(&fx, 1, "user_synopsis", "Words");
+
+    assert(undo_now(&fx, &skipped) == 4);
+    assert(cJSON_GetArraySize(skipped) == 0);
+    cJSON_Delete(skipped);
+    /* Each back as it was: raw text, an empty row, and no row at all. Nothing frozen. */
+    expect_setting(&fx, 1, "display_name", "My  Zelda");
+    expect_setting(&fx, 6, "display_name", "");
+    expect_setting(&fx, 2, "display_name", NULL);
+    expect_setting(&fx, 1, "user_synopsis", NULL);
+    expect_setting(&fx, 1, "ss.synopsis", "Scraped text");
+    assert(cs_metadata_undo_read(&fx.paths, "GBA") == NULL);
+}
+
+static void test_undo_keeps_later_edits(void) {
+    fixture fx;
+    cJSON *changes = cJSON_CreateArray();
+    cJSON *skipped = NULL;
+    const cJSON *row;
+
+    fixture_init(&fx, kLibrarySql);
+    cJSON_AddItemToArray(changes, make_change("primary", "GBA/Zelda.gba", NULL, "title", "Bulk", NULL));
+    cJSON_AddItemToArray(changes, make_change("primary", "GBA/imported.gba", NULL, "title", "Bulk 2", NULL));
+    cJSON_AddItemToArray(changes, make_change("secondary_sd", "GBA/Zelda.gba", LIVE_CARD, "title", "Bulk 3", NULL));
+    assert(bulk_apply(&fx, changes) == CS_METADATA_OK);
+
+    /* Edited on the handheld since, and the second card swapped. */
+    exec_sql(fx.db_path,
+             "UPDATE game_settings SET value='Handheld' WHERE game_id=1 AND key='display_name';"
+             "UPDATE library_cards SET card_key='card-key-other' WHERE is_live=1;");
+    assert(undo_now(&fx, &skipped) == 1);
+    assert(cJSON_GetArraySize(skipped) == 2);
+    row = cJSON_GetArrayItem(skipped, 0);
+    assert(strcmp(cJSON_GetObjectItemCaseSensitive(row, "reason")->valuestring, "changed_since") == 0);
+    assert(strcmp(cJSON_GetObjectItemCaseSensitive(row, "path")->valuestring, "GBA/Zelda.gba") == 0);
+    row = cJSON_GetArrayItem(skipped, 1);
+    assert(strcmp(cJSON_GetObjectItemCaseSensitive(row, "reason")->valuestring, "card_changed") == 0);
+    cJSON_Delete(skipped);
+    expect_setting(&fx, 1, "display_name", "Handheld");
+    expect_setting(&fx, 2, "display_name", "Bulk 3");
+    expect_setting(&fx, 6, "display_name", NULL);
+}
+
+static void test_rejected_apply_keeps_previous_undo(void) {
+    fixture fx;
+    cJSON *first = cJSON_CreateArray();
+    cJSON *rejected = cJSON_CreateArray();
+    cJSON *snapshot;
+    cJSON *skipped = NULL;
+
+    fixture_init(&fx, kLibrarySql);
+    cJSON_AddItemToArray(first, make_change("primary", "GBA/Zelda.gba", NULL, "title", "First", NULL));
+    assert(bulk_apply(&fx, first) == CS_METADATA_OK);
+
+    cJSON_AddItemToArray(rejected, make_change("primary", "GBA/Zelda.gba", NULL, "title", "Second", "Wrong"));
+    assert(bulk_apply(&fx, rejected) == CS_METADATA_CONFLICT);
+    expect_setting(&fx, 1, "display_name", "First");
+
+    snapshot = cs_metadata_undo_read(&fx.paths, "GBA");
+    assert(snapshot);
+    assert(cJSON_GetArraySize(cJSON_GetObjectItemCaseSensitive(snapshot, "entries")) == 1);
+    cJSON_Delete(snapshot);
+
+    /* A snapshot belongs to its own platform. */
+    assert(cs_metadata_undo_read(&fx.paths, "SFC") == NULL);
+
+    assert(undo_now(&fx, &skipped) == 1);
+    cJSON_Delete(skipped);
+    expect_setting(&fx, 1, "display_name", NULL);
+}
+
 /* A library from before source_id can't identify a row the way the editor needs. */
 static void test_old_library_is_unavailable(void) {
     fixture fx;
@@ -486,7 +632,7 @@ static void test_old_library_is_unavailable(void) {
                  "CREATE TABLE games (id INTEGER PRIMARY KEY, system TEXT NOT NULL, name TEXT NOT NULL,"
                  " rom_path TEXT NOT NULL UNIQUE);"
                  "INSERT INTO games (system, name, rom_path) VALUES ('GBA', 'Zelda', 'Roms/GBA/Zelda.gba');");
-    assert(cs_metadata_list_games(&fx.paths, &fx.gba, out) == CS_METADATA_UNAVAILABLE);
+    assert(cs_metadata_list_games(&fx.paths, &fx.gba, 0, out) == CS_METADATA_UNAVAILABLE);
     cJSON_Delete(out);
     assert(apply_one(&fx, make_change("primary", "GBA/Zelda.gba", NULL, "title", "Mine", NULL), 0, reason,
                      sizeof(reason))
@@ -513,6 +659,10 @@ int main(void) {
     test_unlisted_and_unknown_rows_are_left_alone();
     test_malformed_changes();
     test_description_override();
+    test_list_includes_descriptions_on_request();
+    test_undo_restores_raw_state();
+    test_undo_keeps_later_edits();
+    test_rejected_apply_keeps_previous_undo();
     test_old_library_is_unavailable();
     return 0;
 }

@@ -12,7 +12,7 @@ import type { LibraryGame, LibraryGameDescription, LibraryMetadataChange } from 
 export type BulkRow = {
   id: string;
   path: string;
-  field: LibraryMetadataChange["field"];
+  field: "title" | "description";
   before: string;
   after: string;
   change: LibraryMetadataChange;
@@ -63,7 +63,7 @@ function toRows(
   return buildMetadataChanges(game, titleText, description, descriptionText).map((change) => ({
     id: `${libraryGameKey(game)}\u0000${change.field}`,
     path: game.path,
-    field: change.field,
+    field: change.field as BulkRow["field"],
     before:
       change.field === "title" ? game.title : description?.descriptionOverride || description?.defaultDescription || "",
     after:

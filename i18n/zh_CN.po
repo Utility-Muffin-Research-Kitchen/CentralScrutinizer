@@ -1336,3 +1336,75 @@ msgstr "预览更改"
 
 msgid "The handheld shows descriptions in the Grid home layout. Line breaks show as spaces there, and rescraping keeps your description."
 msgstr "掌机在网格主屏布局中显示简介。换行符在那里会显示为空格，重新抓取不会覆盖你的简介。"
+
+msgid "Order"
+msgstr "顺序"
+
+msgid "Pinned"
+msgstr "已置顶"
+
+msgid "Pin"
+msgstr "置顶"
+
+msgid "Unpin"
+msgstr "取消置顶"
+
+msgid "Up one folder"
+msgstr "返回上一级文件夹"
+
+msgid "Save order"
+msgstr "保存顺序"
+
+msgid "Discard changes"
+msgstr "放弃更改"
+
+msgid "Order saved."
+msgstr "顺序已保存。"
+
+msgid "Order saved. The handheld will show it after its next library refresh."
+msgstr "顺序已保存。掌机将在下次刷新游戏库后显示。"
+
+msgid "Could not load this system's order."
+msgstr "无法加载此系统的顺序。"
+
+msgid "Nothing was saved, because this list changed somewhere else. It's been reloaded, so please try again."
+msgstr "未保存任何内容，因为此列表已在其他地方被更改。列表已重新加载，请重试。"
+
+msgid "Pinned rows come first on the handheld, in this order. Everything else stays sorted."
+msgstr "置顶项目会按此顺序显示在掌机列表最前面，其余项目保持原有排序。"
+
+msgid "A game pinned inside a folder also rises if you turn Show Folders off."
+msgstr "如果关闭“显示文件夹”，文件夹内置顶的游戏也会排到前面。"
+
+msgid "Show Folders is off on the handheld, so this is one flat list."
+msgstr "掌机上的“显示文件夹”已关闭，因此这是一个平铺列表。"
+
+msgid "Nothing pinned here. Pin a row below to move it to the top."
+msgstr "这里没有置顶项目。置顶下方的某一行即可将其移到最前面。"
+
+msgid "Save or discard before opening another folder."
+msgstr "请先保存或放弃更改，再打开其他文件夹。"
+
+msgid "Search this list"
+msgstr "搜索此列表"
+
+msgid "Search this list..."
+msgstr "搜索此列表..."
+
+msgid "No other rows here."
+msgstr "这里没有其他项目。"
+
+msgid "Move {name} up"
+msgstr "上移 {name}"
+
+msgid "Move {name} down"
+msgstr "下移 {name}"
+
+msgid "Unpin {name}"
+msgstr "取消置顶 {name}"
+
+msgid "Open {name}"
+msgstr "打开 {name}"
+
+msgid "Pin {name}"
+msgstr "置顶 {name}"

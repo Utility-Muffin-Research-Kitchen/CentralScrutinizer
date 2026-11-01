@@ -16,6 +16,8 @@
 #define CS_METADATA_KEY_TITLE "display_name"
 #define CS_METADATA_KEY_DESCRIPTION "user_synopsis"
 #define CS_METADATA_KEY_SCRAPED_DESCRIPTION "ss.synopsis"
+#define CS_METADATA_KEY_RANK "sort_rank"
+#define CS_METADATA_FOLDER_RANK_PREFIX "folder_rank:"
 /* A writer can hold the library for a while, as when Leaf refreshes Pak Rat. */
 #define CS_METADATA_BUSY_TIMEOUT_MS 5000
 #define CS_METADATA_SYSTEM_COUNT 6
@@ -428,12 +430,56 @@ typedef struct {
     const char *key;
     const char *expected;
     char *value; /* normalized and owned; NULL clears the override */
+    char *folder_key; /* owned; set for a folder's rank, which lives in system_settings */
+    int is_rank;
 } cs_metadata_change;
+
+static void cs_metadata_change_free(cs_metadata_change *parsed) {
+    free(parsed->value);
+    free(parsed->folder_key);
+    parsed->value = NULL;
+    parsed->folder_key = NULL;
+}
+
+/* The system_settings key for a folder: its path below the system folder in ASCII
+ * lowercase, which is how the launcher merges folders across cards and aliases. */
+static char *cs_metadata_folder_key(const char *path) {
+    size_t prefix = strlen(CS_METADATA_FOLDER_RANK_PREFIX);
+    size_t len = strlen(path);
+    char *key = malloc(prefix + len + 1);
+
+    if (key) {
+        memcpy(key, CS_METADATA_FOLDER_RANK_PREFIX, prefix);
+        for (size_t i = 0; i <= len; i++) {
+            char c = path[i];
+            key[prefix + i] = c >= 'A' && c <= 'Z' ? (char) (c - 'A' + 'a') : c;
+        }
+    }
+    return key;
+}
+
+static int cs_metadata_rank_valid(const char *value) {
+    char *end = NULL;
+    long rank;
+
+    if (!value[0] || value[0] < '1' || value[0] > '9') {
+        return 0;
+    }
+    rank = strtol(value, &end, 10);
+    return !*end && rank >= 1 && rank <= CS_METADATA_RANK_MAX;
+}
+
+/* Absent, empty and junk are all "not pinned" to the launcher. */
+static long cs_metadata_rank_of(const char *value) {
+    long rank = value ? strtol(value, NULL, 10) : 0;
+
+    return rank > 0 ? rank : 0;
+}
 
 /* Parses one change without touching the library. Returns why it's malformed, or
  * NULL with parsed filled, and parsed->value then needs freeing. */
 static const char *cs_metadata_parse_change(const cJSON *change,
-                                            int allow_description,
+                                            unsigned allowed,
                                             cs_metadata_change *parsed) {
     const cJSON *source = cJSON_GetObjectItemCaseSensitive(change, "source");
     const cJSON *path = cJSON_GetObjectItemCaseSensitive(change, "path");
@@ -441,24 +487,42 @@ static const char *cs_metadata_parse_change(const cJSON *change,
     const cJSON *field = cJSON_GetObjectItemCaseSensitive(change, "field");
     const cJSON *value = cJSON_GetObjectItemCaseSensitive(change, "value");
     const cJSON *expected = cJSON_GetObjectItemCaseSensitive(change, "expected");
+    int is_folder;
     size_t limit;
 
     memset(parsed, 0, sizeof(*parsed));
-    if (!cJSON_IsString(source) || !cJSON_IsString(path) || !cJSON_IsString(field)
+    if (!cJSON_IsString(path) || !cJSON_IsString(field)
         || (!cJSON_IsNull(value) && !cJSON_IsString(value))
         || (!cJSON_IsNull(expected) && !cJSON_IsString(expected))
         || (card_key && !cJSON_IsNull(card_key) && !cJSON_IsString(card_key))) {
         return "invalid_change";
     }
-    if (strcmp(source->valuestring, CS_METADATA_SOURCE_PRIMARY) != 0
-        && strcmp(source->valuestring, CS_METADATA_SOURCE_SECONDARY) != 0) {
+    is_folder = strcmp(field->valuestring, "folderRank") == 0;
+    if (is_folder) {
+        if (!path->valuestring[0] || path->valuestring[0] == '/') {
+            return "invalid_change";
+        }
+    } else if (!cJSON_IsString(source)) {
+        return "invalid_change";
+    } else if (strcmp(source->valuestring, CS_METADATA_SOURCE_PRIMARY) != 0
+               && strcmp(source->valuestring, CS_METADATA_SOURCE_SECONDARY) != 0) {
         return "invalid_source";
     }
-    if (strcmp(field->valuestring, "title") == 0) {
+    if (is_folder || strcmp(field->valuestring, "rank") == 0) {
+        if (!(allowed & CS_METADATA_ALLOW_ORDER)) {
+            return "order_unsupported";
+        }
+        if (cJSON_IsString(value) && !cs_metadata_rank_valid(value->valuestring)) {
+            return "invalid_rank";
+        }
+        parsed->is_rank = 1;
+        parsed->key = CS_METADATA_KEY_RANK;
+        limit = 16;
+    } else if (strcmp(field->valuestring, "title") == 0) {
         parsed->key = CS_METADATA_KEY_TITLE;
         limit = CS_METADATA_TITLE_MAX;
     } else if (strcmp(field->valuestring, "description") == 0) {
-        if (!allow_description) {
+        if (!(allowed & CS_METADATA_ALLOW_DESCRIPTION)) {
             return "description_unsupported";
         }
         parsed->key = CS_METADATA_KEY_DESCRIPTION;
@@ -483,7 +547,16 @@ static const char *cs_metadata_parse_change(const cJSON *change,
             free(normalized);
         }
     }
-    parsed->source = source->valuestring;
+    if (is_folder) {
+        parsed->folder_key = cs_metadata_folder_key(path->valuestring);
+        if (!parsed->folder_key) {
+            free(parsed->value);
+            parsed->value = NULL;
+            return "out_of_memory";
+        }
+        parsed->key = parsed->folder_key;
+    }
+    parsed->source = is_folder ? NULL : source->valuestring;
     parsed->path = path->valuestring;
     parsed->card_key = cJSON_IsString(card_key) ? card_key->valuestring : NULL;
     parsed->expected = cJSON_IsString(expected) ? expected->valuestring : NULL;
@@ -497,41 +570,176 @@ static int cs_metadata_expected_matches(const char *expected, const char *curren
     return strcmp(expected, current) == 0;
 }
 
+static int cs_metadata_read_folder_setting(sqlite3 *db, const char *system, const char *key, char **value_out) {
+    sqlite3_stmt *stmt = NULL;
+    int found = 0;
+
+    *value_out = NULL;
+    if (sqlite3_prepare_v2(db, "SELECT value FROM system_settings WHERE system=? AND key=?;", -1, &stmt, NULL)
+        != SQLITE_OK) {
+        return -1;
+    }
+    sqlite3_bind_text(stmt, 1, system, -1, SQLITE_STATIC);
+    sqlite3_bind_text(stmt, 2, key, -1, SQLITE_STATIC);
+    if (sqlite3_step(stmt) == SQLITE_ROW) {
+        const char *value = (const char *) sqlite3_column_text(stmt, 0);
+
+        *value_out = strdup(value ? value : "");
+        found = *value_out ? 1 : -1;
+    }
+    sqlite3_finalize(stmt);
+    return found;
+}
+
+static int cs_metadata_write_folder_setting(sqlite3 *db, const char *system, const char *key, const char *value) {
+    sqlite3_stmt *stmt = NULL;
+    int ok;
+
+    if (value) {
+        ok = sqlite3_prepare_v2(db,
+                                "INSERT INTO system_settings (system, key, value, updated_at) "
+                                "VALUES (?1, ?2, ?3, strftime('%s','now')) "
+                                "ON CONFLICT(system, key) DO UPDATE SET value=?3, "
+                                "updated_at=strftime('%s','now');",
+                                -1,
+                                &stmt,
+                                NULL)
+             == SQLITE_OK;
+    } else {
+        ok = sqlite3_prepare_v2(db, "DELETE FROM system_settings WHERE system=?1 AND key=?2;", -1, &stmt, NULL)
+             == SQLITE_OK;
+    }
+    if (ok) {
+        sqlite3_bind_text(stmt, 1, system, -1, SQLITE_STATIC);
+        sqlite3_bind_text(stmt, 2, key, -1, SQLITE_STATIC);
+        if (value) {
+            sqlite3_bind_text(stmt, 3, value, -1, SQLITE_STATIC);
+        }
+        ok = sqlite3_step(stmt) == SQLITE_DONE;
+    }
+    sqlite3_finalize(stmt);
+    return ok ? 0 : -1;
+}
+
+static int cs_metadata_value_matches(int is_rank, const char *expected, const char *current) {
+    return is_rank ? cs_metadata_rank_of(expected) == cs_metadata_rank_of(current)
+                   : cs_metadata_expected_matches(expected, current);
+}
+
+static int cs_metadata_find_system(sqlite3 *db, const cs_platform_info *platform, char *system, size_t system_size) {
+    sqlite3_stmt *stmt = NULL;
+    int rc = -1;
+
+    system[0] = '\0';
+    if (sqlite3_prepare_v2(db,
+                           "SELECT system FROM games WHERE system IN (?, ?, ?, ?, ?, ?) "
+                           "GROUP BY system ORDER BY COUNT(*) DESC, system LIMIT 1;",
+                           -1,
+                           &stmt,
+                           NULL)
+        == SQLITE_OK) {
+        int step;
+
+        cs_metadata_bind_systems(stmt, 1, platform);
+        step = sqlite3_step(stmt);
+        if (step == SQLITE_ROW) {
+            snprintf(system, system_size, "%s", (const char *) sqlite3_column_text(stmt, 0));
+        }
+        rc = step == SQLITE_ROW || step == SQLITE_DONE ? 0 : -1;
+    }
+    sqlite3_finalize(stmt);
+    return rc;
+}
+
+cs_metadata_status cs_metadata_system_id(const cs_paths *paths,
+                                         const cs_platform_info *platform,
+                                         char *system,
+                                         size_t system_size) {
+    sqlite3 *db = NULL;
+    int rc;
+
+    if (!paths || !platform || !system || system_size == 0) {
+        return CS_METADATA_INTERNAL;
+    }
+    if (cs_metadata_open(paths, SQLITE_OPEN_READONLY, &db) != 0) {
+        return CS_METADATA_UNAVAILABLE;
+    }
+    rc = cs_metadata_find_system(db, platform, system, system_size);
+    sqlite3_close(db);
+    return rc == 0 ? CS_METADATA_OK : CS_METADATA_UNAVAILABLE;
+}
+
+cs_metadata_status cs_metadata_add_card_keys(const cs_paths *paths, cJSON *rows) {
+    sqlite3 *db = NULL;
+    cs_metadata_library library;
+    cJSON *row;
+
+    if (!paths || !cJSON_IsArray(rows)) {
+        return CS_METADATA_INTERNAL;
+    }
+    if (cs_metadata_open(paths, SQLITE_OPEN_READONLY, &db) != 0) {
+        return CS_METADATA_UNAVAILABLE;
+    }
+    if (cs_metadata_read_library(paths, db, &library) != 0) {
+        sqlite3_close(db);
+        return CS_METADATA_UNAVAILABLE;
+    }
+    sqlite3_close(db);
+    cJSON_ArrayForEach(row, rows) {
+        const cJSON *source = cJSON_GetObjectItemCaseSensitive(row, "source");
+
+        if (cJSON_IsString(source) && strcmp(source->valuestring, CS_METADATA_SOURCE_SECONDARY) == 0
+            && library.has_live_card) {
+            cJSON_AddStringToObject(row, "cardKey", library.live_card_key);
+        } else if (cJSON_IsString(source)) {
+            cJSON_AddNullToObject(row, "cardKey");
+        }
+    }
+    return CS_METADATA_OK;
+}
+
 /* Adds every reason the changes can't apply to conflicts. Returns -1 if the library
  * couldn't be read. */
 static int cs_metadata_collect_conflicts(sqlite3 *db,
                                          const cs_metadata_library *library,
                                          const cs_platform_info *platform,
+                                         const char *system,
                                          const cJSON *changes,
-                                         int allow_description,
+                                         unsigned allowed,
                                          cJSON *conflicts) {
     const cJSON *change;
     int index = 0;
 
     cJSON_ArrayForEach(change, changes) {
         cs_metadata_change parsed;
-        const char *reason;
+        const char *reason = NULL;
         char *current = NULL;
         int game_id = 0;
 
-        if (cs_metadata_parse_change(change, allow_description, &parsed)) {
+        if (cs_metadata_parse_change(change, allowed, &parsed)) {
             return -1;
         }
-        free(parsed.value);
-        reason = cs_metadata_check_identity(db, library, platform, parsed.source, parsed.path, parsed.card_key, &game_id);
+        if (!parsed.folder_key) {
+            reason = cs_metadata_check_identity(db, library, platform, parsed.source, parsed.path, parsed.card_key, &game_id);
+        } else if (!system[0]) {
+            reason = "not_found";
+        }
         if (reason) {
             cs_metadata_add_conflict(conflicts, index, reason, NULL, 0);
         } else {
-            int found = cs_metadata_read_setting(db, game_id, parsed.key, &current);
+            int found = parsed.folder_key ? cs_metadata_read_folder_setting(db, system, parsed.key, &current)
+                                          : cs_metadata_read_setting(db, game_id, parsed.key, &current);
 
             if (found < 0) {
+                cs_metadata_change_free(&parsed);
                 return -1;
             }
-            if (!cs_metadata_expected_matches(parsed.expected, found ? current : NULL)) {
+            if (!cs_metadata_value_matches(parsed.is_rank, parsed.expected, found ? current : NULL)) {
                 cs_metadata_add_conflict(conflicts, index, "stale", found ? current : NULL, 1);
             }
             free(current);
         }
+        cs_metadata_change_free(&parsed);
         index++;
     }
     return 0;
@@ -539,8 +747,9 @@ static int cs_metadata_collect_conflicts(sqlite3 *db,
 
 static int cs_metadata_write_changes(sqlite3 *db,
                                      const cs_platform_info *platform,
+                                     const char *system,
                                      const cJSON *changes,
-                                     int allow_description,
+                                     unsigned allowed,
                                      int *saved_out) {
     const cJSON *change;
     int saved = 0;
@@ -550,14 +759,18 @@ static int cs_metadata_write_changes(sqlite3 *db,
         int game_id;
         int rc = -1;
 
-        if (cs_metadata_parse_change(change, allow_description, &parsed)) {
+        if (cs_metadata_parse_change(change, allowed, &parsed)) {
             return -1;
         }
-        game_id = cs_metadata_find_game(db, platform, parsed.source, parsed.path);
-        if (game_id > 0) {
-            rc = cs_metadata_write_setting(db, game_id, parsed.key, parsed.value);
+        if (parsed.folder_key) {
+            rc = cs_metadata_write_folder_setting(db, system, parsed.key, parsed.value);
+        } else {
+            game_id = cs_metadata_find_game(db, platform, parsed.source, parsed.path);
+            if (game_id > 0) {
+                rc = cs_metadata_write_setting(db, game_id, parsed.key, parsed.value);
+            }
         }
-        free(parsed.value);
+        cs_metadata_change_free(&parsed);
         if (rc != 0) {
             return -1;
         }
@@ -570,7 +783,7 @@ static int cs_metadata_write_changes(sqlite3 *db,
 cs_metadata_status cs_metadata_apply(const cs_paths *paths,
                                      const cs_platform_info *platform,
                                      const cJSON *changes,
-                                     int allow_description,
+                                     unsigned allowed,
                                      int *saved_out,
                                      cJSON **conflicts_out,
                                      const char **error_out) {
@@ -578,6 +791,7 @@ cs_metadata_status cs_metadata_apply(const cs_paths *paths,
     cs_metadata_library library;
     cJSON *conflicts = NULL;
     const cJSON *change;
+    char system[128];
 
     if (!paths || !platform || !cJSON_IsArray(changes) || !saved_out || !conflicts_out || !error_out) {
         return CS_METADATA_INTERNAL;
@@ -589,13 +803,13 @@ cs_metadata_status cs_metadata_apply(const cs_paths *paths,
     /* A malformed request is rejected before the library is opened. */
     cJSON_ArrayForEach(change, changes) {
         cs_metadata_change parsed;
-        const char *problem = cs_metadata_parse_change(change, allow_description, &parsed);
+        const char *problem = cs_metadata_parse_change(change, allowed, &parsed);
 
         if (problem) {
             *error_out = problem;
             return CS_METADATA_INVALID;
         }
-        free(parsed.value);
+        cs_metadata_change_free(&parsed);
     }
 
     if (cs_metadata_open(paths, SQLITE_OPEN_READWRITE, &db) != 0) {
@@ -612,8 +826,8 @@ cs_metadata_status cs_metadata_apply(const cs_paths *paths,
         return CS_METADATA_UNAVAILABLE;
     }
     conflicts = cJSON_CreateArray();
-    if (!conflicts
-        || cs_metadata_collect_conflicts(db, &library, platform, changes, allow_description, conflicts) != 0) {
+    if (!conflicts || cs_metadata_find_system(db, platform, system, sizeof(system)) != 0
+        || cs_metadata_collect_conflicts(db, &library, platform, system, changes, allowed, conflicts) != 0) {
         goto failed;
     }
     if (cJSON_GetArraySize(conflicts) > 0) {
@@ -622,7 +836,7 @@ cs_metadata_status cs_metadata_apply(const cs_paths *paths,
         *conflicts_out = conflicts;
         return CS_METADATA_CONFLICT;
     }
-    if (cs_metadata_write_changes(db, platform, changes, allow_description, saved_out) != 0
+    if (cs_metadata_write_changes(db, platform, system, changes, allowed, saved_out) != 0
         || sqlite3_exec(db, "COMMIT;", NULL, NULL, NULL) != SQLITE_OK) {
         *saved_out = 0;
         goto failed;
@@ -667,7 +881,7 @@ static int cs_metadata_ensure_dir(const char *path) {
     return mkdir(buffer, 0775) != 0 && errno != EEXIST ? -1 : 0;
 }
 
-cJSON *cs_metadata_undo_build(const cs_platform_info *platform, const cJSON *changes, int allow_description) {
+cJSON *cs_metadata_undo_build(const cs_platform_info *platform, const cJSON *changes, unsigned allowed) {
     cJSON *root = cJSON_CreateObject();
     cJSON *entries = root ? cJSON_AddArrayToObject(root, "entries") : NULL;
     const cJSON *change;
@@ -682,18 +896,20 @@ cJSON *cs_metadata_undo_build(const cs_platform_info *platform, const cJSON *cha
         cJSON *entry;
         const cJSON *field = cJSON_GetObjectItemCaseSensitive(change, "field");
 
-        if (cs_metadata_parse_change(change, allow_description, &parsed)) {
+        if (cs_metadata_parse_change(change, allowed, &parsed)) {
             cJSON_Delete(root);
             return NULL;
         }
         entry = cJSON_CreateObject();
         if (!entry || !cJSON_AddItemToArray(entries, entry)) {
             cJSON_Delete(entry);
-            free(parsed.value);
+            cs_metadata_change_free(&parsed);
             cJSON_Delete(root);
             return NULL;
         }
-        cJSON_AddStringToObject(entry, "source", parsed.source);
+        if (parsed.source) {
+            cJSON_AddStringToObject(entry, "source", parsed.source);
+        }
         cJSON_AddStringToObject(entry, "path", parsed.path);
         cs_metadata_add_nullable(entry, "cardKey", parsed.card_key);
         cJSON_AddStringToObject(entry, "field", field->valuestring);
@@ -701,7 +917,7 @@ cJSON *cs_metadata_undo_build(const cs_platform_info *platform, const cJSON *cha
          * only where the apply's own value is still there. */
         cs_metadata_add_nullable(entry, "value", parsed.expected);
         cs_metadata_add_nullable(entry, "expected", parsed.value);
-        free(parsed.value);
+        cs_metadata_change_free(&parsed);
     }
     return root;
 }
@@ -820,6 +1036,7 @@ cs_metadata_status cs_metadata_undo_apply(const cs_paths *paths,
     sqlite3 *db = NULL;
     cs_metadata_library library;
     const cJSON *entry;
+    char system[128];
     int restored = 0;
 
     if (!paths || !platform || !snapshot || !restored_out || !cJSON_IsArray(skipped)) {
@@ -839,6 +1056,10 @@ cs_metadata_status cs_metadata_undo_apply(const cs_paths *paths,
         return CS_METADATA_UNAVAILABLE;
     }
 
+    if (cs_metadata_find_system(db, platform, system, sizeof(system)) != 0) {
+        goto failed;
+    }
+
     cJSON_ArrayForEach(entry, cJSON_GetObjectItemCaseSensitive(snapshot, "entries")) {
         const cJSON *source = cJSON_GetObjectItemCaseSensitive(entry, "source");
         const cJSON *path = cJSON_GetObjectItemCaseSensitive(entry, "path");
@@ -846,41 +1067,70 @@ cs_metadata_status cs_metadata_undo_apply(const cs_paths *paths,
         const cJSON *field = cJSON_GetObjectItemCaseSensitive(entry, "field");
         const cJSON *value = cJSON_GetObjectItemCaseSensitive(entry, "value");
         const cJSON *expected = cJSON_GetObjectItemCaseSensitive(entry, "expected");
-        const char *key;
-        const char *reason;
+        const char *key = CS_METADATA_KEY_TITLE;
+        const char *reason = NULL;
+        const char *raw;
+        char *folder_key = NULL;
         char *current = NULL;
+        int is_rank;
+        int is_folder;
         int game_id = 0;
         int found;
+        int rc;
 
-        if (!cJSON_IsString(source) || !cJSON_IsString(path) || !cJSON_IsString(field)) {
+        if (!cJSON_IsString(path) || !cJSON_IsString(field)) {
             continue;
         }
-        key = strcmp(field->valuestring, "description") == 0 ? CS_METADATA_KEY_DESCRIPTION : CS_METADATA_KEY_TITLE;
-        reason = cs_metadata_check_identity(db,
-                                            &library,
-                                            platform,
-                                            source->valuestring,
-                                            path->valuestring,
-                                            cJSON_IsString(card_key) ? card_key->valuestring : NULL,
-                                            &game_id);
+        is_folder = strcmp(field->valuestring, "folderRank") == 0;
+        is_rank = is_folder || strcmp(field->valuestring, "rank") == 0;
+        if (is_folder) {
+            folder_key = cs_metadata_folder_key(path->valuestring);
+            if (!folder_key) {
+                goto failed;
+            }
+            key = folder_key;
+        } else if (!cJSON_IsString(source)) {
+            continue;
+        } else {
+            if (is_rank) {
+                key = CS_METADATA_KEY_RANK;
+            } else if (strcmp(field->valuestring, "description") == 0) {
+                key = CS_METADATA_KEY_DESCRIPTION;
+            }
+            reason = cs_metadata_check_identity(db,
+                                                &library,
+                                                platform,
+                                                source->valuestring,
+                                                path->valuestring,
+                                                cJSON_IsString(card_key) ? card_key->valuestring : NULL,
+                                                &game_id);
+        }
         if (reason) {
             cs_metadata_add_skipped(skipped, path->valuestring, field->valuestring, reason);
             continue;
         }
-        found = cs_metadata_read_setting(db, game_id, key, &current);
+        found = is_folder ? cs_metadata_read_folder_setting(db, system, key, &current)
+                          : cs_metadata_read_setting(db, game_id, key, &current);
         if (found < 0) {
+            free(folder_key);
             goto failed;
         }
-        if (!cs_metadata_expected_matches(cJSON_IsString(expected) ? expected->valuestring : NULL,
-                                          found ? current : NULL)) {
+        if (!cs_metadata_value_matches(is_rank,
+                                       cJSON_IsString(expected) ? expected->valuestring : NULL,
+                                       found ? current : NULL)) {
             cs_metadata_add_skipped(skipped, path->valuestring, field->valuestring, "changed_since");
             free(current);
+            free(folder_key);
             continue;
         }
         free(current);
         /* The raw value as it was, which an override written elsewhere may have had
          * with spacing or emptiness the editor wouldn't produce. */
-        if (cs_metadata_write_setting(db, game_id, key, cJSON_IsString(value) ? value->valuestring : NULL) != 0) {
+        raw = cJSON_IsString(value) ? value->valuestring : NULL;
+        rc = is_folder ? cs_metadata_write_folder_setting(db, system, key, raw)
+                       : cs_metadata_write_setting(db, game_id, key, raw);
+        free(folder_key);
+        if (rc != 0) {
             goto failed;
         }
         restored++;

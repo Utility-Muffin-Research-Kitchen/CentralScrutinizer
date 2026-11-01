@@ -11,6 +11,9 @@ msgstr ""
 msgid "1 selection will not be scanned as a"
 msgstr ""
 
+msgid "A game pinned inside a folder also rises if you turn Show Folders off."
+msgstr ""
+
 msgid "Accepted exact filename"
 msgstr ""
 
@@ -227,6 +230,9 @@ msgstr ""
 msgid "Could not load this system's games."
 msgstr ""
 
+msgid "Could not load this system's order."
+msgstr ""
+
 msgid "Could not prepare background mode."
 msgstr ""
 
@@ -315,6 +321,9 @@ msgid "Device utilities for files, logs, and direct shell access."
 msgstr ""
 
 msgid "Disabled"
+msgstr ""
+
+msgid "Discard changes"
 msgstr ""
 
 msgid "Disconnect"
@@ -596,6 +605,12 @@ msgstr ""
 msgid "Move destination path"
 msgstr ""
 
+msgid "Move {name} down"
+msgstr ""
+
+msgid "Move {name} up"
+msgstr ""
+
 msgid "Move, delete, or download the selected files from this folder."
 msgstr ""
 
@@ -644,6 +659,9 @@ msgstr ""
 msgid "No matches found."
 msgstr ""
 
+msgid "No other rows here."
+msgstr ""
+
 msgid "No preview available"
 msgstr ""
 
@@ -653,6 +671,9 @@ msgstr ""
 msgid "Nothing found in this folder."
 msgstr ""
 
+msgid "Nothing pinned here. Pin a row below to move it to the top."
+msgstr ""
+
 msgid "Nothing to move."
 msgstr ""
 
@@ -660,6 +681,9 @@ msgid "Nothing was saved, because some of these games changed since the preview.
 msgstr ""
 
 msgid "Nothing was saved, because the undo copy couldn't be written to the SD card."
+msgstr ""
+
+msgid "Nothing was saved, because this list changed somewhere else. It's been reloaded, so please try again."
 msgstr ""
 
 msgid "Nothing would change."
@@ -701,6 +725,18 @@ msgstr ""
 msgid "Open tool"
 msgstr ""
 
+msgid "Open {name}"
+msgstr ""
+
+msgid "Order"
+msgstr ""
+
+msgid "Order saved."
+msgstr ""
+
+msgid "Order saved. The handheld will show it after its next library refresh."
+msgstr ""
+
 msgid "Overlays"
 msgstr ""
 
@@ -732,6 +768,18 @@ msgid "Pairing..."
 msgstr ""
 
 msgid "Path"
+msgstr ""
+
+msgid "Pin"
+msgstr ""
+
+msgid "Pin {name}"
+msgstr ""
+
+msgid "Pinned"
+msgstr ""
+
+msgid "Pinned rows come first on the handheld, in this order. Everything else stays sorted."
 msgstr ""
 
 msgid "Place files directly in the current folder"
@@ -872,6 +920,12 @@ msgstr ""
 msgid "Save failed. Please try again."
 msgstr ""
 
+msgid "Save or discard before opening another folder."
+msgstr ""
+
+msgid "Save order"
+msgstr ""
+
 msgid "Saved"
 msgstr ""
 
@@ -941,6 +995,12 @@ msgstr ""
 msgid "Search results truncated at 200 matches."
 msgstr ""
 
+msgid "Search this list"
+msgstr ""
+
+msgid "Search this list..."
+msgstr ""
+
 msgid "Second card"
 msgstr ""
 
@@ -966,6 +1026,9 @@ msgid "Settings"
 msgstr ""
 
 msgid "Shortcuts and maintenance utilities for this device."
+msgstr ""
+
+msgid "Show Folders is off on the handheld, so this is one flat list."
 msgstr ""
 
 msgid "Show empty consoles"
@@ -1115,7 +1178,16 @@ msgstr ""
 msgid "Undo last bulk change ({count})"
 msgstr ""
 
+msgid "Unpin"
+msgstr ""
+
+msgid "Unpin {name}"
+msgstr ""
+
 msgid "Unsupported ROM bundles"
+msgstr ""
+
+msgid "Up one folder"
 msgstr ""
 
 msgid "Upload"

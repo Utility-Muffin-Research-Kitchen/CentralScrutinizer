@@ -23,6 +23,7 @@ import type {
   LibraryGameDescription,
   LibraryGamesResponse,
   LibraryMetadataChange,
+  LibraryOrderResponse,
   LibraryMetadataResult,
   LibraryUndoResult,
 } from "./types";
@@ -467,6 +468,14 @@ export async function getLibraryGames(
   });
 
   return expectJson<LibraryGamesResponse>(response, "Game list lookup failed");
+}
+
+export async function getLibraryOrder(tag: string, folder: string, csrf: string): Promise<LibraryOrderResponse> {
+  const response = await fetch(`/api/library/order${toQuery({ tag, folder: folder || undefined })}`, {
+    headers: csrfHeaders(csrf),
+  });
+
+  return expectJson<LibraryOrderResponse>(response, "Order lookup failed");
 }
 
 export async function getLibraryGame(

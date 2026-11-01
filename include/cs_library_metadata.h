@@ -23,6 +23,22 @@ typedef enum {
  * become spaces, runs of whitespace collapse, and the ends are trimmed. In place. */
 void cs_metadata_normalize_text(char *text);
 
+/* What the running daemon can honor, for cs_metadata_apply and cs_metadata_undo_build. */
+#define CS_METADATA_ALLOW_DESCRIPTION (1u << 0)
+#define CS_METADATA_ALLOW_ORDER (1u << 1)
+#define CS_METADATA_RANK_MAX 999999
+
+/* The platform's system id in the library, for the daemon's per-system requests. A
+ * platform whose games sit under two ids gets the one with the most games. Fills system
+ * with "" when it has no games. */
+cs_metadata_status cs_metadata_system_id(const cs_paths *paths,
+                                         const cs_platform_info *platform,
+                                         char *system,
+                                         size_t system_size);
+
+/* Adds cardKey to each second-card row of the daemon's level. */
+cs_metadata_status cs_metadata_add_card_keys(const cs_paths *paths, cJSON *rows);
+
 /* Adds the platform's listed games to out as "games", each with its identity, title
  * and raw title override, and the same for descriptions when asked for. A second
  * card's games appear only when it is mounted and the library knows which card it is,
@@ -41,17 +57,21 @@ cs_metadata_status cs_metadata_get_game(const cs_paths *paths,
 
 /* Applies a JSON array of changes in one transaction, or none of them:
  *
- *   {source, path, cardKey, field: "title"|"description", value, expected}
+ *   {source, path, cardKey, field: "title"|"description"|"rank", value, expected}
+ *   {path, field: "folderRank", value, expected}
+ *
+ * A folder has no row, so it needs no source or card: path is below the system folder.
+ * Ranks are positive whole numbers, and absent, empty or junk all count as not pinned.
  *
  * value null, or empty once normalized, clears the override by deleting its row.
  * expected is the raw override the change replaces, null when there is none. On
  * CS_METADATA_CONFLICT, conflicts_out holds an array naming each rejected change and
- * why. On CS_METADATA_INVALID, error_out names the problem. allow_description is
- * false on a Leaf that wouldn't show the override. */
+ * why. On CS_METADATA_INVALID, error_out names the problem. allowed says what the
+ * running Leaf would honor. */
 cs_metadata_status cs_metadata_apply(const cs_paths *paths,
                                      const cs_platform_info *platform,
                                      const cJSON *changes,
-                                     int allow_description,
+                                     unsigned allowed,
                                      int *saved_out,
                                      cJSON **conflicts_out,
                                      const char **error_out);
@@ -61,7 +81,7 @@ cs_metadata_status cs_metadata_apply(const cs_paths *paths,
  * apply has committed, so a rejected apply leaves the previous undo in place:
  *
  *   build, prepare, cs_metadata_apply, then commit or discard. */
-cJSON *cs_metadata_undo_build(const cs_platform_info *platform, const cJSON *changes, int allow_description);
+cJSON *cs_metadata_undo_build(const cs_platform_info *platform, const cJSON *changes, unsigned allowed);
 int cs_metadata_undo_prepare(const cs_paths *paths, const cJSON *snapshot);
 int cs_metadata_undo_commit(const cs_paths *paths);
 void cs_metadata_undo_discard(const cs_paths *paths);

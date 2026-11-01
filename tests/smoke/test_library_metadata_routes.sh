@@ -87,6 +87,11 @@ while True:
                      "pending_rescan": False, "scan_error": ""}
             if "caps" in state:
                 reply["metadata_caps"] = state["caps"]
+        elif kind == "library-folder-rows":
+            reply = {"type": "library-folder-rows", "show_folders": True, "folder": "", "rows": [
+                {"kind": "folder", "path": "Hacks", "name": "Hacks", "games": 2, "rank": 1},
+                {"kind": "game", "source": "primary", "path": "GBA/Zelda.gba", "name": "Zelda", "rank": 0},
+            ]}
         elif state.get("reject"):
             reply = {"type": "error", "message": "no"}
         else:
@@ -288,6 +293,46 @@ DAEMON_PID=""
 rm -f "$SOCKET"
 expect_status "$(post "$(title_change '"Offline"' null)")" 200 '"refreshed":false'
 [ "$(db_value display_name)" = "Offline" ]
+
+# Order needs a daemon that can honor it, and CS shows the daemon's rows.
+expect_status "$(post '{"tag":"GBA","changes":[{"path":"Hacks","field":"folderRank","value":"1","expected":null}]}')" 400 '"error":"order_unsupported"'
+curl -s -b "$COOKIE_JAR" -H "X-CS-CSRF: $CSRF" "$BASE/api/library/order?tag=GBA" -w '\n%{http_code}' | tail -n 1 | grep -q '^409$'
+
+: > "$FAKE_LOG"
+fake_daemon &
+DAEMON_PID=$!
+for _ in $(seq 1 50); do
+    [ -S "$SOCKET" ] && break
+    sleep 0.1
+done
+set_daemon '{"caps":["user_synopsis","metadata_changed","sort_rank","folder_rows"]}'
+python3 -I -c 'import os, sqlite3
+db = sqlite3.connect(os.environ["DB"])
+db.execute("CREATE TABLE system_settings (system TEXT NOT NULL, key TEXT NOT NULL, value TEXT NOT NULL, updated_at INTEGER NOT NULL, PRIMARY KEY (system, key))")
+db.commit()'
+printf '%s' "$(curl -sf -b "$COOKIE_JAR" -H "X-CS-CSRF: $CSRF" "$BASE/api/library/games?tag=GBA")" | grep -Fq '"orderSupported":true'
+ORDER="$(curl -s -b "$COOKIE_JAR" -H "X-CS-CSRF: $CSRF" "$BASE/api/library/order?tag=GBA" -w '\n%{http_code}')"
+expect_status "$ORDER" 200 '"showFolders":true'
+printf '%s' "$ORDER" | grep -Fq '"name":"Hacks"'
+printf '%s' "$ORDER" | grep -Fq '"cardKey":null'
+grep -Fxq 'library-folder-rows' "$FAKE_LOG"
+
+PINS='{"tag":"GBA","undoable":true,"changes":[
+  {"path":"Hacks","field":"folderRank","value":"1","expected":null},
+  {"source":"primary","path":"GBA/Zelda.gba","cardKey":null,"field":"rank","value":"2","expected":null}]}'
+expect_status "$(post "$PINS")" 200 '"undoKept":true'
+[ "$(db_value sort_rank)" = "2" ]
+folder_rank() {
+    python3 -I -c 'import os, sqlite3
+row = sqlite3.connect(os.environ["DB"]).execute("SELECT value FROM system_settings WHERE system=\"GBA\" AND key=\"folder_rank:hacks\"").fetchone()
+print(row[0] if row else "<none>")'
+}
+[ "$(folder_rank)" = "1" ]
+expect_status "$(post "$PINS")" 409 '"reason":"stale"'
+expect_status "$(post '{"tag":"GBA","changes":[{"path":"Hacks","field":"folderRank","value":"zero","expected":"1"}]}')" 400 '"error":"invalid_rank"'
+expect_status "$(curl -s -b "$COOKIE_JAR" -H "X-CS-CSRF: $CSRF" -H 'Content-Type: application/json' -X POST "$BASE/api/library/undo" -d '{"tag":"GBA"}' -w '\n%{http_code}')" 200 '"restored":2'
+[ "$(db_value sort_rank)" = "<none>" ]
+[ "$(folder_rank)" = "<none>" ]
 
 # Malformed and oversized requests.
 expect_status "$(post 'not json')" 400 '"error":"invalid_request"'

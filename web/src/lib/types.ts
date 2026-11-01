@@ -34,6 +34,25 @@ export type LibraryGame = {
 export type LibraryGamesResponse = {
   games: LibraryGame[];
   descriptionSupported: boolean;
+  orderSupported?: boolean;
+  undoCount: number;
+};
+
+export type LibraryOrderRow = {
+  kind: "game" | "folder";
+  path: string;
+  name: string;
+  rank: number;
+  source?: string;
+  cardKey?: string | null;
+  games?: number;
+};
+
+export type LibraryOrderResponse = {
+  showFolders: boolean;
+  folder: string;
+  parent: string | null;
+  rows: LibraryOrderRow[];
   undoCount: number;
 };
 
@@ -42,14 +61,21 @@ export type LibraryGameDescription = {
   defaultDescription: string;
 };
 
-export type LibraryMetadataChange = {
-  source: string;
-  path: string;
-  cardKey: string | null;
-  field: "title" | "description";
-  value: string | null;
-  expected: string | null;
-};
+export type LibraryMetadataChange =
+  | {
+      source: string;
+      path: string;
+      cardKey: string | null;
+      field: "title" | "description" | "rank";
+      value: string | null;
+      expected: string | null;
+    }
+  | {
+      path: string;
+      field: "folderRank";
+      value: string | null;
+      expected: string | null;
+    };
 
 export type LibraryMetadataResult = {
   saved: number;

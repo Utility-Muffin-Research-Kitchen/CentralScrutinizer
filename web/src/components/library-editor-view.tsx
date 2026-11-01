@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 
 import { LibraryBulkTools } from "./library-bulk-tools";
+import { LibraryOrderView } from "./library-order-view";
 import { ApiError, getLibraryGame, getLibraryGames, saveLibraryMetadata } from "../lib/api";
 import {
   buildMetadataChanges,
@@ -250,6 +251,8 @@ export function LibraryEditorView({
   const [games, setGames] = useState<LibraryGame[]>([]);
   const [descriptionSupported, setDescriptionSupported] = useState(false);
   const [undoCount, setUndoCount] = useState(0);
+  const [orderSupported, setOrderSupported] = useState(false);
+  const [tab, setTab] = useState<"info" | "order">("info");
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
@@ -268,6 +271,7 @@ export function LibraryEditorView({
     setGames(sorted);
     setDescriptionSupported(response.descriptionSupported);
     setUndoCount(response.undoCount ?? 0);
+    setOrderSupported(response.orderSupported === true);
     return sorted;
   }
 
@@ -320,13 +324,47 @@ export function LibraryEditorView({
         </p>
       </div>
 
+      {orderSupported && csrf ? (
+        <div className="flex gap-2" role="tablist">
+          {(
+            [
+              ["info", "Titles and descriptions"],
+              ["order", "Order"],
+            ] as const
+          ).map(([key, label]) => (
+            <button
+              aria-selected={tab === key}
+              className={`rounded-md border px-3 py-2 text-xs transition ${
+                tab === key
+                  ? "border-[var(--accent)] text-[var(--text)]"
+                  : "border-[var(--border)] text-[var(--muted)] hover:text-[var(--text)]"
+              }`}
+              key={key}
+              onClick={() => {
+                setTab(key);
+                setNotice(null);
+                if (key === "info") {
+                  void reload().catch(() => undefined);
+                }
+              }}
+              role="tab"
+              type="button"
+            >
+              {t(label)}
+            </button>
+          ))}
+        </div>
+      ) : null}
+
       {notice ? (
         <p className="rounded-md border border-[var(--border)] px-3 py-2 text-sm text-[var(--text)]" role="status">
           {notice}
         </p>
       ) : null}
 
-      {loading ? (
+      {tab === "order" && csrf ? (
+        <LibraryOrderView csrf={csrf} platform={platform} />
+      ) : loading ? (
         <p className="text-sm italic text-[var(--muted)]">{t("Loading games...")}</p>
       ) : loadError ? (
         <p className="text-sm text-[var(--accent)]" role="alert">
